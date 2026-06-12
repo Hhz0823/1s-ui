@@ -1,112 +1,88 @@
-## S-UI
-基于`SagerNet/Sing-Box`构建的高级 Web 面板
+﻿# 1S-UI
 
-[alireza0/s-ui](https://github.com/alireza0/s-ui) 的 1.4.1 版本备份
+A feature-rich web panel for [Sing-Box](https://github.com/SagerNet/sing-box), forked from [alireza0/s-ui](https://github.com/alireza0/s-ui) v1.4.1.
 
-Backup of [alireza0/s-ui](https://github.com/alireza0/s-ui) v1.4.1
+> **Disclaimer:** This project is for personal learning and exchange purposes only. Please do not use it for illegal purposes.
 
-> **免责声明：** 本项目仅供个人学习与交流使用，请勿用于非法用途。
+## Features
 
+| Feature | Supported |
+| -------------------------------------- | :-------: |
+| Multi-protocol | :heavy_check_mark: |
+| Multi-language | :heavy_check_mark: |
+| Multi-client/inbound | :heavy_check_mark: |
+| Advanced traffic routing | :heavy_check_mark: |
+| Client, traffic & system status | :heavy_check_mark: |
+| Subscription (link/json/clash + info) | :heavy_check_mark: |
+| 10 UI Themes (Dark/Light + 8 custom) | :heavy_check_mark: |
+| API interface | :heavy_check_mark: |
+| TLS pinnedPeerCertificateSha256 | :heavy_check_mark: |
+| Quick add node (auto TLS + config) | :heavy_check_mark: |
+| Congestion control (BBR/FQ/CAKE) | :heavy_check_mark: |
 
-## 快速概览
-| 功能 | 是否支持 |
-| -------------------------------------- | :----------------: |
-| 多协议 | :heavy_check_mark: |
-| 多语言 | :heavy_check_mark: |
-| 多客户端/入站 | :heavy_check_mark: |
-| 高级流量路由界面 | :heavy_check_mark: |
-| 客户端、流量与系统状态 | :heavy_check_mark: |
-| 订阅链接（link/json/clash + info） | :heavy_check_mark: |
-| 深色/浅色主题 | :heavy_check_mark: |
-| API 接口 | :heavy_check_mark: |
+## Supported Platforms
 
-## 支持平台
-| 平台 | 架构 | 状态 |
-|----------|--------------|---------|
-| Linux | amd64, arm64, armv7, armv6, armv5, 386, s390x | 支持 |
-| Windows | amd64, 386, arm64 | 支持 |
-| macOS | amd64, arm64 | 实验性支持 |
+| Platform | Architecture | Status |
+|----------|--------------|--------|
+| Linux | amd64, arm64, armv7, armv6, armv5, 386, s390x | Supported |
+| Windows | amd64, 386, arm64 | Supported |
+| macOS | amd64, arm64 | Experimental |
 
+## Default Settings
 
-## 默认安装信息
-- 面板端口：2095
-- 面板路径：/app/
-- 订阅端口：2096
-- 订阅路径：/sub/
-- 用户名/密码：admin
+- Panel port: 2095
+- Panel path: /app/
+- Subscription port: 2096
+- Subscription path: /sub/
+- Username: dmin
+- Password: dmin
 
-## 安装或升级到最新版本
-
-### Linux/macOS
-```sh
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/s-ui/main/install.sh)
-```
-
-### Windows
-1. 从 [GitHub Releases](https://github.com/Hhz0823/s-ui/releases/latest) 下载最新 Windows 版本。
-2. 解压 ZIP 文件。
-3. 以管理员身份运行 `install-windows.bat`。
-4. 按照安装向导操作。
-
-## 安装旧版本
-
-**步骤 1：** 如果要安装指定旧版本，请在安装命令末尾追加带 `v` 的版本标签。例如版本 `v1.0.0`：
-
-
-## 手动安装
+## Install or Upgrade
 
 ### Linux/macOS
-1. 根据你的系统和架构，从 GitHub 获取最新版本 S-UI：[https://github.com/Hhz0823/s-ui/releases/latest](https://github.com/Hhz0823/s-ui/releases/latest)
-2. **可选：** 获取最新版 `s-ui.sh`：[https://raw.githubusercontent.com/Hhz0823/s-ui/main/s-ui.sh](https://raw.githubusercontent.com/Hhz0823/s-ui/main/s-ui.sh)
-3. **可选：** 将 `s-ui.sh` 复制到 `/usr/bin/`，并执行 `chmod +x /usr/bin/s-ui`。
-4. 将 s-ui tar.gz 文件解压到你选择的目录，并进入解压后的目录。
-5. 将 `*.service` 文件复制到 `/etc/systemd/system/`，然后执行 `systemctl daemon-reload`。
-6. 使用 `systemctl enable s-ui --now` 启用开机自启并启动 S-UI 服务。
-7. 使用 `systemctl enable sing-box --now` 启动 sing-box 服务。
+`sh
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
+`
 
 ### Windows
-1. 从 GitHub 获取最新 Windows 版本：[https://github.com/Hhz0823/s-ui/releases/latest](https://github.com/Hhz0823/s-ui/releases/latest)
-2. 下载适合的 Windows 包，例如 `s-ui-windows-amd64.zip`。
-3. 将 ZIP 文件解压到你选择的目录。
-4. 以管理员身份运行 `install-windows.bat`。
-5. 按照安装向导操作。
-6. 访问面板：http://localhost:2095/app
+1. Download the latest Windows version from [GitHub Releases](https://github.com/Hhz0823/1s-ui/releases/latest)
+2. Extract the ZIP file
+3. Run install-windows.bat as administrator
+4. Follow the installation guide
 
-## 卸载 S-UI
+## Manual Installation
 
-```sh
+### Linux/macOS
+1. Download the latest S-UI release from [GitHub Releases](https://github.com/Hhz0823/1s-ui/releases/latest)
+2. (Optional) Download the latest s-ui.sh: [s-ui.sh](https://raw.githubusercontent.com/Hhz0823/1s-ui/main/s-ui.sh)
+3. (Optional) Copy s-ui.sh to /usr/bin/ and run chmod +x /usr/bin/s-ui
+4. Extract the s-ui tar.gz file to your chosen directory
+5. Copy *.service files to /etc/systemd/system/ and run systemctl daemon-reload
+6. Use systemctl enable s-ui --now to enable and start the S-UI service
+7. Use systemctl enable sing-box --now to start the sing-box service
+
+## Uninstall S-UI
+
+`sh
 sudo -i
-
-systemctl disable s-ui  --now
-
+systemctl disable s-ui --now
 rm -f /etc/systemd/system/sing-box.service
 systemctl daemon-reload
-
 rm -fr /usr/local/s-ui
 rm /usr/bin/s-ui
-```
+`
 
-## 使用 Docker 安装
+## Docker Installation
 
 <details>
-   <summary>点击查看详情</summary>
+<summary>Click to view details</summary>
 
-### 使用方式
+### Docker Compose
 
-**步骤 1：** 安装 Docker
-
-```shell
-curl -fsSL https://get.docker.com | sh
-```
-
-**步骤 2：** 安装 S-UI
-
-> Docker compose 方式
-
-```shell
+`yaml
 services:
   s-ui:
-    image: ghcr.io/Hhz0823/s-ui
+    image: ghcr.io/hhz0823/1s-ui
     container_name: s-ui
     hostname: "s-ui"
     network_mode: host
@@ -116,126 +92,80 @@ services:
     tty: true
     restart: unless-stopped
     entrypoint: "./entrypoint.sh"
-```
-`docker compose up -d`
+`
 
-> 直接使用 docker
+`shell
+docker compose up -d
+`
 
-```shell
+### Direct Docker
+
+`shell
 docker run -itd \
     --network host \
-    -v $PWD/db/:/app/db/ \
-    -v $PWD/cert/:/root/cert/ \
+    -v E:\1S-ui/db/:/app/db/ \
+    -v E:\1S-ui/cert/:/root/cert/ \
     --name s-ui \
     --restart=unless-stopped \
-    ghcr.io/Hhz0823/s-ui
-```
+    ghcr.io/hhz0823/1s-ui
+`
 
-> 自行构建镜像
+### Build from Source
 
-```shell
-git clone https://github.com/Hhz0823/s-ui
+`shell
+git clone https://github.com/Hhz0823/1s-ui
 docker build -t s-ui .
-```
+`
 
 </details>
 
-## 手动运行（贡献开发）
+## Languages
+
+- English
+- Farsi
+- Vietnamese
+- Simplified Chinese
+- Traditional Chinese
+- Russian
+
+## Protocols
+
+- **Common protocols:** Mixed, SOCKS, HTTP, HTTPS, Direct, Redirect, TProxy
+- **V2Ray protocols:** VLESS, VMess, Trojan, Shadowsocks
+- **Other protocols:** ShadowTLS, Hysteria, Hysteria2, Naive, TUIC, AnyTls
+- **XTLS** supported
+- **Congestion control:** BBR v1/v2/v3/v2plus/plus, FQ, CAKE
+
+## Environment Variables
 
 <details>
-   <summary>点击查看详情</summary>
+<summary>Click to view details</summary>
 
-### 构建并运行完整项目
-```shell
-./runSUI.sh
-```
-
-### 克隆仓库
-```shell
-# 克隆仓库
-git clone https://github.com/Hhz0823/s-ui
-```
-
-### - 前端
-
-前端代码请查看 [frontend](frontend)
-
-### - 后端
-> 请先至少构建一次前端。
-
-构建后端：
-```shell
-# 删除旧的前端编译文件
-rm -fr web/html/*
-# 应用新的前端编译文件
-cp -R frontend/dist/ web/html/
-# 构建
-go build -o sui main.go
-```
-
-运行后端（在仓库根目录执行）：
-```shell
-./sui
-```
+| Variable | Type | Default |
+| -------------- | :---: | :---: |
+| SUI_LOG_LEVEL | "debug" \| "info" \| "warn" \| "error" | "info" |
+| SUI_DEBUG | oolean | alse |
+| SUI_BIN_FOLDER | string | "bin" |
+| SUI_DB_FOLDER | string | "db" |
+| SINGBOX_API | string | - |
 
 </details>
 
-## 语言
-
-- 英语
-- 波斯语
-- 越南语
-- 简体中文
-- 繁体中文
-- 俄语
-
-## 功能
-
-- 支持的协议：
-  - 通用协议：Mixed、SOCKS、HTTP、HTTPS、Direct、Redirect、TProxy
-  - 基于 V2Ray 的协议：VLESS、VMess、Trojan、Shadowsocks
-  - 其他协议：ShadowTLS、Hysteria、Hysteria2、Naive、TUIC
-- 支持 XTLS 协议。
-- 提供高级流量路由界面，支持 PROXY Protocol、External、透明代理、SSL 证书和端口配置。
-- 提供高级入站和出站配置界面。
-- 支持客户端流量上限和到期时间。
-- 显示在线客户端、入站、出站流量统计和系统状态监控。
-- 订阅服务支持添加外部链接和订阅。
-- Web 面板和订阅服务支持 HTTPS 安全访问（需自行提供域名和 SSL 证书）。
-- 深色/浅色主题。
-
-## 环境变量
+## SSL Certificate
 
 <details>
-  <summary>点击查看详情</summary>
+<summary>Click to view details</summary>
 
-### 使用方式
-
-| 变量 | 类型 | 默认值 |
-| -------------- | :--------------------------------------------: | :------------ |
-| SUI_LOG_LEVEL | `"debug"` \| `"info"` \| `"warn"` \| `"error"` | `"info"` |
-| SUI_DEBUG | `boolean` | `false` |
-| SUI_BIN_FOLDER | `string` | `"bin"` |
-| SUI_DB_FOLDER | `string` | `"db"` |
-| SINGBOX_API | `string` | - |
-
-</details>
-
-## SSL 证书
-
-<details>
-  <summary>点击查看详情</summary>
-
-### Certbot
-
-```bash
+`ash
 snap install core; snap refresh core
 snap install --classic certbot
 ln -s /snap/bin/certbot /usr/bin/certbot
 
-certbot certonly --standalone --register-unsafely-without-email --non-interactive --agree-tos -d <你的域名>
-```
+certbot certonly --standalone --register-unsafely-without-email --non-interactive --agree-tos -d <your-domain>
+`
 
 </details>
 
-#### 鸣谢原作者：[alireza0/s-ui](https://github.com/alireza0/s-ui)
+---
+
+Thanks to the original author: [alireza0/s-ui](https://github.com/alireza0/s-ui)
