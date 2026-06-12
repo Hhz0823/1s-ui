@@ -1,0 +1,12 @@
+services:
+  s-ui:
+    image: ghcr.io/Hhz0823/s-ui
+    container_name: s-ui
+    hostname: "s-ui"
+    network_mode: host
+    volumes:
+      - "./db:/app/db"
+      - "./cert:/app/cert"
+    tty: true
+    restart: unless-stopped
+    entrypoint: "./entrypoint.sh"

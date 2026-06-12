@@ -1,0 +1,151 @@
+name: 构建 Windows 版 S-UI
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "发布标签"
+        required: true
+        default: "v1.4.1"
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: "25"
+  TAGS: "with_quic,with_grpc,with_utls,with_acme,with_gvisor,with_naive_outbound,with_purego,badlinkname,tfogo_checklinkname0,with_tailscale"
+  LIBCRONET_BASE_URL: "https://github.com/SagerNet/cronet-go/releases/latest/download"
+
+jobs:
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v6.0.2
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: "https://registry.npmjs.org"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 构建前端
+        run: |
+          cd frontend
+          npm install
+          npm run build
+
+      - name: 上传前端构建产物
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+
+  build-windows:
+    needs: build-frontend
+    name: 构建-windows-${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: amd64, runner: windows-latest, cgo: "1" }
+          - { arch: arm64, runner: ubuntu-latest, cgo: "0" }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v6.0.2
+
+      - name: 下载前端构建产物
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: web/html
+
+      - name: 设置 Go
+        uses: actions/setup-go@v6
+        with:
+          cache: false
+          go-version-file: go.mod
+
+      - name: 为 Windows 安装 zip
+        if: matrix.arch == 'amd64'
+        shell: powershell
+        run: |
+          if (!(Get-Command choco -ErrorAction SilentlyContinue)) {
+            Set-ExecutionPolicy Bypass -Scope Process -Force
+            [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+            iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+          }
+          choco install zip -y
+
+      - name: 构建 s-ui
+        shell: bash
+        run: |
+          export CGO_ENABLED=${{ matrix.cgo }}
+          export GOOS=windows
+          export GOARCH=${{ matrix.arch }}
+
+          echo "正在为 Windows ${{ matrix.arch }} 构建"
+          go version
+          go env GOOS GOARCH
+
+          go build -ldflags="-w -s -checklinkname=0" -tags "${{ env.TAGS }}" -o sui.exe main.go
+          file sui.exe
+
+          mkdir s-ui-windows
+          cp sui.exe s-ui-windows/
+          cp -r windows/* s-ui-windows/
+
+      - name: 下载 libcronet-go
+        shell: bash
+        run: |
+          curl -qsL -o s-ui-windows/libcronet.dll ${{ env.LIBCRONET_BASE_URL }}/libcronet-windows-${{ matrix.arch }}.dll
+
+      - name: 打包
+        shell: bash
+        run: |
+          zip -r "s-ui-windows-${{ matrix.arch }}.zip" s-ui-windows
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v7
+        with:
+          name: s-ui-windows-${{ matrix.arch }}
+          path: ./s-ui-windows-${{ matrix.arch }}.zip
+          retention-days: 1
+
+  publish-windows:
+    name: 发布 Windows 产物
+    needs: build-windows
+    runs-on: ubuntu-latest
+    steps:
+      - name: 规范化发布标签
+        id: vars
+        run: |
+          TAG="${{ inputs.tag }}"
+          case "$TAG" in
+            v*) echo "tag=$TAG" >> "$GITHUB_OUTPUT" ;;
+            *) echo "tag=v$TAG" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: 下载 Windows 构建产物
+        uses: actions/download-artifact@v8
+        with:
+          pattern: s-ui-windows-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: 发布到当前仓库 Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: s-ui ${{ steps.vars.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          fail_on_unmatched_files: true
+          files: release-assets/*

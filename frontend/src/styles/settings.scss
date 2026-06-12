@@ -1,0 +1,145 @@
+/**
+ * src/styles/settings.scss
+ *
+ * Configures SASS variables and Vuetify overwrites
+ */
+
+// https://vuetifyjs.com/features/sass-variables/`
+// @use 'vuetify/settings' with (
+//   $color-pack: false
+// );
+@font-face {
+    font-display: swap;
+    font-family: 'Vazirmatn';
+    font-style: normal;
+    font-weight: 400;
+    src: url('@/assets/Vazirmatn-UI-NL-Regular.woff2') format('woff2');
+    unicode-range: U+0600-06FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE80-FEFC, U+0030-0039;
+}
+$body-font-family: "Vazirmatn";
+
+$typoOptions: text-h1, text-sm-h1, text-md-h1, text-lg-h1, text-h2, text-sm-h2,
+  text-md-h2, text-lg-h2, text-h3, text-sm-h3, text-md-h3, text-lg-h3, text-h4,
+  text-sm-h4, text-md-h4, text-lg-h4, text-h5, text-sm-h5, text-md-h5,
+  text-lg-h5, text-h6, text-sm-h6, text-md-h6, text-lg-h6, headline, title,
+  subtitle-1, subtitle-2, text-body-1, text-sm-body-1, text-md-body-1,
+  text-lg-body-1, text-body-2, text-sm-body-2, text-md-body-2, text-lg-body-2,
+  text-caption;
+body {
+  font-family: -apple-system, BlinkMacSystemFont, $body-font-family, sans-serif !important;
+  @each $typoOption in $typoOptions {
+    .#{$typoOption} {
+      font-family: -apple-system, BlinkMacSystemFont, $body-font-family, sans-serif !important;
+    }
+  }
+}
+
+.v-btn {
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 500;
+  border-radius: 12px !important;
+}
+
+.v-card {
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08) !important;
+}
+
+.v-list-item {
+  border-radius: 12px !important;
+  margin: 2px 4px;
+}
+
+.v-navigation-drawer {
+  border-right: none !important;
+}
+
+.v-application {
+  letter-spacing: 0.01em;
+}
+
+.v-tab {
+  text-transform: none !important;
+  font-weight: 500;
+}
+
+.v-chip {
+  border-radius: 8px;
+}
+
+.v-text-field .v-field,
+.v-select .v-field,
+.v-textarea .v-field,
+.v-combobox .v-field {
+  border-radius: 12px !important;
+}
+
+.v-menu .v-card,
+.v-overlay .v-card {
+  border-radius: 16px !important;
+}
+
+.v-dialog .v-card {
+  border-radius: 20px !important;
+}
+
+.v-app-bar {
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.v-navigation-drawer {
+  backdrop-filter: blur(12px);
+}
+
+.v-theme--dark .v-card,
+.v-theme--midnight .v-card,
+.v-theme--ocean .v-card,
+.v-theme--forest .v-card,
+.v-theme--cyberpunk .v-card,
+.v-theme--nord .v-card,
+.v-theme--dracula .v-card {
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2) !important;
+}
+
+.v-theme--dark .v-btn,
+.v-theme--midnight .v-btn,
+.v-theme--ocean .v-btn,
+.v-theme--forest .v-btn,
+.v-theme--cyberpunk .v-btn,
+.v-theme--nord .v-btn,
+.v-theme--dracula .v-btn {
+  letter-spacing: 0;
+}
+
+.v-theme--dark .v-app-bar,
+.v-theme--midnight .v-app-bar,
+.v-theme--ocean .v-app-bar,
+.v-theme--forest .v-app-bar,
+.v-theme--cyberpunk .v-app-bar,
+.v-theme--nord .v-app-bar,
+.v-theme--dracula .v-app-bar {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.v-theme--dark .v-navigation-drawer,
+.v-theme--midnight .v-navigation-drawer,
+.v-theme--ocean .v-navigation-drawer,
+.v-theme--forest .v-navigation-drawer,
+.v-theme--cyberpunk .v-navigation-drawer,
+.v-theme--nord .v-navigation-drawer,
+.v-theme--dracula .v-navigation-drawer {
+  border-right-color: rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 960px) {
+  .v-card {
+    margin-bottom: 8px;
+  }
+  
+  .v-dialog .v-card {
+    max-height: calc(100vh - 32px);
+  }
+}
