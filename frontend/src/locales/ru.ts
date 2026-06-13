@@ -46,6 +46,8 @@
   },
   pages: {
     login: "Вход",
+    quickAddNode: "Быстрое добавление",
+    selectProtocol: "Выбрать протокол",
     home: "Главная",
     inbounds: "Входящие",
     outbounds: "Исходящие",
@@ -662,4 +664,3 @@
   },
 }
  
-

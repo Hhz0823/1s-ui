@@ -46,6 +46,8 @@
   },
   pages: {
     login: "Đăng nhập",
+    quickAddNode: "Thêm nhanh node",
+    selectProtocol: "Chọn giao thức",
     home: "Trang chủ",
     inbounds: "Đầu Vào",
     outbounds: "Đầu ra",

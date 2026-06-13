@@ -46,6 +46,8 @@
   },
   pages: {
     login: "ورود",
+    quickAddNode: "افزودن سریع گره",
+    selectProtocol: "انتخاب پروتکل",
     home: "خانه",
     inbounds: "ورودی‌ها",
     outbounds: "خروجی‌ها",

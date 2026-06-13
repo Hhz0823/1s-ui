@@ -46,6 +46,8 @@
   },
   pages: {
     login: "登錄",
+    quickAddNode: "一鍵新增節點",
+    selectProtocol: "選擇協議",
     home: "主頁",
     inbounds: "入站管理",
     outbounds: "出站管理",

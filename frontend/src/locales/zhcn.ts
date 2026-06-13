@@ -46,6 +46,8 @@
   },
   pages: {
     login: "登录",
+    quickAddNode: "一键添加节点",
+    selectProtocol: "选择协议",
     home: "主页",
     inbounds: "入站管理",
     outbounds: "出站管理",

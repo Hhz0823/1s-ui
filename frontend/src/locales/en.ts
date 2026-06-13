@@ -46,6 +46,8 @@
   },
   pages: {
     login: "Login",
+    quickAddNode: "Quick Add Node",
+    selectProtocol: "Select Protocol",
     home: "Home",
     inbounds: "Inbounds",
     outbounds: "Outbounds",
