@@ -601,6 +601,7 @@
     recordFragment: "启用",
     store: "根证书库",
     ktls: "内核 TLS",
+    generatePinned: "从 URL 生成",
     kernelTx: "发送",
     kernelRx: "接收",
     queryServerName: "ECH 查询服务器名称",

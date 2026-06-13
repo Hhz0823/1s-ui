@@ -1,7 +1,13 @@
 package api
 
 import (
+	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
+	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
@@ -406,6 +412,64 @@ func (a *ApiService) GetCheckOutbound(c *gin.Context) {
 	link := c.Query("link")
 	result := a.ConfigService.CheckOutbound(tag, link)
 	jsonObj(c, result, nil)
+}
+
+
+type PinnedSha256Request struct {
+	Cert         string `json:"cert"`
+	CertPath     string `json:"certPath"`
+	ServerName   string `json:"serverName"`
+}
+
+func (a *ApiService) PinnedSha256(c *gin.Context) {
+	var req PinnedSha256Request
+	if err := c.ShouldBindJSON(&req); err != nil {
+		jsonMsg(c, "pinnedSha256", err)
+		return
+	}
+	var certPEM []byte
+	if req.CertPath != "" {
+		data, err := os.ReadFile(req.CertPath)
+		if err != nil {
+			jsonMsg(c, "pinnedSha256", common.NewError("failed to read certificate: ", err.Error()))
+			return
+		}
+		certPEM = data
+	} else if req.Cert != "" {
+		certPEM = []byte(req.Cert)
+	} else if req.ServerName != "" {
+		conn, err := tls.Dial("tcp", req.ServerName+":443", &tls.Config{InsecureSkipVerify: true})
+		if err != nil {
+			jsonMsg(c, "pinnedSha256", common.NewError("failed to connect: ", err.Error()))
+			return
+		}
+		defer conn.Close()
+		certs := conn.ConnectionState().PeerCertificates
+		if len(certs) == 0 {
+			jsonMsg(c, "pinnedSha256", common.NewError("no peer certificates found"))
+			return
+		}
+		certPEM = certs[0].Raw
+	}
+	if len(certPEM) == 0 {
+		jsonMsg(c, "pinnedSha256", common.NewError("no certificate provided"))
+		return
+	}
+	block, _ := pem.Decode(certPEM)
+	var derBytes []byte
+	if block != nil {
+		derBytes = block.Bytes
+	} else {
+		derBytes = certPEM
+	}
+	cert, err := x509.ParseCertificate(derBytes)
+	if err != nil {
+		jsonMsg(c, "pinnedSha256", common.NewError("failed to parse certificate: ", err.Error()))
+		return
+	}
+	hash := sha256.Sum256(cert.Raw)
+	sha256Base64 := base64.StdEncoding.EncodeToString(hash[:])
+	jsonObj(c, []string{sha256Base64}, nil)
 }
 
 type SysctlRequest struct {

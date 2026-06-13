@@ -601,6 +601,7 @@
     recordFragment: "多筆記錄分段",
     store: "根憑證庫",
     ktls: "內核 TLS",
+    generatePinned: "從 URL 產生",
     kernelTx: "發送",
     kernelRx: "接收",
     queryServerName: "ECH 查詢伺服器名稱",

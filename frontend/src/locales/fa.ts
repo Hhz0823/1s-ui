@@ -601,6 +601,7 @@
     recordFragment: "تکه‌بندی چندگانه",
     store: "انبار ریشه",
     ktls: "TLS هسته",
+    generatePinned: "تولید از URL",
     kernelTx: "ارسال",
     kernelRx: "دریافت",
     queryServerName: "نام سرور ECH برای جستجو",

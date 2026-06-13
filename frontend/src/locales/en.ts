@@ -603,6 +603,7 @@
     recordFragment: "Multiple records Fragmentation",
     store: "Root Store",
     ktls: "Kernel TLS",
+    generatePinned: "Generate from URL",
     kernelTx: "TX",
     kernelRx: "RX",
     queryServerName: "ECH Query Server Name",

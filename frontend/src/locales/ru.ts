@@ -602,6 +602,7 @@
     recordFragment: "Фрагментация записей",
     store: "Корневое хранилище",
     ktls: "Ядро TLS",
+    generatePinned: "Сгенерировать из URL",
     kernelTx: "TX",
     kernelRx: "RX",
     queryServerName: "ECH имя сервера для запроса",

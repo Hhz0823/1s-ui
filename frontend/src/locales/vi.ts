@@ -601,6 +601,7 @@
     recordFragment: "Kiểm tra bộ nhớ",
     store: "Kho lưu trữ gốc",
     ktls: "TLS nhân",
+    generatePinned: "Tạo từ URL",
     kernelTx: "TX",
     kernelRx: "RX",
     queryServerName: "Tên máy chủ truy vấn ECH",

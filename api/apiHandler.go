@@ -60,6 +60,8 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.apiv2.ReloadTokens()
 	case "setSysctl":
 		a.ApiService.SetSysctl(c)
+	case "pinnedSha256":
+		a.ApiService.PinnedSha256(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}
