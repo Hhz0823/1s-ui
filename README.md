@@ -4,21 +4,85 @@ A feature-rich web panel for [Sing-Box](https://github.com/SagerNet/sing-box), f
 
 > **Disclaimer:** This project is for personal learning and exchange purposes only. Please do not use it for illegal purposes.
 
+---
+
+## Quick Install
+
+`ash
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
+`
+
+Default login: **admin** / **admin** | Panel: http://your-server-ip:2095/app/
+
+---
+
+## Screenshots
+
+| Login | Dashboard | Inbound Management |
+|:-----:|:---------:|:------------------:|
+| Dark theme with glassmorphism | Real-time traffic monitoring | Quick add node dialog |
+
+| TLS Settings | Outbound Management | Network (Congestion Control) |
+|:------------:|:-------------------:|:----------------------------:|
+| Pinned SHA256 support | Protocol config | BBR/FQ/CAKE kernel tuning |
+
+---
+
 ## Features
+
+### Core
 
 | Feature | Supported |
 | -------------------------------------- | :-------: |
-| Multi-protocol | :heavy_check_mark: |
-| Multi-language | :heavy_check_mark: |
-| Multi-client/inbound | :heavy_check_mark: |
-| Advanced traffic routing | :heavy_check_mark: |
-| Client, traffic & system status | :heavy_check_mark: |
-| Subscription (link/json/clash + info) | :heavy_check_mark: |
-| 10 UI Themes (Dark/Light + 8 custom) | :heavy_check_mark: |
+| Multi-protocol (VLESS, VMess, Trojan, SS, Hysteria2, TUIC, etc.) | :heavy_check_mark: |
+| Multi-language (EN, ZH-CN, ZH-TW, FA, VI, RU) | :heavy_check_mark: |
+| Multi-client / Multi-inbound management | :heavy_check_mark: |
+| Advanced traffic routing interface | :heavy_check_mark: |
+| Client, traffic & system status monitoring | :heavy_check_mark: |
+| Subscription (link / json / clash + info) | :heavy_check_mark: |
 | API interface | :heavy_check_mark: |
-| TLS pinnedPeerCertificateSha256 | :heavy_check_mark: |
-| Quick add node (auto TLS + config) | :heavy_check_mark: |
-| Congestion control (BBR/FQ/CAKE) | :heavy_check_mark: |
+
+### UI & Themes
+
+| Feature | Supported |
+| -------------------------------------- | :-------: |
+| 10 UI Themes (Light, Dark, Midnight, Ocean, Sunset, Forest, Sakura, Cyberpunk, Nord, Dracula) | :heavy_check_mark: |
+| Responsive layout (Desktop + Mobile) | :heavy_check_mark: |
+| Rounded corners, glassmorphism effects | :heavy_check_mark: |
+| Real-time theme switching | :heavy_check_mark: |
+
+### TLS & Security
+
+| Feature | Supported |
+| -------------------------------------- | :-------: |
+| TLS pinnedPeerCertificateSha256 (v2rayN compatible) | :heavy_check_mark: |
+| Auto self-signed certificate generation | :heavy_check_mark: |
+| ACME / ECH / Reality support | :heavy_check_mark: |
+| Client certificate verification | :heavy_check_mark: |
+
+### Quick Add Node
+
+| Protocol | Auto-config |
+| -------- | ----------- |
+| VMess | TLS + HTTP transport |
+| VLESS | TLS + HTTP transport |
+| Trojan | TLS + HTTP transport |
+| Hysteria2 | TLS + obfs salamander |
+| ShadowTLS | v3 + handshake server |
+| TUIC | TLS + cubic congestion |
+| Naive | TLS |
+| AnyTls | TLS + padding scheme |
+| Shadowsocks | Random password + method |
+
+### Network & Kernel
+
+| Feature | Options |
+| ------- | ------- |
+| BBR versions | v1, v2, v3, v2plus, bbrplus |
+| Queue discipline | FQ, CAKE |
+| Congestion algorithm | Cubic (default), BBR variants |
+
+---
 
 ## Supported Platforms
 
@@ -28,42 +92,71 @@ A feature-rich web panel for [Sing-Box](https://github.com/SagerNet/sing-box), f
 | Windows | amd64, 386, arm64 | Supported |
 | macOS | amd64, arm64 | Experimental |
 
+---
+
 ## Default Settings
 
-- Panel port: 2095
-- Panel path: /app/
-- Subscription port: 2096
-- Subscription path: /sub/
-- Username: dmin
-- Password: dmin
+| Setting | Value |
+| ------- | ----- |
+| Panel port | 2095 |
+| Panel path | /app/ |
+| Subscription port | 2096 |
+| Subscription path | /sub/ |
+| Username | dmin |
+| Password | dmin |
+
+---
 
 ## Install or Upgrade
 
 ### Linux/macOS
-`sh
+
+`ash
 bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
 `
 
 ### Windows
+
 1. Download the latest Windows version from [GitHub Releases](https://github.com/Hhz0823/1s-ui/releases/latest)
 2. Extract the ZIP file
 3. Run install-windows.bat as administrator
 4. Follow the installation guide
 
+### Install specific version
+
+Append the version tag with  at the end of the install command. For example, version 1.4.3:
+
+`ash
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.4.3
+`
+
+---
+
 ## Manual Installation
 
 ### Linux/macOS
+
 1. Download the latest S-UI release from [GitHub Releases](https://github.com/Hhz0823/1s-ui/releases/latest)
-2. (Optional) Download the latest s-ui.sh: [s-ui.sh](https://raw.githubusercontent.com/Hhz0823/1s-ui/main/s-ui.sh)
+2. (Optional) Download s-ui.sh: [s-ui.sh](https://raw.githubusercontent.com/Hhz0823/1s-ui/main/s-ui.sh)
 3. (Optional) Copy s-ui.sh to /usr/bin/ and run chmod +x /usr/bin/s-ui
 4. Extract the s-ui tar.gz file to your chosen directory
 5. Copy *.service files to /etc/systemd/system/ and run systemctl daemon-reload
 6. Use systemctl enable s-ui --now to enable and start the S-UI service
 7. Use systemctl enable sing-box --now to start the sing-box service
 
+### Windows
+
+1. Download from [GitHub Releases](https://github.com/Hhz0823/1s-ui/releases/latest)
+2. Extract the ZIP file
+3. Run install-windows.bat as administrator
+4. Follow the installation guide
+5. Access panel at: http://localhost:2095/app/
+
+---
+
 ## Uninstall S-UI
 
-`sh
+`ash
 sudo -i
 systemctl disable s-ui --now
 rm -f /etc/systemd/system/sing-box.service
@@ -72,10 +165,12 @@ rm -fr /usr/local/s-ui
 rm /usr/bin/s-ui
 `
 
+---
+
 ## Docker Installation
 
 <details>
-<summary>Click to view details</summary>
+<summary>Click to expand</summary>
 
 ### Docker Compose
 
@@ -94,13 +189,13 @@ services:
     entrypoint: "./entrypoint.sh"
 `
 
-`shell
+`ash
 docker compose up -d
 `
 
 ### Direct Docker
 
-`shell
+`ash
 docker run -itd \
     --network host \
     -v E:\1S-ui/db/:/app/db/ \
@@ -112,34 +207,109 @@ docker run -itd \
 
 ### Build from Source
 
-`shell
+`ash
 git clone https://github.com/Hhz0823/1s-ui
 docker build -t s-ui .
 `
 
 </details>
 
+---
+
+## Developer Build
+
+<details>
+<summary>Click to expand</summary>
+
+### Build and run the full project
+
+`ash
+./runSUI.sh
+`
+
+### Clone the repository
+
+`ash
+git clone https://github.com/Hhz0823/1s-ui
+`
+
+### Frontend
+
+See [frontend](frontend) directory.
+
+### Backend
+
+> Build the frontend at least once first.
+
+`ash
+# Remove old frontend build
+rm -fr web/html/*
+# Copy new frontend build
+cp -R frontend/dist/ web/html/
+# Build backend
+go build -o sui main.go
+`
+
+Run the backend (from project root):
+
+`ash
+./sui
+`
+
+</details>
+
+---
+
+## Pages Overview
+
+| Page | Description |
+| ---- | ----------- |
+| **Home** | System info cards, backup & restore, logs, usage statistics |
+| **Inbound Management** | Add/edit/delete inbounds, quick add node with auto TLS |
+| **Client Management** | User accounts, traffic limits, expiry settings |
+| **Outbound Management** | Protocol config, link generation, clone |
+| **Endpoint Management** | Node management, WireGuard/Tailscale |
+| **Service Management** | CCM, OCM, DERP, SSMAPI |
+| **TLS Settings** | Certificate management, ACME, ECH, Reality, Pinned SHA256 |
+| **Basics** | Log level, routing defaults, experimental options |
+| **Rules** | Route rules, rulesets, rule import |
+| **DNS** | DNS servers, DNS rules, Fake-IP |
+| **Admins** | Admin accounts, API tokens, login history |
+| **Settings** | Panel config, subscription, network (BBR/FQ/CAKE) |
+
+---
+
 ## Languages
 
 - English
-- Farsi
+- Farsi (Persian)
 - Vietnamese
 - Simplified Chinese
 - Traditional Chinese
 - Russian
 
+---
+
 ## Protocols
 
-- **Common protocols:** Mixed, SOCKS, HTTP, HTTPS, Direct, Redirect, TProxy
-- **V2Ray protocols:** VLESS, VMess, Trojan, Shadowsocks
-- **Other protocols:** ShadowTLS, Hysteria, Hysteria2, Naive, TUIC, AnyTls
-- **XTLS** supported
-- **Congestion control:** BBR v1/v2/v3/v2plus/plus, FQ, CAKE
+### Common
+
+Mixed, SOCKS, HTTP, HTTPS, Direct, Redirect, TProxy
+
+### V2Ray
+
+VLESS, VMess, Trojan, Shadowsocks
+
+### Other
+
+ShadowTLS, Hysteria, Hysteria2, Naive, TUIC, AnyTls, WireGuard
+
+---
 
 ## Environment Variables
 
 <details>
-<summary>Click to view details</summary>
+<summary>Click to expand</summary>
 
 | Variable | Type | Default |
 | -------------- | :---: | :---: |
@@ -151,10 +321,12 @@ docker build -t s-ui .
 
 </details>
 
+---
+
 ## SSL Certificate
 
 <details>
-<summary>Click to view details</summary>
+<summary>Click to expand</summary>
 
 `ash
 snap install core; snap refresh core
@@ -168,4 +340,6 @@ certbot certonly --standalone --register-unsafely-without-email --non-interactiv
 
 ---
 
-Thanks to the original author: [alireza0/s-ui](https://github.com/alireza0/s-ui)
+## Thanks
+
+Original author: [alireza0/s-ui](https://github.com/alireza0/s-ui)
