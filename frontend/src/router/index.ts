@@ -1,4 +1,4 @@
-// Composables
+﻿// Composables
 import { createRouter, createWebHistory } from 'vue-router'
 import Login from '@/views/Login.vue'
 import Data from '@/store/modules/data'
@@ -83,7 +83,7 @@ const router = createRouter({
   routes,
 })
 
-const DEFAULT_TITLE = 'S-UI'
+const DEFAULT_TITLE = '1S-UI'
 let intervalId:any
 
 // Navigation guard to check authentication state

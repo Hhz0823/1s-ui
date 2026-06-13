@@ -1,4 +1,4 @@
-name: 发布 S-UI
+﻿name: 发布 S-UI
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
       tag:
         description: "发布标签"
         required: true
-        default: "v1.4.1"
+        default: "v1.4.4"
         type: string
 
 permissions:

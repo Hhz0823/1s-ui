@@ -1,4 +1,4 @@
-# 1S-UI
+﻿# 1S-UI
 
 A feature-rich web panel for [Sing-Box](https://github.com/SagerNet/sing-box), forked from [alireza0/s-ui](https://github.com/alireza0/s-ui) v1.4.1.
 
@@ -112,10 +112,10 @@ bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
 
 ### Install specific version
 
-Append the version tag with `v` at the end of the install command. For example, version `v1.4.3`:
+Append the version tag with `v` at the end of the install command. For example, version `v1.4.4`:
 
 ```
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.4.3
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.4.4
 ```
 
 ---
