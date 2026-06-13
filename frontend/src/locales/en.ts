@@ -1,4 +1,4 @@
-export default {
+﻿export default {
   success: "success",
   failed: "failed",
   enable: "Enable",
@@ -34,6 +34,14 @@ export default {
   theme: {
     light: "Light",
     dark: "Dark",
+    midnight: "Midnight",
+    ocean: "Ocean",
+    sunset: "Sunset",
+    forest: "Forest",
+    sakura: "Sakura",
+    cyberpunk: "Cyberpunk",
+    nord: "Nord",
+    dracula: "Dracula",
     system: "System",
   },
   pages: {
@@ -147,6 +155,13 @@ export default {
   },
   menu: {
     logout: "Logout",
+    group: {
+      overview: "Overview",
+      proxy: "Proxy",
+      system: "System",
+      routing: "Routing",
+      admin: "Admin",
+    },
   },
   admin: {
     changeCred: "Change credentials",

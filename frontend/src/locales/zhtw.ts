@@ -1,4 +1,4 @@
-export default {
+﻿export default {
   success: "成功",
   failed: "失敗",
   enable: "啟用",
@@ -32,9 +32,17 @@ export default {
     invalidData: "無效數據",
   },
   theme: {
-    light: "明亮",
-    dark: "暗黑",
-    system: "系統",
+    light: "浅色",
+    dark: "深色",
+    midnight: "午夜",
+    ocean: "海洋",
+    sunset: "日落",
+    forest: "森林",
+    sakura: "樱花",
+    cyberpunk: "赛博朋克",
+    nord: "Nord",
+    dracula: "Dracula",
+    system: "跟随系统",
   },
   pages: {
     login: "登錄",
@@ -146,7 +154,14 @@ export default {
     pwRules: "密碼不能為空",
   },
   menu: {
-    logout: "退出登錄",
+    logout: "退出登入",
+    group: {
+      overview: "总览",
+      proxy: "代理",
+      system: "系统",
+      routing: "路由",
+      admin: "管理",
+    },
   },
   admin: {
     changeCred: "更改憑據",

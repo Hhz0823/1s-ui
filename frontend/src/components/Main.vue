@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <LogVue v-model="logModal.visible" :control="logModal" :visible="logModal.visible" />
   <Backup v-model="backupModal.visible" :control="backupModal" :visible="backupModal.visible" />
   <UsageStats v-model:visible="usageStatsModal.visible" />
@@ -293,3 +293,12 @@ const restartSingbox = async () => {
   loading.value = false
 }
 </script>
+
+<style scoped>
+.action-pill {
+  border-radius: 20px !important;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-transform: none;
+}
+</style>

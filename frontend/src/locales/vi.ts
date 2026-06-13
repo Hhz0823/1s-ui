@@ -1,4 +1,4 @@
-export default {
+﻿export default {
   success: "Thành công",
   failed: "Thất bại",
   enable: "Kích hoạt",
@@ -32,9 +32,17 @@ export default {
     invalidData: "Dữ liệu khỏ hợp lệ",
   },
   theme: {
-    light: "Nhật",
-    dark: "Xanh",
-    system: "Phòng bán",
+    light: "Sáng",
+    dark: "Tối",
+    midnight: "Nửa đêm",
+    ocean: "Đại dương",
+    sunset: "Hoàng hôn",
+    forest: "Rừng",
+    sakura: "Sakura",
+    cyberpunk: "Cyberpunk",
+    nord: "Nord",
+    dracula: "Dracula",
+    system: "Hệ thống",
   },
   pages: {
     login: "Đăng nhập",
@@ -147,6 +155,13 @@ export default {
   },
   menu: {
     logout: "Đăng xuất",
+    group: {
+      overview: "Tổng quan",
+      proxy: "Proxy",
+      system: "Hệ thống",
+      routing: "Định tuyến",
+      admin: "Quản trị",
+    },
   },
   admin: {
     changeCred: "Thay đổi thông tin đăng nhập",

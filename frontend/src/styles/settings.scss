@@ -1,21 +1,17 @@
-/**
+﻿/**
  * src/styles/settings.scss
- *
- * Configures SASS variables and Vuetify overwrites
+ * Global UI Styles - 1S-UI v1.4.3
  */
 
-// https://vuetifyjs.com/features/sass-variables/`
-// @use 'vuetify/settings' with (
-//   $color-pack: false
-// );
 @font-face {
-    font-display: swap;
-    font-family: 'Vazirmatn';
-    font-style: normal;
-    font-weight: 400;
-    src: url('@/assets/Vazirmatn-UI-NL-Regular.woff2') format('woff2');
-    unicode-range: U+0600-06FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE80-FEFC, U+0030-0039;
+  font-display: swap;
+  font-family: 'Vazirmatn';
+  font-style: normal;
+  font-weight: 400;
+  src: url('@/assets/Vazirmatn-UI-NL-Regular.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+200C-200E, U+2010-2011, U+204F, U+2E41, U+FB50-FDFF, U+FE80-FEFC, U+0030-0039;
 }
+
 $body-font-family: "Vazirmatn";
 
 $typoOptions: text-h1, text-sm-h1, text-md-h1, text-lg-h1, text-h2, text-sm-h2,
@@ -25,74 +21,156 @@ $typoOptions: text-h1, text-sm-h1, text-md-h1, text-lg-h1, text-h2, text-sm-h2,
   subtitle-1, subtitle-2, text-body-1, text-sm-body-1, text-md-body-1,
   text-lg-body-1, text-body-2, text-sm-body-2, text-md-body-2, text-lg-body-2,
   text-caption;
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, $body-font-family, sans-serif !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', $body-font-family, sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+
   @each $typoOption in $typoOptions {
     .#{$typoOption} {
-      font-family: -apple-system, BlinkMacSystemFont, $body-font-family, sans-serif !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', $body-font-family, sans-serif !important;
     }
   }
 }
 
+/* ===== Buttons ===== */
 .v-btn {
   letter-spacing: 0;
   text-transform: none;
   font-weight: 500;
-  border-radius: 12px !important;
+  border-radius: 10px !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
+.v-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.v-btn:active {
+  transform: translateY(0);
+}
+
+/* ===== Cards ===== */
 .v-card {
-  border: 1px solid rgba(0, 0, 0, 0.06);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.03) !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  overflow: visible !important;
 }
 
+.v-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* ===== List Items ===== */
 .v-list-item {
-  border-radius: 12px !important;
-  margin: 2px 4px;
+  border-radius: 10px !important;
+  margin: 1px 4px;
+  min-height: 40px;
+  transition: all 0.15s ease;
 }
 
-.v-navigation-drawer {
-  border-right: none !important;
+.v-list-item:hover {
+  background: rgba(var(--v-theme-primary), 0.06);
 }
 
-.v-application {
-  letter-spacing: 0.01em;
-}
-
-.v-tab {
-  text-transform: none !important;
-  font-weight: 500;
-}
-
-.v-chip {
-  border-radius: 8px;
-}
-
+/* ===== Input Fields ===== */
 .v-text-field .v-field,
 .v-select .v-field,
 .v-textarea .v-field,
 .v-combobox .v-field {
-  border-radius: 12px !important;
+  border-radius: 10px !important;
+  transition: all 0.2s ease;
 }
 
+.v-text-field .v-field:focus-within,
+.v-select .v-field:focus-within {
+  box-shadow: 0 0 0 2px rgba(var(--v-theme-primary), 0.15);
+}
+
+/* ===== Navigation Drawer ===== */
+.v-navigation-drawer {
+  border-right: none !important;
+}
+
+/* ===== Tabs ===== */
+.v-tab {
+  text-transform: none !important;
+  font-weight: 500;
+  letter-spacing: 0;
+  border-radius: 8px !important;
+}
+
+/* ===== Chips ===== */
+.v-chip {
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+/* ===== Menus & Overlays ===== */
 .v-menu .v-card,
 .v-overlay .v-card {
-  border-radius: 16px !important;
+  border-radius: 14px !important;
+  overflow: hidden;
 }
 
 .v-dialog .v-card {
-  border-radius: 20px !important;
+  border-radius: 16px !important;
+  overflow: hidden;
 }
 
-.v-app-bar {
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+/* ===== Typography ===== */
+.v-application {
+  letter-spacing: 0.01em;
 }
 
-.v-navigation-drawer {
-  backdrop-filter: blur(12px);
+.v-card-title {
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.01em;
 }
 
+.v-card-subtitle {
+  font-weight: 500;
+  font-size: 12.5px;
+  opacity: 0.7;
+}
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(var(--v-theme-on-surface), 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--v-theme-on-surface), 0.25);
+}
+
+/* ===== Switch ===== */
+.v-switch.v-input {
+  padding-inline-start: 0.6rem;
+}
+
+/* ===== Card Subtitle (used as section header in modals) ===== */
+.v-card-subtitle {
+  text-align: center;
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+  min-height: 20px;
+}
+
+/* ===== Dark Theme Overrides ===== */
 .v-theme--dark .v-card,
 .v-theme--midnight .v-card,
 .v-theme--ocean .v-card,
@@ -100,18 +178,18 @@ body {
 .v-theme--cyberpunk .v-card,
 .v-theme--nord .v-card,
 .v-theme--dracula .v-card {
-  border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.1) !important;
 }
 
-.v-theme--dark .v-btn,
-.v-theme--midnight .v-btn,
-.v-theme--ocean .v-btn,
-.v-theme--forest .v-btn,
-.v-theme--cyberpunk .v-btn,
-.v-theme--nord .v-btn,
-.v-theme--dracula .v-btn {
-  letter-spacing: 0;
+.v-theme--dark .v-card:hover,
+.v-theme--midnight .v-card:hover,
+.v-theme--ocean .v-card:hover,
+.v-theme--forest .v-card:hover,
+.v-theme--cyberpunk .v-card:hover,
+.v-theme--nord .v-card:hover,
+.v-theme--dracula .v-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.15) !important;
 }
 
 .v-theme--dark .v-app-bar,
@@ -121,7 +199,7 @@ body {
 .v-theme--cyberpunk .v-app-bar,
 .v-theme--nord .v-app-bar,
 .v-theme--dracula .v-app-bar {
-  border-bottom-color: rgba(255, 255, 255, 0.08);
+  border-bottom-color: rgba(255, 255, 255, 0.06);
 }
 
 .v-theme--dark .v-navigation-drawer,
@@ -131,15 +209,17 @@ body {
 .v-theme--cyberpunk .v-navigation-drawer,
 .v-theme--nord .v-navigation-drawer,
 .v-theme--dracula .v-navigation-drawer {
-  border-right-color: rgba(255, 255, 255, 0.08);
+  border-right-color: rgba(255, 255, 255, 0.06);
 }
 
+/* ===== Responsive ===== */
 @media (max-width: 960px) {
   .v-card {
     margin-bottom: 8px;
   }
-  
+
   .v-dialog .v-card {
     max-height: calc(100vh - 32px);
+    border-radius: 14px !important;
   }
 }

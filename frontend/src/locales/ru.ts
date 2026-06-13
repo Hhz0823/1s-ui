@@ -1,4 +1,4 @@
-export default {
+﻿export default {
   success: "успех",
   failed: "ошибка",
   enable: "Включить",
@@ -32,9 +32,17 @@ export default {
     invalidData: "Неверные данные",
   },
   theme: {
-    light: "Светлый", 
-    dark: "Темный",
-    system: "Система",
+    light: "Светлая",
+    dark: "Тёмная",
+    midnight: "Полночь",
+    ocean: "Океан",
+    sunset: "Закат",
+    forest: "Лес",
+    sakura: "Сакура",
+    cyberpunk: "Киберпанк",
+    nord: "Nord",
+    dracula: "Dracula",
+    system: "Системная",
   },
   pages: {
     login: "Вход",
@@ -147,7 +155,14 @@ export default {
     pwRules: "Пароль не может быть пустым",
   },
   menu: {
-    logout: "Выйти",
+    logout: "Выход",
+    group: {
+      overview: "Обзор",
+      proxy: "Прокси",
+      system: "Система",
+      routing: "Маршрутизация",
+      admin: "Админ",
+    },
   },
   admin: {
     changeCred: "Изменить учетные данные",
@@ -641,6 +656,5 @@ export default {
   },
 }
  
-
 
 

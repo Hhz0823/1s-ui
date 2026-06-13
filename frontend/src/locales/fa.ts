@@ -1,4 +1,4 @@
-export default {
+﻿export default {
   success: "موفق",
   failed: "خطا",
   enable: "فعال",
@@ -33,7 +33,15 @@ export default {
   },
   theme: {
     light: "روشن",
-    dark: "تیره",
+    dark: "تاریک",
+    midnight: "نیمه‌شب",
+    ocean: "اقیانوس",
+    sunset: "غروب",
+    forest: "جنگل",
+    sakura: "ساکورا",
+    cyberpunk: "سایبرپانک",
+    nord: "Nord",
+    dracula: "Dracula",
     system: "سیستم",
   },
   pages: {
@@ -147,6 +155,13 @@ export default {
   },
   menu: {
     logout: "خروج",
+    group: {
+      overview: "نمای کلی",
+      proxy: "پراکسی",
+      system: "سیستم",
+      routing: "مسیریابی",
+      admin: "مدیریت",
+    },
   },
   admin: {
     changeCred: "ویرایش داده‌ها",
