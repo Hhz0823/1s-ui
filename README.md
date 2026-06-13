@@ -1,4 +1,4 @@
-﻿# 1S-UI
+# 1S-UI
 
 A feature-rich web panel for [Sing-Box](https://github.com/SagerNet/sing-box), forked from [alireza0/s-ui](https://github.com/alireza0/s-ui) v1.4.1.
 
@@ -8,23 +8,11 @@ A feature-rich web panel for [Sing-Box](https://github.com/SagerNet/sing-box), f
 
 ## Quick Install
 
-`ash
+```
 bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
-`
+```
 
-Default login: **admin** / **admin** | Panel: http://your-server-ip:2095/app/
-
----
-
-## Screenshots
-
-| Login | Dashboard | Inbound Management |
-|:-----:|:---------:|:------------------:|
-| Dark theme with glassmorphism | Real-time traffic monitoring | Quick add node dialog |
-
-| TLS Settings | Outbound Management | Network (Congestion Control) |
-|:------------:|:-------------------:|:----------------------------:|
-| Pinned SHA256 support | Protocol config | BBR/FQ/CAKE kernel tuning |
+Default login: **admin** / **admin** | Panel: `http://your-server-ip:2095/app/`
 
 ---
 
@@ -38,20 +26,20 @@ Default login: **admin** / **admin** | Panel: http://your-server-ip:2095/app/
 | Multi-language (EN, ZH-CN, ZH-TW, FA, VI, RU) | :heavy_check_mark: |
 | Multi-client / Multi-inbound management | :heavy_check_mark: |
 | Advanced traffic routing interface | :heavy_check_mark: |
-| Client, traffic & system status monitoring | :heavy_check_mark: |
+| Client, traffic and system status monitoring | :heavy_check_mark: |
 | Subscription (link / json / clash + info) | :heavy_check_mark: |
 | API interface | :heavy_check_mark: |
 
-### UI & Themes
+### UI and Themes
 
 | Feature | Supported |
 | -------------------------------------- | :-------: |
 | 10 UI Themes (Light, Dark, Midnight, Ocean, Sunset, Forest, Sakura, Cyberpunk, Nord, Dracula) | :heavy_check_mark: |
-| Responsive layout (Desktop + Mobile) | :heavy_check_mark: |
-| Rounded corners, glassmorphism effects | :heavy_check_mark: |
+| Responsive layout (Desktop and Mobile) | :heavy_check_mark: |
+| Rounded corners and glassmorphism effects | :heavy_check_mark: |
 | Real-time theme switching | :heavy_check_mark: |
 
-### TLS & Security
+### TLS and Security
 
 | Feature | Supported |
 | -------------------------------------- | :-------: |
@@ -74,7 +62,7 @@ Default login: **admin** / **admin** | Panel: http://your-server-ip:2095/app/
 | AnyTls | TLS + padding scheme |
 | Shadowsocks | Random password + method |
 
-### Network & Kernel
+### Network and Kernel
 
 | Feature | Options |
 | ------- | ------- |
@@ -98,12 +86,12 @@ Default login: **admin** / **admin** | Panel: http://your-server-ip:2095/app/
 
 | Setting | Value |
 | ------- | ----- |
-| Panel port | 2095 |
-| Panel path | /app/ |
-| Subscription port | 2096 |
-| Subscription path | /sub/ |
-| Username | dmin |
-| Password | dmin |
+| Panel port | `2095` |
+| Panel path | `/app/` |
+| Subscription port | `2096` |
+| Subscription path | `/sub/` |
+| Username | `admin` |
+| Password | `admin` |
 
 ---
 
@@ -111,24 +99,24 @@ Default login: **admin** / **admin** | Panel: http://your-server-ip:2095/app/
 
 ### Linux/macOS
 
-`ash
+```
 bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
-`
+```
 
 ### Windows
 
 1. Download the latest Windows version from [GitHub Releases](https://github.com/Hhz0823/1s-ui/releases/latest)
 2. Extract the ZIP file
-3. Run install-windows.bat as administrator
+3. Run `install-windows.bat` as administrator
 4. Follow the installation guide
 
 ### Install specific version
 
-Append the version tag with  at the end of the install command. For example, version 1.4.3:
+Append the version tag with `v` at the end of the install command. For example, version `v1.4.3`:
 
-`ash
+```
 bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.4.3
-`
+```
 
 ---
 
@@ -137,33 +125,33 @@ bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
 ### Linux/macOS
 
 1. Download the latest S-UI release from [GitHub Releases](https://github.com/Hhz0823/1s-ui/releases/latest)
-2. (Optional) Download s-ui.sh: [s-ui.sh](https://raw.githubusercontent.com/Hhz0823/1s-ui/main/s-ui.sh)
-3. (Optional) Copy s-ui.sh to /usr/bin/ and run chmod +x /usr/bin/s-ui
+2. (Optional) Download `s-ui.sh`: [s-ui.sh](https://raw.githubusercontent.com/Hhz0823/1s-ui/main/s-ui.sh)
+3. (Optional) Copy `s-ui.sh` to `/usr/bin/` and run `chmod +x /usr/bin/s-ui`
 4. Extract the s-ui tar.gz file to your chosen directory
-5. Copy *.service files to /etc/systemd/system/ and run systemctl daemon-reload
-6. Use systemctl enable s-ui --now to enable and start the S-UI service
-7. Use systemctl enable sing-box --now to start the sing-box service
+5. Copy `*.service` files to `/etc/systemd/system/` and run `systemctl daemon-reload`
+6. Use `systemctl enable s-ui --now` to enable and start the S-UI service
+7. Use `systemctl enable sing-box --now` to start the sing-box service
 
 ### Windows
 
 1. Download from [GitHub Releases](https://github.com/Hhz0823/1s-ui/releases/latest)
 2. Extract the ZIP file
-3. Run install-windows.bat as administrator
+3. Run `install-windows.bat` as administrator
 4. Follow the installation guide
-5. Access panel at: http://localhost:2095/app/
+5. Access panel at: `http://localhost:2095/app/`
 
 ---
 
 ## Uninstall S-UI
 
-`ash
+```
 sudo -i
 systemctl disable s-ui --now
 rm -f /etc/systemd/system/sing-box.service
 systemctl daemon-reload
 rm -fr /usr/local/s-ui
 rm /usr/bin/s-ui
-`
+```
 
 ---
 
@@ -174,7 +162,7 @@ rm /usr/bin/s-ui
 
 ### Docker Compose
 
-`yaml
+```yaml
 services:
   s-ui:
     image: ghcr.io/hhz0823/1s-ui
@@ -187,30 +175,24 @@ services:
     tty: true
     restart: unless-stopped
     entrypoint: "./entrypoint.sh"
-`
+```
 
-`ash
+```
 docker compose up -d
-`
+```
 
 ### Direct Docker
 
-`ash
-docker run -itd \
-    --network host \
-    -v E:\1S-ui/db/:/app/db/ \
-    -v E:\1S-ui/cert/:/root/cert/ \
-    --name s-ui \
-    --restart=unless-stopped \
-    ghcr.io/hhz0823/1s-ui
-`
+```
+docker run -itd --network host -v $PWD/db/:/app/db/ -v $PWD/cert/:/root/cert/ --name s-ui --restart=unless-stopped ghcr.io/hhz0823/1s-ui
+```
 
 ### Build from Source
 
-`ash
+```
 git clone https://github.com/Hhz0823/1s-ui
 docker build -t s-ui .
-`
+```
 
 </details>
 
@@ -223,15 +205,15 @@ docker build -t s-ui .
 
 ### Build and run the full project
 
-`ash
+```
 ./runSUI.sh
-`
+```
 
 ### Clone the repository
 
-`ash
+```
 git clone https://github.com/Hhz0823/1s-ui
-`
+```
 
 ### Frontend
 
@@ -241,20 +223,17 @@ See [frontend](frontend) directory.
 
 > Build the frontend at least once first.
 
-`ash
-# Remove old frontend build
+```
 rm -fr web/html/*
-# Copy new frontend build
 cp -R frontend/dist/ web/html/
-# Build backend
 go build -o sui main.go
-`
+```
 
 Run the backend (from project root):
 
-`ash
+```
 ./sui
-`
+```
 
 </details>
 
@@ -264,7 +243,7 @@ Run the backend (from project root):
 
 | Page | Description |
 | ---- | ----------- |
-| **Home** | System info cards, backup & restore, logs, usage statistics |
+| **Home** | System info cards, backup and restore, logs, usage statistics |
 | **Inbound Management** | Add/edit/delete inbounds, quick add node with auto TLS |
 | **Client Management** | User accounts, traffic limits, expiry settings |
 | **Outbound Management** | Protocol config, link generation, clone |
@@ -313,11 +292,11 @@ ShadowTLS, Hysteria, Hysteria2, Naive, TUIC, AnyTls, WireGuard
 
 | Variable | Type | Default |
 | -------------- | :---: | :---: |
-| SUI_LOG_LEVEL | "debug" \| "info" \| "warn" \| "error" | "info" |
-| SUI_DEBUG | oolean | alse |
-| SUI_BIN_FOLDER | string | "bin" |
-| SUI_DB_FOLDER | string | "db" |
-| SINGBOX_API | string | - |
+| SUI_LOG_LEVEL | `"debug"` or `"info"` or `"warn"` or `"error"` | `"info"` |
+| SUI_DEBUG | `boolean` | `false` |
+| SUI_BIN_FOLDER | `string` | `"bin"` |
+| SUI_DB_FOLDER | `string` | `"db"` |
+| SINGBOX_API | `string` | - |
 
 </details>
 
@@ -328,18 +307,15 @@ ShadowTLS, Hysteria, Hysteria2, Naive, TUIC, AnyTls, WireGuard
 <details>
 <summary>Click to expand</summary>
 
-`ash
+```
 snap install core; snap refresh core
 snap install --classic certbot
 ln -s /snap/bin/certbot /usr/bin/certbot
-
-certbot certonly --standalone --register-unsafely-without-email --non-interactive --agree-tos -d <your-domain>
-`
+certbot certonly --standalone --register-unsafely-without-email --non-interactive --agree-tos -d your-domain.com
+```
 
 </details>
 
 ---
 
-## Thanks
-
-Original author: [alireza0/s-ui](https://github.com/alireza0/s-ui)
+Thanks to the original author: [alireza0/s-ui](https://github.com/alireza0/s-ui)
