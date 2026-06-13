@@ -9,7 +9,7 @@ A feature-rich web panel for [Sing-Box](https://github.com/SagerNet/sing-box), f
 ## Quick Install
 
 ```
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/master/install.sh)
 ```
 
 Default login: **admin** / **admin** | Panel: `http://your-server-ip:2095/app/`
@@ -100,7 +100,7 @@ Default login: **admin** / **admin** | Panel: `http://your-server-ip:2095/app/`
 ### Linux/macOS
 
 ```
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/master/install.sh)
 ```
 
 ### Windows
@@ -115,7 +115,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
 Append the version tag with `v` at the end of the install command. For example, version `v1.4.4`:
 
 ```
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.4.4
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/master/install.sh) v1.4.4
 ```
 
 ---
@@ -125,7 +125,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
 ### Linux/macOS
 
 1. Download the latest S-UI release from [GitHub Releases](https://github.com/Hhz0823/1s-ui/releases/latest)
-2. (Optional) Download `s-ui.sh`: [s-ui.sh](https://raw.githubusercontent.com/Hhz0823/1s-ui/main/s-ui.sh)
+2. (Optional) Download `s-ui.sh`: [s-ui.sh](https://raw.githubusercontent.com/Hhz0823/1s-ui/master/s-ui.sh)
 3. (Optional) Copy `s-ui.sh` to `/usr/bin/` and run `chmod +x /usr/bin/s-ui`
 4. Extract the s-ui tar.gz file to your chosen directory
 5. Copy `*.service` files to `/etc/systemd/system/` and run `systemctl daemon-reload`
