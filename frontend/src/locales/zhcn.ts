@@ -1,4 +1,4 @@
-export default {
+﻿export default {
   success: "成功",
   failed: "失败",
   enable: "启用",
@@ -217,6 +217,12 @@ export default {
     applySysctl: "应用内核设置",
     bbrVersion: "BBR 版本",
     qdisc: "队列调度 (FQ/CAKE)",
+    uiCustomization: "界面自定义",
+    menuPosition: "菜单位置",
+    menuSide: "侧边栏",
+    menuTop: "顶部菜单栏",
+    bgImage: "背景图片 URL",
+    bgImagePlaceholder: "支持 PNG 或 JPG 图片链接",
 },
   client: {
     name: "名称",

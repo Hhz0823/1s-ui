@@ -205,6 +205,19 @@ import SubJsonExtVue from '@/components/SubJsonExt.vue'
 import SubClashExtVue from '@/components/SubClashExt.vue'
 import { push } from 'notivue'
 const tab = ref("t1")
+
+const menuPositionModel = computed({
+  get: () => localStorage.getItem('menuPosition') || 'side',
+  set: (v: string) => { localStorage.setItem('menuPosition', v); location.reload() }
+})
+const menuPositionOptions = [
+  { title: i18n.global.t('setting.menuSide'), value: 'side' },
+  { title: i18n.global.t('setting.menuTop'), value: 'top' },
+]
+const bgImageModel = computed({
+  get: () => localStorage.getItem('bgImage') || '',
+  set: (v: string) => { if (v) localStorage.setItem('bgImage', v); else localStorage.removeItem('bgImage') }
+})
 const loading:Ref = inject('loading')?? ref(false)
 const oldSettings = ref({})
 

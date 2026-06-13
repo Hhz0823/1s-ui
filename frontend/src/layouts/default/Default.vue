@@ -1,7 +1,8 @@
-<template>
+﻿<template>
   <v-app class="app-root">
-    <drawer :isMobile="isMobile" :displayDrawer="displayDrawer" @toggleDrawer="toggleDrawer" />
-    <default-bar :isMobile="isMobile" @toggleDrawer="toggleDrawer" />
+    <div v-if="bgImage" class="app-bg-image" :style="{ backgroundImage: `url(${bgImage})` }"></div>
+    <drawer v-if="menuPosition !== 'top'" :isMobile="isMobile" :displayDrawer="displayDrawer" @toggleDrawer="toggleDrawer" />
+    <default-bar :isMobile="isMobile" :menuPosition="menuPosition" :menuItems="menuItems" @toggleDrawer="toggleDrawer" />
     <default-view />
   </v-app>
 </template>
@@ -21,9 +22,28 @@ const toggleDrawer = () => {
 }
 
 const isMobile = computed((): boolean => {
+  if (menuPosition.value === 'top') return smAndDown.value
   displayDrawer.value = !smAndDown.value
   return smAndDown.value
 })
+
+const bgImage = computed(() => localStorage.getItem('bgImage') || '')
+const menuPosition = computed(() => localStorage.getItem('menuPosition') || 'side')
+
+const menuItems = [
+  { title: 'pages.home', icon: 'mdi-view-dashboard-outline', path: '/' },
+  { title: 'pages.inbounds', icon: 'mdi-arrow-down-bold-circle-outline', path: '/inbounds' },
+  { title: 'pages.clients', icon: 'mdi-account-group-outline', path: '/clients' },
+  { title: 'pages.outbounds', icon: 'mdi-arrow-up-bold-circle-outline', path: '/outbounds' },
+  { title: 'pages.endpoints', icon: 'mdi-access-point-network', path: '/endpoints' },
+  { title: 'pages.services', icon: 'mdi-cog-outline', path: '/services' },
+  { title: 'pages.tls', icon: 'mdi-shield-lock-outline', path: '/tls' },
+  { title: 'pages.basics', icon: 'mdi-tune-variant', path: '/basics' },
+  { title: 'pages.rules', icon: 'mdi-routes', path: '/rules' },
+  { title: 'pages.dns', icon: 'mdi-dns-outline', path: '/dns' },
+  { title: 'pages.admins', icon: 'mdi-account-tie-outline', path: '/admins' },
+  { title: 'pages.settings', icon: 'mdi-cog-outline', path: '/settings' },
+]
 </script>
 
 <style>

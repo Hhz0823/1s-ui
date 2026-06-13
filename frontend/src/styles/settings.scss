@@ -212,6 +212,82 @@ body {
   border-right-color: rgba(255, 255, 255, 0.06);
 }
 
+/* ===== Scrollable Menus ===== */
+.v-menu > .v-overlay__content {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.v-dialog > .v-overlay__content {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.v-dialog .v-card {
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.v-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* ===== Background Image ===== */
+.app-bg-image {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  opacity: 0.12;
+  pointer-events: none;
+}
+
+.v-theme--dark .app-bg-image,
+.v-theme--midnight .app-bg-image,
+.v-theme--ocean .app-bg-image,
+.v-theme--forest .app-bg-image,
+.v-theme--cyberpunk .app-bg-image,
+.v-theme--nord .app-bg-image,
+.v-theme--dracula .app-bg-image {
+  opacity: 0.08;
+}
+
+/* ===== Top Menu Mode ===== */
+.top-menu-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  flex: 1;
+  margin: 0 8px;
+}
+
+.top-menu-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.top-menu-item {
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  border-radius: 8px !important;
+  min-width: auto;
+  padding: 0 12px;
+}
+
+.top-menu-item--active {
+  background: rgba(var(--v-theme-primary), 0.12);
+  color: rgb(var(--v-theme-primary));
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 960px) {
   .v-card {

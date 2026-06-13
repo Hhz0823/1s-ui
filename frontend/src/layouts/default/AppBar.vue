@@ -1,8 +1,8 @@
-<template>
-  <v-app-bar :elevation="0" class="app-bar" height="56">
+﻿<template>
+  <v-app-bar :elevation="0" class="app-bar" :height="56">
     <template v-slot:prepend>
       <v-btn
-        v-if="isMobile"
+        v-if="isMobile || menuPosition === 'top'"
         icon
         variant="text"
         size="small"
@@ -13,7 +13,29 @@
       </v-btn>
     </template>
 
-    <v-app-bar-title class="app-bar-title">
+    <!-- Top Menu Items (when menuPosition is 'top') -->
+    <div v-if="menuPosition === 'top' && !isMobile" class="top-menu-bar">
+      <router-link
+        v-for="item in menuItems"
+        :key="item.path"
+        :to="item.path"
+        custom
+        v-slot="{ navigate, isActive }"
+      >
+        <v-btn
+          variant="text"
+          size="small"
+          class="top-menu-item"
+          :class="{ 'top-menu-item--active': isActive }"
+          @click="navigate"
+        >
+          <v-icon :icon="item.icon" size="16" class="me-1" />
+          {{ $t(item.title) }}
+        </v-btn>
+      </router-link>
+    </div>
+
+    <v-app-bar-title v-if="menuPosition !== 'top' || isMobile" class="app-bar-title">
       <span class="page-title">{{ $t(String(route.name)) }}</span>
     </v-app-bar-title>
 
@@ -72,7 +94,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { languages } from '@/locales'
 
-defineProps(['isMobile'])
+defineProps(['isMobile', 'menuPosition', 'menuItems'])
 
 const route = useRoute()
 const { locale: i18nLocale } = useI18n()

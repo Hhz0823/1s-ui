@@ -1,4 +1,4 @@
-export default {
+﻿export default {
   success: "success",
   failed: "failed",
   enable: "Enable",
@@ -217,6 +217,12 @@ export default {
     applySysctl: "Apply Kernel Settings",
     bbrVersion: "BBR Version",
     qdisc: "Queue Discipline (FQ/CAKE)",
+    uiCustomization: "UI Customization",
+    menuPosition: "Menu Position",
+    menuSide: "Sidebar",
+    menuTop: "Top Bar",
+    bgImage: "Background Image URL",
+    bgImagePlaceholder: "PNG or JPG image URL",
 },
   client: {
     name: "Name",

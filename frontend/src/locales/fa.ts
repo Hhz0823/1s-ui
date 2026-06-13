@@ -1,4 +1,4 @@
-export default {
+﻿export default {
   success: "موفق",
   failed: "خطا",
   enable: "فعال",
@@ -217,6 +217,12 @@ export default {
     applySysctl: "اعمال تنظیمات هسته‌ای",
     bbrVersion: "نسخه BBR",
     qdisc: "زبط عدلی (FQ/CAKE)",
+    uiCustomization: "سفارشی‌سازی رابط",
+    menuPosition: "موقعیت منو",
+    menuSide: "نوار کناری",
+    menuTop: "نوار بالا",
+    bgImage: "URL تصویر پس‌زمینه",
+    bgImagePlaceholder: "URL تصویر PNG یا JPG",
 },
   client: {
     name: "نام",

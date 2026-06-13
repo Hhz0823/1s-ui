@@ -1,4 +1,4 @@
-export default {
+﻿export default {
   success: "успех",
   failed: "ошибка",
   enable: "Включить",
@@ -218,6 +218,12 @@ export default {
     applySysctl: "Применить настройки ядра",
     bbrVersion: "Версия BBR",
     qdisc: "Очередь (FQ/CAKE)",
+    uiCustomization: "Настройка интерфейса",
+    menuPosition: "Позиция меню",
+    menuSide: "Боковая панель",
+    menuTop: "Верхняя панель",
+    bgImage: "URL фонового изображения",
+    bgImagePlaceholder: "URL изображения PNG или JPG",
 },
   client: {
     name: "Имя",
@@ -656,5 +662,4 @@ export default {
   },
 }
  
-
 

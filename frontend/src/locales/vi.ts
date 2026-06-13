@@ -1,4 +1,4 @@
-export default {
+﻿export default {
   success: "Thành công",
   failed: "Thất bại",
   enable: "Kích hoạt",
@@ -217,6 +217,12 @@ export default {
     applySysctl: "Áp dụng cài đặt hệ thống",
     bbrVersion: "Phiên bản BBR",
     qdisc: "Hàng đồi (FQ/CAKE)",
+    uiCustomization: "Tùy chỉnh giao diện",
+    menuPosition: "Vị trí menu",
+    menuSide: "Thanh bên",
+    menuTop: "Thanh trên",
+    bgImage: "URL hình nền",
+    bgImagePlaceholder: "URL hình ảnh PNG hoặc JPG",
 },
   client: {
     name: "Tên",
