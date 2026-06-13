@@ -1,6 +1,6 @@
 # 1S-UI
 
-A feature-rich web panel for [Sing-Box](https://github.com/SagerNet/sing-box), forked from [alireza0/s-ui](https://github.com/alireza0/s-ui) v1.4.4.
+A feature-rich web panel for [Sing-Box](https://github.com/SagerNet/sing-box), forked from [alireza0/s-ui](https://github.com/alireza0/s-ui) v1.4.5.
 
 > **Disclaimer:** This project is for personal learning and exchange purposes only. Please do not use it for illegal purposes.
 
