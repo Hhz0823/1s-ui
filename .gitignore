@@ -36,4 +36,5 @@ windows/sui-*.exe
 *.patch
 *.png
 *.html
+!frontend/index.html
 tmp_*
