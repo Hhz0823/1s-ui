@@ -1,4 +1,4 @@
-﻿# 1S-UI
+# 1S-UI
 
 A feature-rich web panel for [Sing-Box](https://github.com/SagerNet/sing-box), forked from [alireza0/s-ui](https://github.com/alireza0/s-ui) v1.4.1.
 

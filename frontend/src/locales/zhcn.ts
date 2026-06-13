@@ -1,4 +1,4 @@
-﻿export default {
+export default {
   success: "成功",
   failed: "失败",
   enable: "启用",

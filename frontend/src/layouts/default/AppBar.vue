@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <v-app-bar :elevation="0" class="app-bar" height="56">
     <template v-slot:prepend>
       <v-btn

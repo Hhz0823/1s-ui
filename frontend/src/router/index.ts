@@ -1,4 +1,4 @@
-﻿// Composables
+// Composables
 import { createRouter, createWebHistory } from 'vue-router'
 import Login from '@/views/Login.vue'
 import Data from '@/store/modules/data'

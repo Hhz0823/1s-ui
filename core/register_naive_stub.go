@@ -1,4 +1,4 @@
-﻿//go:build !with_naive_outbound
+//go:build !with_naive_outbound
 
 package core
 

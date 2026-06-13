@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <v-app class="app-root">
     <drawer :isMobile="isMobile" :displayDrawer="displayDrawer" @toggleDrawer="toggleDrawer" />
     <default-bar :isMobile="isMobile" @toggleDrawer="toggleDrawer" />

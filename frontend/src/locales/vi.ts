@@ -1,4 +1,4 @@
-﻿export default {
+export default {
   success: "Thành công",
   failed: "Thất bại",
   enable: "Kích hoạt",

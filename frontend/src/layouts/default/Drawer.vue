@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <v-navigation-drawer
     v-model="showDrawer"
     :temporary="isMobile"

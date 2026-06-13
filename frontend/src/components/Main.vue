@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <LogVue v-model="logModal.visible" :control="logModal" :visible="logModal.visible" />
   <Backup v-model="backupModal.visible" :control="backupModal" :visible="backupModal.visible" />
   <UsageStats v-model:visible="usageStatsModal.visible" />

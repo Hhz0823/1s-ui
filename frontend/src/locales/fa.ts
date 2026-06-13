@@ -1,4 +1,4 @@
-﻿export default {
+export default {
   success: "موفق",
   failed: "خطا",
   enable: "فعال",

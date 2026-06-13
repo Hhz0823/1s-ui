@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="login-page">
     <div class="login-bg-pattern"></div>
     <v-container class="fill-height login-container">

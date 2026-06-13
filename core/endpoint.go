@@ -1,4 +1,4 @@
-﻿package core
+package core
 
 import (
 	"github.com/Hhz0823/1s-ui/logger"

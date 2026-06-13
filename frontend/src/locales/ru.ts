@@ -1,4 +1,4 @@
-﻿export default {
+export default {
   success: "успех",
   failed: "ошибка",
   enable: "Включить",

@@ -1,4 +1,4 @@
-﻿package cronjob
+package cronjob
 
 import (
 	"github.com/Hhz0823/1s-ui/logger"

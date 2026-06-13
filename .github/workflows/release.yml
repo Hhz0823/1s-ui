@@ -1,4 +1,4 @@
-﻿name: 发布 S-UI
+name: 发布 S-UI
 
 on:
   workflow_dispatch:
