@@ -1,4 +1,4 @@
-package database
+﻿package database
 
 import (
 	"encoding/json"
@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Hhz0823/s-ui/config"
-	"github.com/Hhz0823/s-ui/database/model"
+	"github.com/Hhz0823/1s-ui/config"
+	"github.com/Hhz0823/1s-ui/database/model"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

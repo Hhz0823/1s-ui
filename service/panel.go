@@ -1,4 +1,4 @@
-package service
+﻿package service
 
 import (
 	"os"
@@ -6,7 +6,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Hhz0823/s-ui/logger"
+	"github.com/Hhz0823/1s-ui/logger"
 )
 
 type PanelService struct {

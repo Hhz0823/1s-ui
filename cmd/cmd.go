@@ -1,4 +1,4 @@
-package cmd
+﻿package cmd
 
 import (
 	"flag"
@@ -6,8 +6,8 @@ import (
 	"os"
 	"runtime/debug"
 
-	"github.com/Hhz0823/s-ui/cmd/migration"
-	"github.com/Hhz0823/s-ui/config"
+	"github.com/Hhz0823/1s-ui/cmd/migration"
+	"github.com/Hhz0823/1s-ui/config"
 )
 
 func ParseCmd() {

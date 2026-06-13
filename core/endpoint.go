@@ -1,8 +1,8 @@
-package core
+﻿package core
 
 import (
-	"github.com/Hhz0823/s-ui/logger"
-	"github.com/Hhz0823/s-ui/util/common"
+	"github.com/Hhz0823/1s-ui/logger"
+	"github.com/Hhz0823/1s-ui/util/common"
 
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/option"

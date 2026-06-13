@@ -1,11 +1,11 @@
-package migration
+﻿package migration
 
 import (
 	"fmt"
 	"log"
 	"os"
 
-	"github.com/Hhz0823/s-ui/config"
+	"github.com/Hhz0823/1s-ui/config"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

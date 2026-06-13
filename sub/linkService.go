@@ -1,11 +1,11 @@
-package sub
+﻿package sub
 
 import (
 	"encoding/json"
 	"strings"
 
-	"github.com/Hhz0823/s-ui/logger"
-	"github.com/Hhz0823/s-ui/util"
+	"github.com/Hhz0823/1s-ui/logger"
+	"github.com/Hhz0823/1s-ui/util"
 )
 
 type Link struct {

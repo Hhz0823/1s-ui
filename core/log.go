@@ -1,4 +1,4 @@
-package core
+﻿package core
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	suiLog "github.com/Hhz0823/s-ui/logger"
+	suiLog "github.com/Hhz0823/1s-ui/logger"
 
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing/common"

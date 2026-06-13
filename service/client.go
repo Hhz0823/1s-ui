@@ -1,4 +1,4 @@
-package service
+﻿package service
 
 import (
 	"bytes"
@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Hhz0823/s-ui/database"
-	"github.com/Hhz0823/s-ui/database/model"
-	"github.com/Hhz0823/s-ui/logger"
-	"github.com/Hhz0823/s-ui/util"
-	"github.com/Hhz0823/s-ui/util/common"
+	"github.com/Hhz0823/1s-ui/database"
+	"github.com/Hhz0823/1s-ui/database/model"
+	"github.com/Hhz0823/1s-ui/logger"
+	"github.com/Hhz0823/1s-ui/util"
+	"github.com/Hhz0823/1s-ui/util/common"
 
 	"gorm.io/gorm"
 )

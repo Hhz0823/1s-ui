@@ -1,10 +1,10 @@
-package common
+﻿package common
 
 import (
 	"errors"
 	"fmt"
 
-	"github.com/Hhz0823/s-ui/logger"
+	"github.com/Hhz0823/1s-ui/logger"
 )
 
 func NewErrorf(format string, a ...interface{}) error {

@@ -1,14 +1,14 @@
-package sub
+﻿package sub
 
 import (
 	"encoding/json"
 	"fmt"
 	"strings"
 
-	"github.com/Hhz0823/s-ui/database"
-	"github.com/Hhz0823/s-ui/database/model"
-	"github.com/Hhz0823/s-ui/service"
-	"github.com/Hhz0823/s-ui/util"
+	"github.com/Hhz0823/1s-ui/database"
+	"github.com/Hhz0823/1s-ui/database/model"
+	"github.com/Hhz0823/1s-ui/service"
+	"github.com/Hhz0823/1s-ui/util"
 )
 
 const defaultJson = `

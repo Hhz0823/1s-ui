@@ -1,4 +1,4 @@
-package util
+﻿package util
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Hhz0823/s-ui/util/common"
+	"github.com/Hhz0823/1s-ui/util/common"
 )
 
 func GetOutbound(uri string, i int) (*map[string]interface{}, string, error) {

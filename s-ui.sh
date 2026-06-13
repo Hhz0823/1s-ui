@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 
 red='\033[0;31m'
 green='\033[0;32m'
@@ -6,18 +6,18 @@ yellow='\033[0;33m'
 plain='\033[0m'
 
 function LOGD() {
-    echo -e "${yellow}[调试] $* ${plain}"
+    echo -e "${yellow}[璋冭瘯] $* ${plain}"
 }
 
 function LOGE() {
-    echo -e "${red}[错误] $* ${plain}"
+    echo -e "${red}[閿欒] $* ${plain}"
 }
 
 function LOGI() {
-    echo -e "${green}[信息] $* ${plain}"
+    echo -e "${green}[淇℃伅] $* ${plain}"
 }
 
-[[ $EUID -ne 0 ]] && LOGE "错误：必须使用 root 权限运行此脚本！\n" && exit 1
+[[ $EUID -ne 0 ]] && LOGE "閿欒锛氬繀椤讳娇鐢?root 鏉冮檺杩愯姝よ剼鏈紒\n" && exit 1
 
 if [[ -f /etc/os-release ]]; then
     source /etc/os-release
@@ -26,20 +26,20 @@ elif [[ -f /usr/lib/os-release ]]; then
     source /usr/lib/os-release
     release=$ID
 else
-    echo "检测系统失败，请联系作者！" >&2
+    echo "妫€娴嬬郴缁熷け璐ワ紝璇疯仈绯讳綔鑰咃紒" >&2
     exit 1
 fi
 
-echo "当前系统发行版为：$release"
+echo "褰撳墠绯荤粺鍙戣鐗堜负锛?release"
 
 confirm() {
     if [[ $# > 1 ]]; then
-        echo && read -p "$1 [默认$2]: " temp
+        echo && read -p "$1 [榛樿$2]: " temp
         if [[ x"${temp}" == x"" ]]; then
             temp=$2
         fi
     else
-        read -p "$1 [y/n]： " temp
+        read -p "$1 [y/n]锛?" temp
     fi
     if [[ x"${temp}" == x"y" || x"${temp}" == x"Y" ]]; then
         return 0
@@ -49,7 +49,7 @@ confirm() {
 }
 
 confirm_restart() {
-    confirm "重启 ${1} 服务" "y"
+    confirm "閲嶅惎 ${1} 鏈嶅姟" "y"
     if [[ $? == 0 ]]; then
         restart
     else
@@ -58,12 +58,12 @@ confirm_restart() {
 }
 
 before_show_menu() {
-    echo && echo -n -e "${yellow}按回车返回主菜单：${plain}" && read temp
+    echo && echo -n -e "${yellow}鎸夊洖杞﹁繑鍥炰富鑿滃崟锛?{plain}" && read temp
     show_menu
 }
 
 install() {
-    bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/s-ui/main/install.sh)
+    bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
     if [[ $? == 0 ]]; then
         if [[ $# == 0 ]]; then
             start
@@ -74,42 +74,42 @@ install() {
 }
 
 update() {
-    confirm "此功能将强制重装最新版本，数据不会丢失。是否继续？" "n"
+    confirm "姝ゅ姛鑳藉皢寮哄埗閲嶈鏈€鏂扮増鏈紝鏁版嵁涓嶄細涓㈠け銆傛槸鍚︾户缁紵" "n"
     if [[ $? != 0 ]]; then
-        LOGE "已取消"
+        LOGE "宸插彇娑?
         if [[ $# == 0 ]]; then
             before_show_menu
         fi
         return 0
     fi
-    bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/s-ui/main/install.sh)
+    bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
     if [[ $? == 0 ]]; then
-        LOGI "更新完成，面板已自动重启"
+        LOGI "鏇存柊瀹屾垚锛岄潰鏉垮凡鑷姩閲嶅惎"
         exit 0
     fi
 }
 
 custom_version() {
-    echo "请输入面板版本（例如 v1.4.1）："
+    echo "璇疯緭鍏ラ潰鏉跨増鏈紙渚嬪 v1.4.1锛夛細"
     read panel_version
 
     if [ -z "$panel_version" ]; then
-        echo "面板版本不能为空。正在退出。"
+        echo "闈㈡澘鐗堟湰涓嶈兘涓虹┖銆傛鍦ㄩ€€鍑恒€?
     exit 1
     fi
 
     [[ "${panel_version}" != v* ]] && panel_version="v${panel_version}"
 
-    download_link="https://raw.githubusercontent.com/Hhz0823/s-ui/main/install.sh"
+    download_link="https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh"
 
     install_command="bash <(curl -Ls $download_link) $panel_version"
 
-    echo "正在下载并安装面板版本 $panel_version..."
+    echo "姝ｅ湪涓嬭浇骞跺畨瑁呴潰鏉跨増鏈?$panel_version..."
     eval $install_command
 }
 
 uninstall() {
-    confirm "确定要卸载面板吗？" "n"
+    confirm "纭畾瑕佸嵏杞介潰鏉垮悧锛? "n"
     if [[ $? != 0 ]]; then
         if [[ $# == 0 ]]; then
             show_menu
@@ -125,7 +125,7 @@ uninstall() {
     rm /usr/local/s-ui/ -rf
 
     echo ""
-    echo -e "卸载成功。如果要删除此脚本，请在退出脚本后运行 ${green}rm /usr/local/s-ui -f${plain}。"
+    echo -e "鍗歌浇鎴愬姛銆傚鏋滆鍒犻櫎姝よ剼鏈紝璇峰湪閫€鍑鸿剼鏈悗杩愯 ${green}rm /usr/local/s-ui -f${plain}銆?
     echo ""
 
     if [[ $# == 0 ]]; then
@@ -134,8 +134,8 @@ uninstall() {
 }
 
 reset_admin() {
-    echo "不建议将管理员账号密码设置为默认值！"
-    confirm "确定要将管理员账号密码重置为默认值吗？" "n"
+    echo "涓嶅缓璁皢绠＄悊鍛樿处鍙峰瘑鐮佽缃负榛樿鍊硷紒"
+    confirm "纭畾瑕佸皢绠＄悊鍛樿处鍙峰瘑鐮侀噸缃负榛樿鍊煎悧锛? "n"
     if [[ $? == 0 ]]; then
         /usr/local/s-ui/sui admin -reset
     fi
@@ -143,9 +143,9 @@ reset_admin() {
 }
 
 set_admin() {
-    echo "不建议将管理员账号密码设置为过于复杂的文本。"
-    read -p "请设置用户名：" config_account
-    read -p "请设置密码：" config_password
+    echo "涓嶅缓璁皢绠＄悊鍛樿处鍙峰瘑鐮佽缃负杩囦簬澶嶆潅鐨勬枃鏈€?
+    read -p "璇疯缃敤鎴峰悕锛? config_account
+    read -p "璇疯缃瘑鐮侊細" config_password
     /usr/local/s-ui/sui admin -username ${config_account} -password ${config_password}
     before_show_menu
 }
@@ -156,7 +156,7 @@ view_admin() {
 }
 
 reset_setting() {
-    confirm "确定要将设置重置为默认值吗？" "n"
+    confirm "纭畾瑕佸皢璁剧疆閲嶇疆涓洪粯璁ゅ€煎悧锛? "n"
     if [[ $? == 0 ]]; then
         /usr/local/s-ui/sui setting -reset
     fi
@@ -164,17 +164,17 @@ reset_setting() {
 }
 
 set_setting() {
-    echo -e "请输入${yellow}面板端口${plain}（留空则使用现有/默认值）："
+    echo -e "璇疯緭鍏?{yellow}闈㈡澘绔彛${plain}锛堢暀绌哄垯浣跨敤鐜版湁/榛樿鍊硷級锛?
     read config_port
-    echo -e "请输入${yellow}面板路径${plain}（留空则使用现有/默认值）："
+    echo -e "璇疯緭鍏?{yellow}闈㈡澘璺緞${plain}锛堢暀绌哄垯浣跨敤鐜版湁/榛樿鍊硷級锛?
     read config_path
 
-    echo -e "请输入${yellow}订阅端口${plain}（留空则使用现有/默认值）："
+    echo -e "璇疯緭鍏?{yellow}璁㈤槄绔彛${plain}锛堢暀绌哄垯浣跨敤鐜版湁/榛樿鍊硷級锛?
     read config_subPort
-    echo -e "请输入${yellow}订阅路径${plain}（留空则使用现有/默认值）："
+    echo -e "璇疯緭鍏?{yellow}璁㈤槄璺緞${plain}锛堢暀绌哄垯浣跨敤鐜版湁/榛樿鍊硷級锛?
     read config_subPath
 
-    echo -e "${yellow}正在初始化，请稍候...${plain}"
+    echo -e "${yellow}姝ｅ湪鍒濆鍖栵紝璇风◢鍊?..${plain}"
     params=""
     [ -z "$config_port" ] || params="$params -port $config_port"
     [ -z "$config_path" ] || params="$params -path $config_path"
@@ -193,10 +193,10 @@ view_setting() {
 view_uri() {
     info=$(/usr/local/s-ui/sui uri)
     if [[ $? != 0 ]]; then
-        LOGE "获取当前 URI 失败"
+        LOGE "鑾峰彇褰撳墠 URI 澶辫触"
         before_show_menu
     fi
-    LOGI "你可以通过以下 URL 访问面板："
+    LOGI "浣犲彲浠ラ€氳繃浠ヤ笅 URL 璁块棶闈㈡澘锛?
     echo -e "${green}${info}${plain}"
 }
 
@@ -204,15 +204,15 @@ start() {
     check_status $1
     if [[ $? == 0 ]]; then
         echo ""
-        LOGI -e "${1} 正在运行，无需再次启动；如果需要重启，请选择重启"
+        LOGI -e "${1} 姝ｅ湪杩愯锛屾棤闇€鍐嶆鍚姩锛涘鏋滈渶瑕侀噸鍚紝璇烽€夋嫨閲嶅惎"
     else
         systemctl start $1
         sleep 2
         check_status $1
         if [[ $? == 0 ]]; then
-            LOGI "${1} 启动成功"
+            LOGI "${1} 鍚姩鎴愬姛"
         else
-            LOGE "启动 ${1} 失败，可能是启动时间超过两秒，请稍后查看日志信息"
+            LOGE "鍚姩 ${1} 澶辫触锛屽彲鑳芥槸鍚姩鏃堕棿瓒呰繃涓ょ锛岃绋嶅悗鏌ョ湅鏃ュ織淇℃伅"
         fi
     fi
 
@@ -225,15 +225,15 @@ stop() {
     check_status $1
     if [[ $? == 1 ]]; then
         echo ""
-        LOGI "${1} 已停止，无需再次停止！"
+        LOGI "${1} 宸插仠姝紝鏃犻渶鍐嶆鍋滄锛?
     else
         systemctl stop $1
         sleep 2
         check_status
         if [[ $? == 1 ]]; then
-            LOGI "${1} 停止成功"
+            LOGI "${1} 鍋滄鎴愬姛"
         else
-            LOGE "停止 ${1} 失败，可能是停止时间超过两秒，请稍后查看日志信息"
+            LOGE "鍋滄 ${1} 澶辫触锛屽彲鑳芥槸鍋滄鏃堕棿瓒呰繃涓ょ锛岃绋嶅悗鏌ョ湅鏃ュ織淇℃伅"
         fi
     fi
 
@@ -247,9 +247,9 @@ restart() {
     sleep 2
     check_status $1
     if [[ $? == 0 ]]; then
-        LOGI "${1} 重启成功"
+        LOGI "${1} 閲嶅惎鎴愬姛"
     else
-        LOGE "重启 ${1} 失败，可能是启动时间超过两秒，请稍后查看日志信息"
+        LOGE "閲嶅惎 ${1} 澶辫触锛屽彲鑳芥槸鍚姩鏃堕棿瓒呰繃涓ょ锛岃绋嶅悗鏌ョ湅鏃ュ織淇℃伅"
     fi
     if [[ $# == 1 ]]; then
         before_show_menu
@@ -266,9 +266,9 @@ status() {
 enable() {
     systemctl enable $1
     if [[ $? == 0 ]]; then
-        LOGI "已成功设置 ${1} 开机自启"
+        LOGI "宸叉垚鍔熻缃?${1} 寮€鏈鸿嚜鍚?
     else
-        LOGE "设置 ${1} 开机自启失败"
+        LOGE "璁剧疆 ${1} 寮€鏈鸿嚜鍚け璐?
     fi
 
     if [[ $# == 1 ]]; then
@@ -279,9 +279,9 @@ enable() {
 disable() {
     systemctl disable $1
     if [[ $? == 0 ]]; then
-        LOGI "已成功取消 ${1} 开机自启"
+        LOGI "宸叉垚鍔熷彇娑?${1} 寮€鏈鸿嚜鍚?
     else
-        LOGE "取消 ${1} 开机自启失败"
+        LOGE "鍙栨秷 ${1} 寮€鏈鸿嚜鍚け璐?
     fi
 
     if [[ $# == 1 ]]; then
@@ -297,14 +297,14 @@ show_log() {
 }
 
 update_shell() {
-    wget -O /usr/bin/s-ui -N --no-check-certificate https://github.com/Hhz0823/s-ui/raw/main/s-ui.sh
+    wget -O /usr/bin/s-ui -N --no-check-certificate https://github.com/Hhz0823/1s-ui/raw/main/s-ui.sh
     if [[ $? != 0 ]]; then
         echo ""
-        LOGE "下载脚本失败，请检查当前机器是否可以连接 Github"
+        LOGE "涓嬭浇鑴氭湰澶辫触锛岃妫€鏌ュ綋鍓嶆満鍣ㄦ槸鍚﹀彲浠ヨ繛鎺?Github"
         before_show_menu
     else
         chmod +x /usr/bin/s-ui
-        LOGI "脚本升级成功，请重新运行脚本" && exit 0
+        LOGI "鑴氭湰鍗囩骇鎴愬姛锛岃閲嶆柊杩愯鑴氭湰" && exit 0
     fi
 }
 
@@ -333,7 +333,7 @@ check_uninstall() {
     check_status s-ui
     if [[ $? != 2 ]]; then
         echo ""
-        LOGE "面板已安装，请勿重复安装"
+        LOGE "闈㈡澘宸插畨瑁咃紝璇峰嬁閲嶅瀹夎"
         if [[ $# == 0 ]]; then
             before_show_menu
         fi
@@ -347,7 +347,7 @@ check_install() {
     check_status s-ui
     if [[ $? == 2 ]]; then
         echo ""
-        LOGE "请先安装面板"
+        LOGE "璇峰厛瀹夎闈㈡澘"
         if [[ $# == 0 ]]; then
             before_show_menu
         fi
@@ -361,15 +361,15 @@ show_status() {
     check_status $1
     case $? in
     0)
-        echo -e "${1} 状态：${green}运行中${plain}"
+        echo -e "${1} 鐘舵€侊細${green}杩愯涓?{plain}"
         show_enable_status $1
         ;;
     1)
-        echo -e "${1} 状态：${yellow}未运行${plain}"
+        echo -e "${1} 鐘舵€侊細${yellow}鏈繍琛?{plain}"
         show_enable_status $1
         ;;
     2)
-        echo -e "${1} 状态：${red}未安装${plain}"
+        echo -e "${1} 鐘舵€侊細${red}鏈畨瑁?{plain}"
         ;;
     esac
 }
@@ -377,9 +377,9 @@ show_status() {
 show_enable_status() {
     check_enabled $1
     if [[ $? == 0 ]]; then
-        echo -e "${1} 开机自启：${green}是${plain}"
+        echo -e "${1} 寮€鏈鸿嚜鍚細${green}鏄?{plain}"
     else
-        echo -e "${1} 开机自启：${red}否${plain}"
+        echo -e "${1} 寮€鏈鸿嚜鍚細${red}鍚?{plain}"
     fi
 }
 
@@ -395,17 +395,17 @@ check_s-ui_status() {
 show_s-ui_status() {
     check_s-ui_status
     if [[ $? == 0 ]]; then
-        echo -e "s-ui 状态：${green}运行中${plain}"
+        echo -e "s-ui 鐘舵€侊細${green}杩愯涓?{plain}"
     else
-        echo -e "s-ui 状态：${red}未运行${plain}"
+        echo -e "s-ui 鐘舵€侊細${red}鏈繍琛?{plain}"
     fi
 }
 
 bbr_menu() {
-    echo -e "${green}\t1.${plain} 启用 BBR"
-    echo -e "${green}\t2.${plain} 禁用 BBR"
-    echo -e "${green}\t0.${plain} 返回主菜单"
-    read -p "请选择一个选项： " choice
+    echo -e "${green}\t1.${plain} 鍚敤 BBR"
+    echo -e "${green}\t2.${plain} 绂佺敤 BBR"
+    echo -e "${green}\t0.${plain} 杩斿洖涓昏彍鍗?
+    read -p "璇烽€夋嫨涓€涓€夐」锛?" choice
     case "$choice" in
     0)
         show_menu
@@ -416,28 +416,28 @@ bbr_menu() {
     2)
         disable_bbr
         ;;
-    *) echo "无效选择" ;;
+    *) echo "鏃犳晥閫夋嫨" ;;
     esac
 }
 
 disable_bbr() {
     if ! grep -q "net.core.default_qdisc=fq" /etc/sysctl.conf || ! grep -q "net.ipv4.tcp_congestion_control=bbr" /etc/sysctl.conf; then
-        echo -e "${yellow}当前未启用 BBR。${plain}"
+        echo -e "${yellow}褰撳墠鏈惎鐢?BBR銆?{plain}"
         exit 0
     fi
     sed -i 's/net.core.default_qdisc=fq/net.core.default_qdisc=pfifo_fast/' /etc/sysctl.conf
     sed -i 's/net.ipv4.tcp_congestion_control=bbr/net.ipv4.tcp_congestion_control=cubic/' /etc/sysctl.conf
     sysctl -p
     if [[ $(sysctl net.ipv4.tcp_congestion_control | awk '{print $3}') == "cubic" ]]; then
-        echo -e "${green}已成功将 BBR 替换为 CUBIC。${plain}"
+        echo -e "${green}宸叉垚鍔熷皢 BBR 鏇挎崲涓?CUBIC銆?{plain}"
     else
-        echo -e "${red}将 BBR 替换为 CUBIC 失败。请检查系统配置。${plain}"
+        echo -e "${red}灏?BBR 鏇挎崲涓?CUBIC 澶辫触銆傝妫€鏌ョ郴缁熼厤缃€?{plain}"
     fi
 }
 
 enable_bbr() {
     if grep -q "net.core.default_qdisc=fq" /etc/sysctl.conf && grep -q "net.ipv4.tcp_congestion_control=bbr" /etc/sysctl.conf; then
-        echo -e "${green}BBR 已启用！${plain}"
+        echo -e "${green}BBR 宸插惎鐢紒${plain}"
         exit 0
     fi
     case "${release}" in
@@ -454,7 +454,7 @@ enable_bbr() {
         pacman -Sy --noconfirm ca-certificates
         ;;
     *)
-        echo -e "${red}不支持的操作系统。请检查脚本并手动安装必要的软件包。${plain}\n"
+        echo -e "${red}涓嶆敮鎸佺殑鎿嶄綔绯荤粺銆傝妫€鏌ヨ剼鏈苟鎵嬪姩瀹夎蹇呰鐨勮蒋浠跺寘銆?{plain}\n"
         exit 1
         ;;
     esac
@@ -462,56 +462,56 @@ enable_bbr() {
     echo "net.ipv4.tcp_congestion_control=bbr" | tee -a /etc/sysctl.conf
     sysctl -p
     if [[ $(sysctl net.ipv4.tcp_congestion_control | awk '{print $3}') == "bbr" ]]; then
-        echo -e "${green}BBR 启用成功。${plain}"
+        echo -e "${green}BBR 鍚敤鎴愬姛銆?{plain}"
     else
-        echo -e "${red}启用 BBR 失败。请检查系统配置。${plain}"
+        echo -e "${red}鍚敤 BBR 澶辫触銆傝妫€鏌ョ郴缁熼厤缃€?{plain}"
     fi
 }
 
 install_acme() {
     cd ~
-    LOGI "正在安装 acme..."
+    LOGI "姝ｅ湪瀹夎 acme..."
     curl https://get.acme.sh | sh
     if [ $? -ne 0 ]; then
-        LOGE "安装 acme 失败"
+        LOGE "瀹夎 acme 澶辫触"
         return 1
     else
-        LOGI "安装 acme 成功"
+        LOGI "瀹夎 acme 鎴愬姛"
     fi
     return 0
 }
 
 ssl_cert_issue_main() {
-    echo -e "${green}\t1.${plain} 获取 SSL"
-    echo -e "${green}\t2.${plain} 吊销证书"
-    echo -e "${green}\t3.${plain} 强制续签"
-    echo -e "${green}\t4.${plain} 自签名证书"
-    read -p "请选择一个选项： " choice
+    echo -e "${green}\t1.${plain} 鑾峰彇 SSL"
+    echo -e "${green}\t2.${plain} 鍚婇攢璇佷功"
+    echo -e "${green}\t3.${plain} 寮哄埗缁"
+    echo -e "${green}\t4.${plain} 鑷鍚嶈瘉涔?
+    read -p "璇烽€夋嫨涓€涓€夐」锛?" choice
     case "$choice" in
         1) ssl_cert_issue ;;
         2)
             local domain=""
-            read -p "请输入要吊销证书的域名： " domain
+            read -p "璇疯緭鍏ヨ鍚婇攢璇佷功鐨勫煙鍚嶏細 " domain
             ~/.acme.sh/acme.sh --revoke -d ${domain}
-            LOGI "证书已吊销"
+            LOGI "璇佷功宸插悐閿€"
             ;;
         3)
             local domain=""
-            read -p "请输入要强制续签 SSL 证书的域名： " domain
+            read -p "璇疯緭鍏ヨ寮哄埗缁 SSL 璇佷功鐨勫煙鍚嶏細 " domain
             ~/.acme.sh/acme.sh --renew -d ${domain} --force ;;
         4)
             generate_self_signed_cert
             ;;
-        *) echo "无效选择" ;;
+        *) echo "鏃犳晥閫夋嫨" ;;
     esac
 }
 
 ssl_cert_issue() {
     if ! command -v ~/.acme.sh/acme.sh &>/dev/null; then
-        echo "未找到 acme.sh，将进行安装"
+        echo "鏈壘鍒?acme.sh锛屽皢杩涜瀹夎"
         install_acme
         if [ $? -ne 0 ]; then
-            LOGE "安装 acme 失败，请检查日志"
+            LOGE "瀹夎 acme 澶辫触锛岃妫€鏌ユ棩蹇?
             exit 1
         fi
     fi
@@ -529,29 +529,29 @@ ssl_cert_issue() {
         pacman -Sy --noconfirm socat
         ;;
     *)
-        echo -e "${red}不支持的操作系统。请检查脚本并手动安装必要的软件包。${plain}\n"
+        echo -e "${red}涓嶆敮鎸佺殑鎿嶄綔绯荤粺銆傝妫€鏌ヨ剼鏈苟鎵嬪姩瀹夎蹇呰鐨勮蒋浠跺寘銆?{plain}\n"
         exit 1
         ;;
     esac
     if [ $? -ne 0 ]; then
-        LOGE "安装 socat 失败，请检查日志"
+        LOGE "瀹夎 socat 澶辫触锛岃妫€鏌ユ棩蹇?
         exit 1
     else
-        LOGI "安装 socat 成功..."
+        LOGI "瀹夎 socat 鎴愬姛..."
     fi
 
     local domain=""
-    read -p "请输入你的域名：" domain
-    LOGD "你的域名是：${domain}，正在检查..."
+    read -p "璇疯緭鍏ヤ綘鐨勫煙鍚嶏細" domain
+    LOGD "浣犵殑鍩熷悕鏄細${domain}锛屾鍦ㄦ鏌?.."
     local currentCert=$(~/.acme.sh/acme.sh --list | tail -1 | awk '{print $1}')
 
     if [ ${currentCert} == ${domain} ]; then
         local certInfo=$(~/.acme.sh/acme.sh --list)
-        LOGE "系统中已存在证书，不能重复签发，当前证书详情："
+        LOGE "绯荤粺涓凡瀛樺湪璇佷功锛屼笉鑳介噸澶嶇鍙戯紝褰撳墠璇佷功璇︽儏锛?
         LOGI "$certInfo"
         exit 1
     else
-        LOGI "你的域名已准备好签发证书..."
+        LOGI "浣犵殑鍩熷悕宸插噯澶囧ソ绛惧彂璇佷功..."
     fi
 
     certPath="/root/cert/${domain}"
@@ -563,40 +563,40 @@ ssl_cert_issue() {
     fi
 
     local WebPort=80
-    read -p "请选择使用的端口，默认使用 80 端口：" WebPort
+    read -p "璇烽€夋嫨浣跨敤鐨勭鍙ｏ紝榛樿浣跨敤 80 绔彛锛? WebPort
     if [[ ${WebPort} -gt 65535 || ${WebPort} -lt 1 ]]; then
-        LOGE "输入的 ${WebPort} 无效，将使用默认端口"
+        LOGE "杈撳叆鐨?${WebPort} 鏃犳晥锛屽皢浣跨敤榛樿绔彛"
     fi
-    LOGI "将使用端口 ${WebPort} 签发证书，请确保该端口已开放..."
+    LOGI "灏嗕娇鐢ㄧ鍙?${WebPort} 绛惧彂璇佷功锛岃纭繚璇ョ鍙ｅ凡寮€鏀?.."
     ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
     ~/.acme.sh/acme.sh --issue -d ${domain} --standalone --httpport ${WebPort}
     if [ $? -ne 0 ]; then
-        LOGE "签发证书失败，请检查日志"
+        LOGE "绛惧彂璇佷功澶辫触锛岃妫€鏌ユ棩蹇?
         rm -rf ~/.acme.sh/${domain}
         exit 1
     else
-        LOGE "证书签发成功，正在安装证书..."
+        LOGE "璇佷功绛惧彂鎴愬姛锛屾鍦ㄥ畨瑁呰瘉涔?.."
     fi
     ~/.acme.sh/acme.sh --installcert -d ${domain} \
         --key-file /root/cert/${domain}/privkey.pem \
         --fullchain-file /root/cert/${domain}/fullchain.pem
 
     if [ $? -ne 0 ]; then
-        LOGE "安装证书失败，退出"
+        LOGE "瀹夎璇佷功澶辫触锛岄€€鍑?
         rm -rf ~/.acme.sh/${domain}
         exit 1
     else
-        LOGI "安装证书成功，正在启用自动续签..."
+        LOGI "瀹夎璇佷功鎴愬姛锛屾鍦ㄥ惎鐢ㄨ嚜鍔ㄧ画绛?.."
     fi
 
     ~/.acme.sh/acme.sh --upgrade --auto-upgrade
     if [ $? -ne 0 ]; then
-        LOGE "自动续签失败，证书详情："
+        LOGE "鑷姩缁澶辫触锛岃瘉涔﹁鎯咃細"
         ls -lah cert/*
         chmod 755 $certPath/*
         exit 1
     else
-        LOGI "自动续签成功，证书详情："
+        LOGI "鑷姩缁鎴愬姛锛岃瘉涔﹁鎯咃細"
         ls -lah cert/*
         chmod 755 $certPath/*
     fi
@@ -604,11 +604,11 @@ ssl_cert_issue() {
 
 ssl_cert_issue_CF() {
     echo -E ""
-    LOGD "******使用说明******"
-    echo "1) 从 Cloudflare 申请新证书"
-    echo "2) 强制续签已有证书"
-    echo "3) 返回菜单"
-    read -p "请输入你的选择 [1-3]： " choice
+    LOGD "******浣跨敤璇存槑******"
+    echo "1) 浠?Cloudflare 鐢宠鏂拌瘉涔?
+    echo "2) 寮哄埗缁宸叉湁璇佷功"
+    echo "3) 杩斿洖鑿滃崟"
+    read -p "璇疯緭鍏ヤ綘鐨勯€夋嫨 [1-3]锛?" choice
 
     certPath="/root/cert-CF"
 
@@ -617,24 +617,24 @@ ssl_cert_issue_CF() {
             force_flag=""
             if [ "$choice" -eq 2 ]; then
                 force_flag="--force"
-                echo "正在强制重新签发 SSL 证书..."
+                echo "姝ｅ湪寮哄埗閲嶆柊绛惧彂 SSL 璇佷功..."
             else
-                echo "开始签发 SSL 证书..."
+                echo "寮€濮嬬鍙?SSL 璇佷功..."
             fi
 
-            LOGD "******使用说明******"
-            LOGI "此 Acme 脚本需要以下数据："
-            LOGI "1.Cloudflare 注册邮箱"
-            LOGI "2.Cloudflare 全局 API Key"
-            LOGI "3.已通过 Cloudflare 将 DNS 解析到当前服务器的域名"
-            LOGI "4.脚本将申请证书，默认安装路径为 /root/cert"
-            confirm "是否确认？[y/n]" "y"
+            LOGD "******浣跨敤璇存槑******"
+            LOGI "姝?Acme 鑴氭湰闇€瑕佷互涓嬫暟鎹細"
+            LOGI "1.Cloudflare 娉ㄥ唽閭"
+            LOGI "2.Cloudflare 鍏ㄥ眬 API Key"
+            LOGI "3.宸查€氳繃 Cloudflare 灏?DNS 瑙ｆ瀽鍒板綋鍓嶆湇鍔″櫒鐨勫煙鍚?
+            LOGI "4.鑴氭湰灏嗙敵璇疯瘉涔︼紝榛樿瀹夎璺緞涓?/root/cert"
+            confirm "鏄惁纭锛焄y/n]" "y"
             if [ $? -eq 0 ]; then
                 if ! command -v ~/.acme.sh/acme.sh &>/dev/null; then
-                    echo "未找到 acme.sh。正在安装..."
+                    echo "鏈壘鍒?acme.sh銆傛鍦ㄥ畨瑁?.."
                     install_acme
                     if [ $? -ne 0 ]; then
-                        LOGE "安装 acme 失败，请检查日志"
+                        LOGE "瀹夎 acme 澶辫触锛岃妫€鏌ユ棩蹇?
                         exit 1
                     fi
                 fi
@@ -647,23 +647,23 @@ ssl_cert_issue_CF() {
                     mkdir -p $certPath
                 fi
 
-                LOGD "请设置域名："
-                read -p "请在此输入域名： " CF_Domain
-                LOGD "你的域名已设置为：${CF_Domain}"
+                LOGD "璇疯缃煙鍚嶏細"
+                read -p "璇峰湪姝よ緭鍏ュ煙鍚嶏細 " CF_Domain
+                LOGD "浣犵殑鍩熷悕宸茶缃负锛?{CF_Domain}"
 
                 CF_GlobalKey=""
                 CF_AccountEmail=""
-                LOGD "请设置 API key："
-                read -p "请在此输入 key： " CF_GlobalKey
-                LOGD "你的 API key 为：${CF_GlobalKey}"
+                LOGD "璇疯缃?API key锛?
+                read -p "璇峰湪姝よ緭鍏?key锛?" CF_GlobalKey
+                LOGD "浣犵殑 API key 涓猴細${CF_GlobalKey}"
 
-                LOGD "请设置注册邮箱："
-                read -p "请在此输入邮箱： " CF_AccountEmail
-                LOGD "你的注册邮箱为：${CF_AccountEmail}"
+                LOGD "璇疯缃敞鍐岄偖绠憋細"
+                read -p "璇峰湪姝よ緭鍏ラ偖绠憋細 " CF_AccountEmail
+                LOGD "浣犵殑娉ㄥ唽閭涓猴細${CF_AccountEmail}"
 
                 ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
                 if [ $? -ne 0 ]; then
-                    LOGE "设置默认 CA Let's Encrypt 失败，脚本退出..."
+                    LOGE "璁剧疆榛樿 CA Let's Encrypt 澶辫触锛岃剼鏈€€鍑?.."
                     exit 1
                 fi
 
@@ -672,15 +672,15 @@ ssl_cert_issue_CF() {
 
                 ~/.acme.sh/acme.sh --issue --dns dns_cf -d ${CF_Domain} -d *.${CF_Domain} $force_flag --log
                 if [ $? -ne 0 ]; then
-                    LOGE "证书签发失败，脚本退出..."
+                    LOGE "璇佷功绛惧彂澶辫触锛岃剼鏈€€鍑?.."
                     exit 1
                 else
-                    LOGI "证书签发成功，正在安装..."
+                    LOGI "璇佷功绛惧彂鎴愬姛锛屾鍦ㄥ畨瑁?.."
                 fi
 
                 mkdir -p ${certPath}/${CF_Domain}
                 if [ $? -ne 0 ]; then
-                    LOGE "创建目录失败：${certPath}/${CF_Domain}"
+                    LOGE "鍒涘缓鐩綍澶辫触锛?{certPath}/${CF_Domain}"
                     exit 1
                 fi
 
@@ -689,18 +689,18 @@ ssl_cert_issue_CF() {
                     --key-file ${certPath}/${CF_Domain}/privkey.pem
 
                 if [ $? -ne 0 ]; then
-                    LOGE "证书安装失败，脚本退出..."
+                    LOGE "璇佷功瀹夎澶辫触锛岃剼鏈€€鍑?.."
                     exit 1
                 else
-                    LOGI "证书安装成功，正在开启自动更新..."
+                    LOGI "璇佷功瀹夎鎴愬姛锛屾鍦ㄥ紑鍚嚜鍔ㄦ洿鏂?.."
                 fi
 
                 ~/.acme.sh/acme.sh --upgrade --auto-upgrade
                 if [ $? -ne 0 ]; then
-                    LOGE "自动更新设置失败，脚本退出..."
+                    LOGE "鑷姩鏇存柊璁剧疆澶辫触锛岃剼鏈€€鍑?.."
                     exit 1
                 else
-                    LOGI "证书已安装，并已开启自动续签。"
+                    LOGI "璇佷功宸插畨瑁咃紝骞跺凡寮€鍚嚜鍔ㄧ画绛俱€?
                     ls -lah ${certPath}/${CF_Domain}
                     chmod 755 ${certPath}/${CF_Domain}
                 fi
@@ -708,11 +708,11 @@ ssl_cert_issue_CF() {
             show_menu
             ;;
         3)
-            echo "正在退出..."
+            echo "姝ｅ湪閫€鍑?.."
             show_menu
             ;;
         *)
-            echo "无效选择，请重新选择。"
+            echo "鏃犳晥閫夋嫨锛岃閲嶆柊閫夋嫨銆?
             show_menu
             ;;
     esac
@@ -721,13 +721,13 @@ ssl_cert_issue_CF() {
 generate_self_signed_cert() {
     cert_dir="/etc/sing-box"
     mkdir -p "$cert_dir"
-    LOGI "请选择证书类型："
-    echo -e "${green}\t1.${plain} Ed25519（推荐）"
+    LOGI "璇烽€夋嫨璇佷功绫诲瀷锛?
+    echo -e "${green}\t1.${plain} Ed25519锛堟帹鑽愶級"
     echo -e "${green}\t2.${plain} RSA 2048"
     echo -e "${green}\t3.${plain} RSA 4096"
     echo -e "${green}\t4.${plain} ECDSA prime256v1"
     echo -e "${green}\t5.${plain} ECDSA secp384r1"
-    read -p "请输入你的选择 [1-5，默认 1]： " cert_type
+    read -p "璇疯緭鍏ヤ綘鐨勯€夋嫨 [1-5锛岄粯璁?1]锛?" cert_type
     cert_type=${cert_type:-1}
 
     case "$cert_type" in
@@ -757,75 +757,75 @@ generate_self_signed_cert() {
             ;;
     esac
 
-    LOGI "正在生成自签名证书（$algo）..."
+    LOGI "姝ｅ湪鐢熸垚鑷鍚嶈瘉涔︼紙$algo锛?.."
     sudo openssl req -x509 -nodes -days 3650 $key_opt \
         -keyout "${cert_dir}/self.key" \
         -out "${cert_dir}/self.crt" \
         -subj "/CN=myserver"
     if [[ $? -eq 0 ]]; then
         sudo chmod 600 "${cert_dir}/self."*
-        LOGI "自签名证书生成成功！"
-        LOGI "证书路径：${cert_dir}/self.crt"
-        LOGI "密钥路径：${cert_dir}/self.key"
+        LOGI "鑷鍚嶈瘉涔︾敓鎴愭垚鍔燂紒"
+        LOGI "璇佷功璺緞锛?{cert_dir}/self.crt"
+        LOGI "瀵嗛挜璺緞锛?{cert_dir}/self.key"
     else
-        LOGE "生成自签名证书失败。"
+        LOGE "鐢熸垚鑷鍚嶈瘉涔﹀け璐ャ€?
     fi
     before_show_menu
 }
 
 show_usage() {
-    echo -e "S-UI 控制菜单用法"
+    echo -e "S-UI 鎺у埗鑿滃崟鐢ㄦ硶"
     echo -e "------------------------------------------"
-    echo -e "子命令："
-    echo -e "s-ui              - 管理员管理脚本"
-    echo -e "s-ui start        - 启动 s-ui"
-    echo -e "s-ui stop         - 停止 s-ui"
-    echo -e "s-ui restart      - 重启 s-ui"
-    echo -e "s-ui status       - 查看 s-ui 当前状态"
-    echo -e "s-ui enable       - 启用开机自启"
-    echo -e "s-ui disable      - 禁用开机自启"
-    echo -e "s-ui log          - 查看 s-ui 日志"
-    echo -e "s-ui update       - 更新"
-    echo -e "s-ui install      - 安装"
-    echo -e "s-ui uninstall    - 卸载"
-    echo -e "s-ui help         - 控制菜单用法"
+    echo -e "瀛愬懡浠わ細"
+    echo -e "s-ui              - 绠＄悊鍛樼鐞嗚剼鏈?
+    echo -e "s-ui start        - 鍚姩 s-ui"
+    echo -e "s-ui stop         - 鍋滄 s-ui"
+    echo -e "s-ui restart      - 閲嶅惎 s-ui"
+    echo -e "s-ui status       - 鏌ョ湅 s-ui 褰撳墠鐘舵€?
+    echo -e "s-ui enable       - 鍚敤寮€鏈鸿嚜鍚?
+    echo -e "s-ui disable      - 绂佺敤寮€鏈鸿嚜鍚?
+    echo -e "s-ui log          - 鏌ョ湅 s-ui 鏃ュ織"
+    echo -e "s-ui update       - 鏇存柊"
+    echo -e "s-ui install      - 瀹夎"
+    echo -e "s-ui uninstall    - 鍗歌浇"
+    echo -e "s-ui help         - 鎺у埗鑿滃崟鐢ㄦ硶"
     echo -e "------------------------------------------"
 }
 
 show_menu() {
   echo -e "
-  ${green}S-UI 管理脚本 ${plain}
+  ${green}S-UI 绠＄悊鑴氭湰 ${plain}
 ---------------------------------------------------------------
-  ${green}0.${plain} 退出
+  ${green}0.${plain} 閫€鍑?
 ---------------------------------------------------------------
-  ${green}1.${plain} 安装
-  ${green}2.${plain} 更新
-  ${green}3.${plain} 自定义版本
-  ${green}4.${plain} 卸载
+  ${green}1.${plain} 瀹夎
+  ${green}2.${plain} 鏇存柊
+  ${green}3.${plain} 鑷畾涔夌増鏈?
+  ${green}4.${plain} 鍗歌浇
 ---------------------------------------------------------------
-  ${green}5.${plain} 将管理员账号密码重置为默认值
-  ${green}6.${plain} 设置管理员账号密码
-  ${green}7.${plain} 查看管理员账号密码
+  ${green}5.${plain} 灏嗙鐞嗗憳璐﹀彿瀵嗙爜閲嶇疆涓洪粯璁ゅ€?
+  ${green}6.${plain} 璁剧疆绠＄悊鍛樿处鍙峰瘑鐮?
+  ${green}7.${plain} 鏌ョ湅绠＄悊鍛樿处鍙峰瘑鐮?
 ---------------------------------------------------------------
-  ${green}8.${plain} 重置面板设置
-  ${green}9.${plain} 设置面板设置
-  ${green}10.${plain} 查看面板设置
+  ${green}8.${plain} 閲嶇疆闈㈡澘璁剧疆
+  ${green}9.${plain} 璁剧疆闈㈡澘璁剧疆
+  ${green}10.${plain} 鏌ョ湅闈㈡澘璁剧疆
 ---------------------------------------------------------------
-  ${green}11.${plain} 启动 S-UI
-  ${green}12.${plain} 停止 S-UI
-  ${green}13.${plain} 重启 S-UI
-  ${green}14.${plain} 查看 S-UI 状态
-  ${green}15.${plain} 查看 S-UI 日志
-  ${green}16.${plain} 启用 S-UI 开机自启
-  ${green}17.${plain} 禁用 S-UI 开机自启
+  ${green}11.${plain} 鍚姩 S-UI
+  ${green}12.${plain} 鍋滄 S-UI
+  ${green}13.${plain} 閲嶅惎 S-UI
+  ${green}14.${plain} 鏌ョ湅 S-UI 鐘舵€?
+  ${green}15.${plain} 鏌ョ湅 S-UI 鏃ュ織
+  ${green}16.${plain} 鍚敤 S-UI 寮€鏈鸿嚜鍚?
+  ${green}17.${plain} 绂佺敤 S-UI 寮€鏈鸿嚜鍚?
 ---------------------------------------------------------------
-  ${green}18.${plain} 启用或禁用 BBR
-  ${green}19.${plain} SSL 证书管理
-  ${green}20.${plain} Cloudflare SSL 证书
+  ${green}18.${plain} 鍚敤鎴栫鐢?BBR
+  ${green}19.${plain} SSL 璇佷功绠＄悊
+  ${green}20.${plain} Cloudflare SSL 璇佷功
 ---------------------------------------------------------------
  "
     show_status s-ui
-    echo && read -p "请输入你的选择 [0-20]： " num
+    echo && read -p "璇疯緭鍏ヤ綘鐨勯€夋嫨 [0-20]锛?" num
 
     case "${num}" in
     0)
@@ -892,7 +892,7 @@ show_menu() {
         ssl_cert_issue_CF
         ;;
     *)
-        LOGE "请输入正确的数字 [0-20]"
+        LOGE "璇疯緭鍏ユ纭殑鏁板瓧 [0-20]"
         ;;
     esac
 }

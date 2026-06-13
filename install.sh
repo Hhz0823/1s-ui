@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 
 red='\033[0;31m'
 green='\033[0;32m'
@@ -7,10 +7,10 @@ plain='\033[0m'
 
 cur_dir=$(pwd)
 
-# 检查 root 权限
-[[ $EUID -ne 0 ]] && echo -e "${red}致命错误：${plain}请使用 root 权限运行此脚本 \n " && exit 1
+# 妫€鏌?root 鏉冮檺
+[[ $EUID -ne 0 ]] && echo -e "${red}鑷村懡閿欒锛?{plain}璇蜂娇鐢?root 鏉冮檺杩愯姝よ剼鏈?\n " && exit 1
 
-# 检查系统并设置 release 变量
+# 妫€鏌ョ郴缁熷苟璁剧疆 release 鍙橀噺
 if [[ -f /etc/os-release ]]; then
     source /etc/os-release
     release=$ID
@@ -18,10 +18,10 @@ elif [[ -f /usr/lib/os-release ]]; then
     source /usr/lib/os-release
     release=$ID
 else
-    echo "检测系统失败，请联系作者！" >&2
+    echo "妫€娴嬬郴缁熷け璐ワ紝璇疯仈绯讳綔鑰咃紒" >&2
     exit 1
 fi
-echo "当前系统发行版为：$release"
+echo "褰撳墠绯荤粺鍙戣鐗堜负锛?release"
 
 arch() {
     case "$(uname -m)" in
@@ -32,11 +32,11 @@ arch() {
     armv6* | armv6) echo 'armv6' ;;
     armv5* | armv5) echo 'armv5' ;;
     s390x) echo 's390x' ;;
-    *) echo -e "${green}不支持的 CPU 架构！${plain}" && rm -f install.sh && exit 1 ;;
+    *) echo -e "${green}涓嶆敮鎸佺殑 CPU 鏋舵瀯锛?{plain}" && rm -f install.sh && exit 1 ;;
     esac
 }
 
-echo "架构：$(arch)"
+echo "鏋舵瀯锛?(arch)"
 
 install_base() {
     case "${release}" in
@@ -59,25 +59,25 @@ install_base() {
 }
 
 config_after_install() {
-    echo -e "${yellow}正在迁移... ${plain}"
+    echo -e "${yellow}姝ｅ湪杩佺Щ... ${plain}"
     /usr/local/s-ui/sui migrate
 
-    echo -e "${yellow}安装/更新完成！出于安全考虑，建议修改面板设置 ${plain}"
-    read -p "是否继续修改设置 [y/n]？": config_confirm
+    echo -e "${yellow}瀹夎/鏇存柊瀹屾垚锛佸嚭浜庡畨鍏ㄨ€冭檻锛屽缓璁慨鏀归潰鏉胯缃?${plain}"
+    read -p "鏄惁缁х画淇敼璁剧疆 [y/n]锛?: config_confirm
     if [[ "${config_confirm}" == "y" || "${config_confirm}" == "Y" ]]; then
-        echo -e "请输入${yellow}面板端口${plain}（留空则使用现有/默认值）："
+        echo -e "璇疯緭鍏?{yellow}闈㈡澘绔彛${plain}锛堢暀绌哄垯浣跨敤鐜版湁/榛樿鍊硷級锛?
         read config_port
-        echo -e "请输入${yellow}面板路径${plain}（留空则使用现有/默认值）："
+        echo -e "璇疯緭鍏?{yellow}闈㈡澘璺緞${plain}锛堢暀绌哄垯浣跨敤鐜版湁/榛樿鍊硷級锛?
         read config_path
 
-        # 订阅配置
-        echo -e "请输入${yellow}订阅端口${plain}（留空则使用现有/默认值）："
+        # 璁㈤槄閰嶇疆
+        echo -e "璇疯緭鍏?{yellow}璁㈤槄绔彛${plain}锛堢暀绌哄垯浣跨敤鐜版湁/榛樿鍊硷級锛?
         read config_subPort
-        echo -e "请输入${yellow}订阅路径${plain}（留空则使用现有/默认值）："
+        echo -e "璇疯緭鍏?{yellow}璁㈤槄璺緞${plain}锛堢暀绌哄垯浣跨敤鐜版湁/榛樿鍊硷級锛?
         read config_subPath
 
-        # 设置配置
-        echo -e "${yellow}正在初始化，请稍候...${plain}"
+        # 璁剧疆閰嶇疆
+        echo -e "${yellow}姝ｅ湪鍒濆鍖栵紝璇风◢鍊?..${plain}"
         params=""
         [ -z "$config_port" ] || params="$params -port $config_port"
         [ -z "$config_path" ] || params="$params -path $config_path"
@@ -85,47 +85,47 @@ config_after_install() {
         [ -z "$config_subPath" ] || params="$params -subPath $config_subPath"
         /usr/local/s-ui/sui setting ${params}
 
-        read -p "是否修改管理员账号密码 [y/n]？": admin_confirm
+        read -p "鏄惁淇敼绠＄悊鍛樿处鍙峰瘑鐮?[y/n]锛?: admin_confirm
         if [[ "${admin_confirm}" == "y" || "${admin_confirm}" == "Y" ]]; then
-            # 首个管理员账号密码
-            read -p "请设置用户名：" config_account
-            read -p "请设置密码：" config_password
+            # 棣栦釜绠＄悊鍛樿处鍙峰瘑鐮?
+            read -p "璇疯缃敤鎴峰悕锛? config_account
+            read -p "璇疯缃瘑鐮侊細" config_password
 
-            # 设置账号密码
-            echo -e "${yellow}正在初始化，请稍候...${plain}"
+            # 璁剧疆璐﹀彿瀵嗙爜
+            echo -e "${yellow}姝ｅ湪鍒濆鍖栵紝璇风◢鍊?..${plain}"
             /usr/local/s-ui/sui admin -username ${config_account} -password ${config_password}
         else
-            echo -e "${yellow}当前管理员账号密码：${plain}"
+            echo -e "${yellow}褰撳墠绠＄悊鍛樿处鍙峰瘑鐮侊細${plain}"
             /usr/local/s-ui/sui admin -show
         fi
     else
-        echo -e "${red}已取消...${plain}"
+        echo -e "${red}宸插彇娑?..${plain}"
         if [[ ! -f "/usr/local/s-ui/db/s-ui.db" ]]; then
             local usernameTemp=$(head -c 6 /dev/urandom | base64)
             local passwordTemp=$(head -c 6 /dev/urandom | base64)
-            echo -e "这是全新安装，出于安全考虑将生成随机登录信息："
+            echo -e "杩欐槸鍏ㄦ柊瀹夎锛屽嚭浜庡畨鍏ㄨ€冭檻灏嗙敓鎴愰殢鏈虹櫥褰曚俊鎭細"
             echo -e "###############################################"
-            echo -e "${green}用户名：${usernameTemp}${plain}"
-            echo -e "${green}密码：${passwordTemp}${plain}"
+            echo -e "${green}鐢ㄦ埛鍚嶏細${usernameTemp}${plain}"
+            echo -e "${green}瀵嗙爜锛?{passwordTemp}${plain}"
             echo -e "###############################################"
-            echo -e "${red}如果忘记登录信息，可以输入 ${green}s-ui${red} 打开配置菜单${plain}"
+            echo -e "${red}濡傛灉蹇樿鐧诲綍淇℃伅锛屽彲浠ヨ緭鍏?${green}s-ui${red} 鎵撳紑閰嶇疆鑿滃崟${plain}"
             /usr/local/s-ui/sui admin -username ${usernameTemp} -password ${passwordTemp}
         else
-            echo -e "${red}这是升级安装，将保留旧设置；如果忘记登录信息，可以输入 ${green}s-ui${red} 打开配置菜单${plain}"
+            echo -e "${red}杩欐槸鍗囩骇瀹夎锛屽皢淇濈暀鏃ц缃紱濡傛灉蹇樿鐧诲綍淇℃伅锛屽彲浠ヨ緭鍏?${green}s-ui${red} 鎵撳紑閰嶇疆鑿滃崟${plain}"
         fi
     fi
 }
 
 prepare_services() {
     if [[ -f "/etc/systemd/system/sing-box.service" ]]; then
-        echo -e "${yellow}正在停止 sing-box 服务... ${plain}"
+        echo -e "${yellow}姝ｅ湪鍋滄 sing-box 鏈嶅姟... ${plain}"
         systemctl stop sing-box
         rm -f /usr/local/s-ui/bin/sing-box /usr/local/s-ui/bin/runSingbox.sh /usr/local/s-ui/bin/signal
     fi
     if [[ -e "/usr/local/s-ui/bin" ]]; then
         echo -e "###############################################################"
-        echo -e "${green}/usr/local/s-ui/bin${red} 目录已存在！"
-        echo -e "请检查其中内容，并在迁移后手动删除 ${plain}"
+        echo -e "${green}/usr/local/s-ui/bin${red} 鐩綍宸插瓨鍦紒"
+        echo -e "璇锋鏌ュ叾涓唴瀹癸紝骞跺湪杩佺Щ鍚庢墜鍔ㄥ垹闄?${plain}"
         echo -e "###############################################################"
     fi
     systemctl daemon-reload
@@ -135,25 +135,25 @@ install_s-ui() {
     cd /tmp/
 
     if [ $# == 0 ]; then
-        last_version=$(curl -Ls "https://api.github.com/repos/Hhz0823/s-ui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        last_version=$(curl -Ls "https://api.github.com/repos/Hhz0823/1s-ui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
         if [[ ! -n "$last_version" ]]; then
-            echo -e "${red}获取 s-ui 版本失败，可能是 Github API 限制导致，请稍后重试${plain}"
+            echo -e "${red}鑾峰彇 s-ui 鐗堟湰澶辫触锛屽彲鑳芥槸 Github API 闄愬埗瀵艰嚧锛岃绋嶅悗閲嶈瘯${plain}"
             exit 1
         fi
-        echo -e "已获取 s-ui 最新版本：${last_version}，开始安装..."
-        wget -N --no-check-certificate -O /tmp/s-ui-linux-$(arch).tar.gz https://github.com/Hhz0823/s-ui/releases/download/${last_version}/s-ui-linux-$(arch).tar.gz
+        echo -e "宸茶幏鍙?s-ui 鏈€鏂扮増鏈細${last_version}锛屽紑濮嬪畨瑁?.."
+        wget -N --no-check-certificate -O /tmp/s-ui-linux-$(arch).tar.gz https://github.com/Hhz0823/1s-ui/releases/download/${last_version}/s-ui-linux-$(arch).tar.gz
         if [[ $? -ne 0 ]]; then
-            echo -e "${red}下载 s-ui 失败，请确认服务器可以访问 Github ${plain}"
+            echo -e "${red}涓嬭浇 s-ui 澶辫触锛岃纭鏈嶅姟鍣ㄥ彲浠ヨ闂?Github ${plain}"
             exit 1
         fi
     else
         last_version=$1
         [[ "${last_version}" != v* ]] && last_version="v${last_version}"
-        url="https://github.com/Hhz0823/s-ui/releases/download/${last_version}/s-ui-linux-$(arch).tar.gz"
-        echo -e "开始安装 s-ui ${last_version}"
+        url="https://github.com/Hhz0823/1s-ui/releases/download/${last_version}/s-ui-linux-$(arch).tar.gz"
+        echo -e "寮€濮嬪畨瑁?s-ui ${last_version}"
         wget -N --no-check-certificate -O /tmp/s-ui-linux-$(arch).tar.gz ${url}
         if [[ $? -ne 0 ]]; then
-            echo -e "${red}下载 s-ui ${last_version} 失败，请检查该版本是否存在${plain}"
+            echo -e "${red}涓嬭浇 s-ui ${last_version} 澶辫触锛岃妫€鏌ヨ鐗堟湰鏄惁瀛樺湪${plain}"
             exit 1
         fi
     fi
@@ -176,14 +176,14 @@ install_s-ui() {
 
     systemctl enable s-ui --now
 
-    echo -e "${green}s-ui ${last_version}${plain} 安装完成，现已启动并运行..."
-    echo -e "你可以通过以下 URL 访问面板：${green}"
+    echo -e "${green}s-ui ${last_version}${plain} 瀹夎瀹屾垚锛岀幇宸插惎鍔ㄥ苟杩愯..."
+    echo -e "浣犲彲浠ラ€氳繃浠ヤ笅 URL 璁块棶闈㈡澘锛?{green}"
     /usr/local/s-ui/sui uri
     echo -e "${plain}"
     echo -e ""
     s-ui help
 }
 
-echo -e "${green}正在执行...${plain}"
+echo -e "${green}姝ｅ湪鎵ц...${plain}"
 install_base
 install_s-ui $1

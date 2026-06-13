@@ -1,4 +1,4 @@
-package sub
+﻿package sub
 
 import (
 	"context"
@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/Hhz0823/s-ui/config"
-	"github.com/Hhz0823/s-ui/logger"
-	"github.com/Hhz0823/s-ui/middleware"
-	"github.com/Hhz0823/s-ui/network"
-	"github.com/Hhz0823/s-ui/service"
+	"github.com/Hhz0823/1s-ui/config"
+	"github.com/Hhz0823/1s-ui/logger"
+	"github.com/Hhz0823/1s-ui/middleware"
+	"github.com/Hhz0823/1s-ui/network"
+	"github.com/Hhz0823/1s-ui/service"
 
 	"github.com/gin-gonic/gin"
 )

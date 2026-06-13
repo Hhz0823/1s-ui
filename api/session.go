@@ -1,9 +1,9 @@
-package api
+﻿package api
 
 import (
 	"encoding/gob"
 
-	"github.com/Hhz0823/s-ui/database/model"
+	"github.com/Hhz0823/1s-ui/database/model"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"

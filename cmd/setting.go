@@ -1,4 +1,4 @@
-package cmd
+﻿package cmd
 
 import (
 	"fmt"
@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Hhz0823/s-ui/config"
-	"github.com/Hhz0823/s-ui/database"
-	"github.com/Hhz0823/s-ui/service"
+	"github.com/Hhz0823/1s-ui/config"
+	"github.com/Hhz0823/1s-ui/database"
+	"github.com/Hhz0823/1s-ui/service"
 
 	"github.com/shirou/gopsutil/v4/net"
 )

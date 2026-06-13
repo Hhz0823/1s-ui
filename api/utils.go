@@ -1,11 +1,11 @@
-package api
+﻿package api
 
 import (
 	"net"
 	"net/http"
 	"strings"
 
-	"github.com/Hhz0823/s-ui/logger"
+	"github.com/Hhz0823/1s-ui/logger"
 
 	"github.com/gin-gonic/gin"
 )

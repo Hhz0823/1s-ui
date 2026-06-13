@@ -1,6 +1,6 @@
-services:
+﻿services:
   s-ui:
-    image: ghcr.io/Hhz0823/s-ui
+    image: ghcr.io/Hhz0823/1s-ui
     container_name: s-ui
     hostname: "s-ui"
     network_mode: host

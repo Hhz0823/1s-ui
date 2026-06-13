@@ -1,16 +1,16 @@
-package app
+﻿package app
 
 import (
 	"log"
 
-	"github.com/Hhz0823/s-ui/config"
-	"github.com/Hhz0823/s-ui/core"
-	"github.com/Hhz0823/s-ui/cronjob"
-	"github.com/Hhz0823/s-ui/database"
-	"github.com/Hhz0823/s-ui/logger"
-	"github.com/Hhz0823/s-ui/service"
-	"github.com/Hhz0823/s-ui/sub"
-	"github.com/Hhz0823/s-ui/web"
+	"github.com/Hhz0823/1s-ui/config"
+	"github.com/Hhz0823/1s-ui/core"
+	"github.com/Hhz0823/1s-ui/cronjob"
+	"github.com/Hhz0823/1s-ui/database"
+	"github.com/Hhz0823/1s-ui/logger"
+	"github.com/Hhz0823/1s-ui/service"
+	"github.com/Hhz0823/1s-ui/sub"
+	"github.com/Hhz0823/1s-ui/web"
 
 	"github.com/op/go-logging"
 )

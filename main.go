@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"log"
@@ -6,8 +6,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Hhz0823/s-ui/app"
-	"github.com/Hhz0823/s-ui/cmd"
+	"github.com/Hhz0823/1s-ui/app"
+	"github.com/Hhz0823/1s-ui/cmd"
 )
 
 func runApp() {

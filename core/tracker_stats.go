@@ -1,4 +1,4 @@
-package core
+﻿package core
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Hhz0823/s-ui/database/model"
+	"github.com/Hhz0823/1s-ui/database/model"
 
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing/common/atomic"

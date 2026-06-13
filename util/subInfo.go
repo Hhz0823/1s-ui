@@ -1,9 +1,9 @@
-package util
+﻿package util
 
 import (
 	"fmt"
 
-	"github.com/Hhz0823/s-ui/database/model"
+	"github.com/Hhz0823/1s-ui/database/model"
 )
 
 func GetHeaders(client *model.Client, updateInterval int) []string {

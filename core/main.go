@@ -1,9 +1,9 @@
-package core
+﻿package core
 
 import (
 	"context"
 
-	"github.com/Hhz0823/s-ui/logger"
+	"github.com/Hhz0823/1s-ui/logger"
 
 	sb "github.com/sagernet/sing-box"
 	"github.com/sagernet/sing-box/adapter"

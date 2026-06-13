@@ -1,4 +1,4 @@
-package web
+﻿package web
 
 import (
 	"context"
@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Hhz0823/s-ui/api"
-	"github.com/Hhz0823/s-ui/config"
-	"github.com/Hhz0823/s-ui/logger"
-	"github.com/Hhz0823/s-ui/middleware"
-	"github.com/Hhz0823/s-ui/network"
-	"github.com/Hhz0823/s-ui/service"
+	"github.com/Hhz0823/1s-ui/api"
+	"github.com/Hhz0823/1s-ui/config"
+	"github.com/Hhz0823/1s-ui/logger"
+	"github.com/Hhz0823/1s-ui/middleware"
+	"github.com/Hhz0823/1s-ui/network"
+	"github.com/Hhz0823/1s-ui/service"
 
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-contrib/sessions"

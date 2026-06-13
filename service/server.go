@@ -1,4 +1,4 @@
-package service
+﻿package service
 
 import (
 	"encoding/base64"
@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Hhz0823/s-ui/config"
-	"github.com/Hhz0823/s-ui/database"
-	"github.com/Hhz0823/s-ui/database/model"
-	"github.com/Hhz0823/s-ui/logger"
+	"github.com/Hhz0823/1s-ui/config"
+	"github.com/Hhz0823/1s-ui/database"
+	"github.com/Hhz0823/1s-ui/database/model"
+	"github.com/Hhz0823/1s-ui/logger"
 
 	"github.com/sagernet/sing-box/common/tls"
 	"github.com/shirou/gopsutil/v4/cpu"

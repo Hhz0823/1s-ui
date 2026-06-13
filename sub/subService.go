@@ -1,4 +1,4 @@
-package sub
+﻿package sub
 
 import (
 	"encoding/base64"
@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Hhz0823/s-ui/database"
-	"github.com/Hhz0823/s-ui/database/model"
-	"github.com/Hhz0823/s-ui/service"
-	"github.com/Hhz0823/s-ui/util"
+	"github.com/Hhz0823/1s-ui/database"
+	"github.com/Hhz0823/1s-ui/database/model"
+	"github.com/Hhz0823/1s-ui/service"
+	"github.com/Hhz0823/1s-ui/util"
 )
 
 type SubService struct {
@@ -64,15 +64,15 @@ func (s *SubService) getClientInfo(c *model.Client) string {
 
 	var result []string
 	if vol := c.Volume - (c.Up + c.Down); vol > 0 {
-		result = append(result, fmt.Sprintf("%s%s", s.formatTraffic(vol), "📊"))
+		result = append(result, fmt.Sprintf("%s%s", s.formatTraffic(vol), "馃搳"))
 	}
 	if c.Expiry > 0 {
-		result = append(result, fmt.Sprintf("%d %s ⏳", (c.Expiry-now)/86400, "Days"))
+		result = append(result, fmt.Sprintf("%d %s 鈴?, (c.Expiry-now)/86400, "Days"))
 	}
 	if len(result) > 0 {
 		return " " + strings.Join(result, " ")
 	} else {
-		return " ⚡"
+		return " 鈿?
 	}
 }
 

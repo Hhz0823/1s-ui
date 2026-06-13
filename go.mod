@@ -1,4 +1,4 @@
-module github.com/Hhz0823/s-ui
+﻿module github.com/Hhz0823/1s-ui
 
 go 1.25.7
 

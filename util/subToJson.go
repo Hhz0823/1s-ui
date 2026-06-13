@@ -1,4 +1,4 @@
-package util
+﻿package util
 
 import (
 	"crypto/tls"
@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/Hhz0823/s-ui/logger"
-	"github.com/Hhz0823/s-ui/util/common"
+	"github.com/Hhz0823/1s-ui/logger"
+	"github.com/Hhz0823/1s-ui/util/common"
 )
 
 func GetExternalLink(url string) string {

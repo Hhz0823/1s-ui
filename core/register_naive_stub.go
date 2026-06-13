@@ -1,9 +1,9 @@
-//go:build !with_naive_outbound
+﻿//go:build !with_naive_outbound
 
 package core
 
 import (
-	"github.com/Hhz0823/s-ui/logger"
+	"github.com/Hhz0823/1s-ui/logger"
 	"github.com/sagernet/sing-box/adapter/outbound"
 )
 

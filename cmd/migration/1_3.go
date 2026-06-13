@@ -1,4 +1,4 @@
-package migration
+﻿package migration
 
 import (
 	"encoding/json"
@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Hhz0823/s-ui/database/model"
+	"github.com/Hhz0823/1s-ui/database/model"
 
 	"gorm.io/gorm"
 )

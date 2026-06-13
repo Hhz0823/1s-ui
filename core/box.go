@@ -1,4 +1,4 @@
-package core
+﻿package core
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/Hhz0823/s-ui/util/common"
+	"github.com/Hhz0823/1s-ui/util/common"
 
 	"github.com/sagernet/sing-box/adapter"
 	"github.com/sagernet/sing-box/adapter/endpoint"
