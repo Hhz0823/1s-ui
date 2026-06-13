@@ -64,15 +64,15 @@ func (s *SubService) getClientInfo(c *model.Client) string {
 
 	var result []string
 	if vol := c.Volume - (c.Up + c.Down); vol > 0 {
-		result = append(result, fmt.Sprintf("%s%s", s.formatTraffic(vol), "馃搳"))
+		result = append(result, fmt.Sprintf("%s%s", s.formatTraffic(vol), "📊"))
 	}
 	if c.Expiry > 0 {
-		result = append(result, fmt.Sprintf("%d %s 鈴?, (c.Expiry-now)/86400, "Days"))
+		result = append(result, fmt.Sprintf("%d %s ⏳", (c.Expiry-now)/86400, "Days"))
 	}
 	if len(result) > 0 {
 		return " " + strings.Join(result, " ")
 	} else {
-		return " 鈿?
+		return " ⚡"
 	}
 }
 
