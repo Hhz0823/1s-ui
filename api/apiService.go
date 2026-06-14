@@ -478,19 +478,13 @@ type SysctlRequest struct {
 }
 
 func (a *ApiService) SetSysctl(c *gin.Context) {
-	var req SysctlRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		jsonMsg(c, "setSysctl", err)
-		return
-	}
-
 	if runtime.GOOS != "linux" {
 		jsonMsg(c, "setSysctl", common.NewError("sysctl is only supported on Linux"))
 		return
 	}
 
-	algo := strings.TrimSpace(req.CongestionAlgo)
-	qdisc := strings.TrimSpace(req.Qdisc)
+	algo := strings.TrimSpace(c.PostForm("congestionAlgo"))
+	qdisc := strings.TrimSpace(c.PostForm("qdisc"))
 
 	validAlgos := map[string]bool{"bbr": true, "bbr2": true, "bbr3": true, "bbr2plus": true, "bbrplus": true, "cubic": true}
 	if algo != "" && !validAlgos[algo] {
