@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <v-card :loading="loading">
     <v-tabs
     v-model="tab"
@@ -71,6 +71,32 @@
           </v-col>
           <v-col cols="12" sm="6" md="4">
             <v-text-field v-model="settings.timeLocation" :label="$t('setting.timeLoc')" hide-details></v-text-field>
+          </v-col>
+        </v-row>
+
+        <v-divider class="my-4" opacity="40"></v-divider>
+        <div class="text-subtitle-2 font-weight-bold mb-3" style="letter-spacing: 0.02em;">{{ $t('setting.uiCustomization') }}</div>
+        <v-row>
+          <v-col cols="12" sm="6" md="4">
+            <v-select
+              v-model="menuPositionModel"
+              :items="menuPositionOptions"
+              :label="$t('setting.menuPosition')"
+              hide-details
+            ></v-select>
+          </v-col>
+          <v-col cols="12" sm="6" md="4">
+            <v-text-field
+              v-model="bgImageModel"
+              :label="$t('setting.bgImage')"
+              :placeholder="$t('setting.bgImagePlaceholder')"
+              hide-details
+              clearable
+              @click:clear="bgImageModel = ''"
+            ></v-text-field>
+          </v-col>
+          <v-col cols="12" sm="6" md="4" v-if="bgImageModel">
+            <v-img :src="bgImageModel" max-height="60" max-width="120" cover class="rounded-lg" style="border: 1px solid rgba(var(--v-theme-on-surface),0.1);" />
           </v-col>
         </v-row>
       </v-window-item>

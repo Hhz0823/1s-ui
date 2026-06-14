@@ -1,6 +1,10 @@
-<template>
+﻿<template>
   <v-main>
-    <router-view />
+    <router-view v-slot="{ Component }">
+      <transition name="page" mode="out-in">
+        <component :is="Component" />
+      </transition>
+    </router-view>
   </v-main>
 </template>
 

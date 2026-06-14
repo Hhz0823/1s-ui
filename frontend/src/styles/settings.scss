@@ -288,6 +288,93 @@ body {
   color: rgb(var(--v-theme-primary));
 }
 
+
+/* ===== Page Transitions ===== */
+.page-enter-active,
+.page-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+/* ===== Card Hover & Transition ===== */
+.v-card {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* ===== Fix Layout Alignment ===== */
+.v-main {
+  overflow-y: auto !important;
+}
+
+.v-container {
+  padding-left: 20px !important;
+  padding-right: 20px !important;
+}
+
+/* ===== Tab Animation ===== */
+.v-window-item {
+  animation: fadeIn 0.25s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== Smooth Scrollbar ===== */
+.v-main > .v-container {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--v-theme-on-surface), 0.15) transparent;
+}
+
+/* ===== Fix Dialog Animation ===== */
+.v-overlay--active {
+  animation: overlayFadeIn 0.2s ease;
+}
+
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.v-dialog .v-overlay__content {
+  animation: dialogSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dialogSlideIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ===== Fix Vuetify Component Alignment ===== */
+.v-field__input {
+  line-height: 1.5;
+}
+
+.v-list-item__title {
+  line-height: 1.4;
+}
+
+.v-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.v-btn-toggle {
+  border-radius: 12px !important;
+  overflow: hidden;
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 960px) {
   .v-card {
