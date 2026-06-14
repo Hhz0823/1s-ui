@@ -208,6 +208,8 @@ import { Config } from '@/types/config'
 import { computed, ref, watch } from 'vue'
 import { createInbound, Inbound } from '@/types/inbounds'
 import RandomUtil from '@/plugins/randomUtil'
+import { i18n } from '@/locales'
+import { push } from 'notivue'
 
 const appConfig = computed((): Config => {
   return <Config> Data().config
@@ -324,19 +326,24 @@ const needsTls = ['vmess', 'vless', 'trojan', 'hysteria2', 'tuic', 'naive', 'any
 
 const genSelfSignedTls = async (serverName: string): Promise<number> => {
   const tlsName = 'auto-' + quickAdd.value.tag
-  const msg = await HttpUtils.get('api/keypairs', { k: 'tls', o: serverName || "''" })
-  if (msg.success && msg.obj.length > 0) {
+  try {
+    const keyMsg = await HttpUtils.get('api/keypairs', { k: 'tls', o: serverName || "''" })
+    if (!keyMsg.success || !keyMsg.obj || !keyMsg.obj.length) return 0
+    const lines: string[] = keyMsg.obj.filter((l: string) => l && l.trim())
+    if (lines.length < 4) return 0
     let privateKey: string[] = []
     let publicKey: string[] = []
-    let isPrivateKey = false
-    let isPublicKey = false
-    msg.obj.forEach((line: string) => {
-      if (line === '-----BEGIN PRIVATE KEY-----') { isPrivateKey = true; isPublicKey = false; privateKey.push(line) }
-      else if (line === '-----END PRIVATE KEY-----') { isPrivateKey = false; privateKey.push(line) }
-      else if (line === '-----BEGIN CERTIFICATE-----') { isPublicKey = true; isPrivateKey = false; publicKey.push(line) }
-      else if (line === '-----END CERTIFICATE-----') { isPublicKey = false; publicKey.push(line) }
-      else { if (isPrivateKey) privateKey.push(line); if (isPublicKey) publicKey.push(line) }
-    })
+    let inKey = false
+    let inCert = false
+    for (const line of lines) {
+      const t = line.trim()
+      if (t === '-----BEGIN PRIVATE KEY-----') { inKey = true; inCert = false; privateKey.push(t) }
+      else if (t === '-----END PRIVATE KEY-----') { inKey = false; privateKey.push(t) }
+      else if (t === '-----BEGIN CERTIFICATE-----') { inCert = true; inKey = false; publicKey.push(t) }
+      else if (t === '-----END CERTIFICATE-----') { inCert = false; publicKey.push(t) }
+      else { if (inKey) privateKey.push(t); if (inCert) publicKey.push(t) }
+    }
+    if (!privateKey.length || !publicKey.length) return 0
     const tlsConfig = {
       id: 0,
       name: tlsName,
@@ -344,20 +351,28 @@ const genSelfSignedTls = async (serverName: string): Promise<number> => {
         alpn: ['h3', 'h2', 'http/1.1'],
         min_version: '1.2',
         max_version: '1.3',
-        key: privateKey,
-        certificate: publicKey,
+        key: privateKey.join('\n'),
+        certificate: publicKey.join('\n'),
       },
       client: {}
     }
-    const saveMsg = await HttpUtils.post('api/save', {
-      object: 'tls',
-      action: 'new',
-      data: JSON.stringify(tlsConfig, null, 2),
+    const body = new URLSearchParams()
+    body.append('object', 'tls')
+    body.append('action', 'new')
+    body.append('data', JSON.stringify(tlsConfig))
+    const resp = await fetch('api/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+      credentials: 'include',
     })
+    const saveMsg = await resp.json()
     if (saveMsg.success && saveMsg.obj && saveMsg.obj.tls) {
       const saved = saveMsg.obj.tls.find((t: any) => t.name === tlsName)
       if (saved && saved.id) return saved.id
     }
+  } catch (e) {
+    console.error('genSelfSignedTls error:', e)
   }
   return 0
 }
@@ -370,8 +385,12 @@ const createQuickNode = async () => {
   let tlsId = 0
   if (needsTls.includes(proto)) {
     tlsId = await genSelfSignedTls(quickAdd.value.tag)
+    if (tlsId === 0) {
+      quickAdd.value.loading = false
+      push.error('TLS generation failed. Please create TLS certificate in TLS Settings first.')
+      return
+    }
   }
-
   const inbound = createInbound(proto, {
     id: 0,
     tag: quickAdd.value.tag,
