@@ -296,7 +296,32 @@
           <v-card class="rounded-lg" style="margin-top: 12px;">
             <v-card-subtitle>Pinned Peer Certificate SHA256</v-card-subtitle>
             <v-card-text>
+              <v-row>
+                <v-col cols="12" sm="8">
+                  <v-text-field
+                    v-model="pinnedServerAddr"
+                    label="Server address (domain:port)"
+                    :placeholder="inTls.server_name ? inTls.server_name + ':443' : 'example.com:443'"
+                    hide-details
+                    density="compact"
+                  ></v-text-field>
+                </v-col>
+                <v-col cols="12" sm="4" class="d-flex align-center">
+                  <v-btn
+                    variant="tonal"
+                    color="primary"
+                    density="compact"
+                    :loading="pinnedLoading"
+                    @click="genPinnedSha256"
+                    block
+                  >
+                    <v-icon start size="small">mdi-key-star</v-icon>
+                    Auto Generate
+                  </v-btn>
+                </v-col>
+              </v-row>
               <v-textarea
+                style="margin-top: 12px;"
                 label="SHA256 Fingerprint (one per line)"
                 hide-details
                 :model-value="pinnedSha256Text"
@@ -343,6 +368,8 @@ export default {
     return {
       tls: <tls>{ id: 0, name: '', server: <iTls>{ enabled: true }, client: <oTls>{} },
       title: "add",
+      pinnedServerAddr: "",
+      pinnedLoading: false,
       loading: false,
       menu: false,
       tlsType: 0,
@@ -420,6 +447,38 @@ export default {
         this.tls.server = <iTls>{ enabled: true }
         this.tls.client = <oTls>{}
       }
+    },
+    async genPinnedSha256() {
+      const addr = this.pinnedServerAddr || this.inTls.server_name
+      if (!addr) {
+        push.error('Please enter a server address or set SNI first')
+        return
+      }
+      let serverName = addr.trim()
+      if (!serverName.includes(':')) {
+        serverName = serverName + ':443'
+      }
+      this.pinnedLoading = true
+      try {
+        const resp = await fetch('api/pinnedSha256', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ serverName: serverName }),
+          credentials: 'include',
+        })
+        const msg = await resp.json()
+        if (msg.success && msg.obj && msg.obj.length > 0) {
+          const existing = this.tls.client.pinned_peer_certificate_sha256 || []
+          const merged = [...new Set([...existing, ...msg.obj])]
+          this.tls.client.pinned_peer_certificate_sha256 = merged
+          push.success({ message: 'Generated ' + msg.obj.length + ' fingerprint(s)' })
+        } else {
+          push.error({ message: msg.msg || 'Failed to get certificate' })
+        }
+      } catch (e) {
+        push.error({ message: 'Network error' })
+      }
+      this.pinnedLoading = false
     },
     closeModal() {
       this.updateData(0) // reset
