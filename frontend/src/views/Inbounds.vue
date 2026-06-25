@@ -331,12 +331,12 @@ const genSelfSignedTls = async (serverName: string): Promise<number> => {
     if (!keyMsg.success || !keyMsg.obj || !keyMsg.obj.length) return 0
     const lines: string[] = keyMsg.obj.filter((l: string) => l && l.trim())
     if (lines.length < 4) return 0
-    let privateKey: string[] = []
-    let publicKey: string[] = []
-    let inKey = false
-    let inCert = false
+    const privateKey: string[] = []
+    const publicKey: string[] = []
+    let inKey = false, inCert = false
     for (const line of lines) {
       const t = line.trim()
+      if (!t) continue
       if (t === '-----BEGIN PRIVATE KEY-----') { inKey = true; inCert = false; privateKey.push(t) }
       else if (t === '-----END PRIVATE KEY-----') { inKey = false; privateKey.push(t) }
       else if (t === '-----BEGIN CERTIFICATE-----') { inCert = true; inKey = false; publicKey.push(t) }
@@ -348,11 +348,12 @@ const genSelfSignedTls = async (serverName: string): Promise<number> => {
       id: 0,
       name: tlsName,
       server: {
+        enabled: true,
         alpn: ['h3', 'h2', 'http/1.1'],
         min_version: '1.2',
         max_version: '1.3',
-        key: privateKey.join('\n'),
-        certificate: publicKey.join('\n'),
+        key: privateKey,
+        certificate: publicKey,
       },
       client: {}
     }
@@ -381,6 +382,9 @@ const createQuickNode = async () => {
   quickAdd.value.loading = true
   const port = quickAdd.value.port
   const proto = quickAdd.value.protocol
+  const clientName = 'user-' + RandomUtil.randomSeq(6)
+  const password = RandomUtil.randomSeq(10)
+  const uuid = RandomUtil.randomUUID()
 
   let tlsId = 0
   if (needsTls.includes(proto)) {
@@ -463,7 +467,77 @@ const createQuickNode = async () => {
       break
   }
 
-  const success = await Data().save('inbounds', 'new', inbound)
+  // Create a default client for protocols that need users
+  const needsClient = ['shadowsocks', 'vmess', 'vless', 'trojan', 'naive', 'hysteria2', 'tuic', 'anytls', 'shadowtls']
+  let initUsers: number[] | undefined = undefined
+  if (needsClient.includes(proto)) {
+    const protoConfig: any = {}
+    switch (proto) {
+      case 'shadowsocks':
+        protoConfig.shadowsocks = { name: clientName, password: RandomUtil.randomShadowsocksPassword(32) }
+        break
+      case 'vmess':
+        protoConfig.vmess = { name: clientName, uuid: uuid, alterId: 0 }
+        break
+      case 'vless':
+        protoConfig.vless = { name: clientName, uuid: uuid, flow: 'xtls-rprx-vision' }
+        break
+      case 'trojan':
+        protoConfig.trojan = { name: clientName, password: password }
+        break
+      case 'naive':
+        protoConfig.naive = { username: clientName, password: password }
+        break
+      case 'hysteria2':
+        protoConfig.hysteria2 = { name: clientName, password: password }
+        break
+      case 'tuic':
+        protoConfig.tuic = { name: clientName, uuid: uuid, password: password }
+        break
+      case 'anytls':
+        protoConfig.anytls = { name: clientName, password: password }
+        break
+      case 'shadowtls':
+        protoConfig.shadowtls = { name: clientName, password: RandomUtil.randomShadowsocksPassword(32) }
+        break
+    }
+    const client = {
+      enable: true,
+      name: clientName,
+      config: protoConfig,
+      inbounds: [],
+      links: [],
+      volume: 0,
+      expiry: 0,
+      up: 0,
+      down: 0,
+      desc: '',
+      group: '',
+    }
+    const clientBody = new URLSearchParams()
+    clientBody.append('object', 'clients')
+    clientBody.append('action', 'new')
+    clientBody.append('data', JSON.stringify(client))
+    try {
+      const clientResp = await fetch('api/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: clientBody.toString(),
+        credentials: 'include',
+      })
+      const clientMsg = await clientResp.json()
+      if (clientMsg.success && clientMsg.obj && clientMsg.obj.clients) {
+        const savedClient = clientMsg.obj.clients.find((c: any) => c.name === clientName)
+        if (savedClient && savedClient.id) {
+          initUsers = [savedClient.id]
+        }
+      }
+    } catch (e) {
+      console.error('Quick add client creation error:', e)
+    }
+  }
+
+  const success = await Data().save('inbounds', 'new', inbound, initUsers)
   quickAdd.value.loading = false
   if (success) {
     quickAdd.value.visible = false

@@ -268,8 +268,8 @@ func (s *InboundService) fetchUsers(db *gorm.DB, inboundType string, condition s
 
 	err := db.Raw(
 		fmt.Sprintf(`SELECT json_extract(clients.config, "$.%s")
-		FROM clients WHERE enable = true AND %s`,
-			inboundType, condition)).Scan(&users).Error
+		FROM clients WHERE enable = true AND json_extract(clients.config, "$.%s") IS NOT NULL AND %s`,
+			inboundType, inboundType, condition)).Scan(&users).Error
 	if err != nil {
 		return nil, err
 	}
