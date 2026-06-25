@@ -225,6 +225,8 @@
     menuSide: "Боковая панель",
     menuTop: "Верхняя панель",
     bgImage: "URL фонового изображения",
+    bgBlur: "Background Blur",
+    bgOpacity: "Background Opacity",
     bgImagePlaceholder: "URL изображения PNG или JPG",
 },
   client: {

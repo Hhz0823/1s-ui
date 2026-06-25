@@ -98,6 +98,34 @@
           <v-col cols="12" sm="6" md="4" v-if="bgImageModel">
             <v-img :src="bgImageModel" max-height="60" max-width="120" cover class="rounded-lg" style="border: 1px solid rgba(var(--v-theme-on-surface),0.1);" />
           </v-col>
+          <v-col cols="12" sm="6" md="4" v-if="bgImageModel">
+            <v-slider
+              v-model="bgBlurModel"
+              :label="$t('setting.bgBlur') || 'Background Blur'"
+              :min="0" :max="20" :step="1"
+              thumb-label="always"
+              color="primary"
+              hide-details
+            >
+              <template v-slot:append>
+                <v-chip size="small" variant="tonal">{{ bgBlurModel }}px</v-chip>
+              </template>
+            </v-slider>
+          </v-col>
+          <v-col cols="12" sm="6" md="4" v-if="bgImageModel">
+            <v-slider
+              v-model="bgOpacityModel"
+              :label="$t('setting.bgOpacity') || 'Background Opacity'"
+              :min="5" :max="100" :step="1"
+              thumb-label="always"
+              color="primary"
+              hide-details
+            >
+              <template v-slot:append>
+                <v-chip size="small" variant="tonal">{{ bgOpacityModel }}%</v-chip>
+              </template>
+            </v-slider>
+          </v-col>
         </v-row>
       </v-window-item>
 
@@ -244,6 +272,22 @@ const bgImageModel = computed({
   get: () => localStorage.getItem('bgImage') || '',
   set: (v: string) => { if (v) localStorage.setItem('bgImage', v); else localStorage.removeItem('bgImage') }
 })
+const bgBlurModel = computed({
+  get: () => parseInt(localStorage.getItem('bgBlur') || '6'),
+  set: (v: number) => { localStorage.setItem('bgBlur', String(v)); applyBgSettings() }
+})
+const bgOpacityModel = computed({
+  get: () => parseInt(localStorage.getItem('bgOpacity') || '40'),
+  set: (v: number) => { localStorage.setItem('bgOpacity', String(v)); applyBgSettings() }
+})
+const applyBgSettings = () => {
+  const el = document.querySelector('.app-bg-image') as HTMLElement
+  if (!el) return
+  const blur = localStorage.getItem('bgBlur') || '6'
+  const opacity = localStorage.getItem('bgOpacity') || '40'
+  el.style.filter = `blur(${blur}px) saturate(1.3)`
+  el.style.opacity = String(parseInt(opacity) / 100)
+}
 const loading:Ref = inject('loading')?? ref(false)
 const oldSettings = ref({})
 

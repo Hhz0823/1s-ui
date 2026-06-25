@@ -224,6 +224,8 @@
     menuSide: "Sidebar",
     menuTop: "Top Bar",
     bgImage: "Background Image URL",
+    bgBlur: "Background Blur",
+    bgOpacity: "Background Opacity",
     bgImagePlaceholder: "PNG or JPG image URL",
 },
   client: {

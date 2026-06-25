@@ -224,6 +224,8 @@
     menuSide: "نوار کناری",
     menuTop: "نوار بالا",
     bgImage: "URL تصویر پس‌زمینه",
+    bgBlur: "Background Blur",
+    bgOpacity: "Background Opacity",
     bgImagePlaceholder: "URL تصویر PNG یا JPG",
 },
   client: {

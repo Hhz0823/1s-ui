@@ -224,6 +224,8 @@
     menuSide: "侧边栏",
     menuTop: "顶部菜单栏",
     bgImage: "背景图片 URL",
+    bgBlur: "背景模糊",
+    bgOpacity: "背景透明度",
     bgImagePlaceholder: "支持 PNG 或 JPG 图片链接",
 },
   client: {

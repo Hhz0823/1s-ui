@@ -224,6 +224,8 @@
     menuSide: "Thanh bên",
     menuTop: "Thanh trên",
     bgImage: "URL hình nền",
+    bgBlur: "Background Blur",
+    bgOpacity: "Background Opacity",
     bgImagePlaceholder: "URL hình ảnh PNG hoặc JPG",
 },
   client: {

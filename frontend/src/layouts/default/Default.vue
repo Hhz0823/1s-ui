@@ -1,6 +1,6 @@
 ﻿<template>
   <v-app class="app-root">
-    <div v-if="bgImage" class="app-bg-image" :style="{ backgroundImage: `url(${bgImage})` }"></div>
+    <div v-if="bgImage" class="app-bg-image" :style="{ backgroundImage: `url(${bgImage})`, filter: `blur(${bgBlur}px) saturate(1.3)`, opacity: Number(bgOpacity) / 100 }"></div>
     <drawer v-if="menuPosition !== 'top'" :isMobile="isMobile" :displayDrawer="displayDrawer" @toggleDrawer="toggleDrawer" />
     <default-bar :isMobile="isMobile" :menuPosition="menuPosition" :menuItems="menuItems" @toggleDrawer="toggleDrawer" />
     <default-view />
@@ -29,6 +29,8 @@ const isMobile = computed((): boolean => {
 
 import bgAsset from '@/assets/bg.jpg'
 const bgImage = computed(() => localStorage.getItem('bgImage') || bgAsset)
+const bgBlur = computed(() => localStorage.getItem('bgBlur') || '6')
+const bgOpacity = computed(() => localStorage.getItem('bgOpacity') || '40')
 const menuPosition = computed(() => localStorage.getItem('menuPosition') || 'side')
 
 const menuItems = [
