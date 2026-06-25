@@ -104,7 +104,7 @@
     @close="closeStats"
   />
   <v-row>
-    <v-col cols="12" justify="center" align="center">
+    <v-col cols="12" justify="center" align="center" class="pt-2 pb-4">
       <v-btn color="primary" @click="showModal(0)">{{ $t('actions.add') }}</v-btn>
       <v-btn color="secondary" variant="tonal" class="ml-2" @click="openQuickAdd">
         <v-icon start icon="mdi-lightning-bolt"></v-icon>

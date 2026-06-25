@@ -27,7 +27,8 @@ const isMobile = computed((): boolean => {
   return smAndDown.value
 })
 
-const bgImage = computed(() => localStorage.getItem('bgImage') || '')
+import bgAsset from '@/assets/bg.jpg'
+const bgImage = computed(() => localStorage.getItem('bgImage') || bgAsset)
 const menuPosition = computed(() => localStorage.getItem('menuPosition') || 'side')
 
 const menuItems = [

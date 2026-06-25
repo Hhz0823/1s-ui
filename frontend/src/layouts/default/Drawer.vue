@@ -5,7 +5,7 @@
     :expand-on-hover="!isMobile"
     :rail="!isMobile"
     :permanent="!isMobile"
-    :width="isMobile ? 300 : 260"
+    :width="isMobile ? 280 : 240"
     @click="isMobile ? $emit('toggleDrawer') : null"
     class="app-drawer"
   >
@@ -116,6 +116,16 @@ const Logout = async () => {
 </script>
 
 <style scoped>
+
+/* ===== Liquid Glass Drawer ===== */
+.app-drawer {
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  background: rgba(var(--v-theme-surface), 0.42) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.05), 4px 0 16px rgba(0, 0, 0, 0.06) !important;
+}
+
 .drawer-header {
   display: flex;
   align-items: center;
