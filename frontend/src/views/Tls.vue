@@ -14,8 +14,7 @@
   </v-row>
   <v-row>
     <v-col cols="12" sm="4" md="3" lg="2" v-for="(item, index) in <any[]>tlsConfigs" :key="item.id">
-      <GlassCard>
-      <v-card rounded="xl" elevation="0" :title="item.name">
+            <v-card rounded="xl" elevation="0" :title="item.name">
         <v-card-subtitle>
           {{ item.server?.server_name?.length>0 ? item.server.server_name : "-" }}
         </v-card-subtitle>
@@ -81,8 +80,7 @@
           </v-btn>
         </v-card-actions>
       </v-card>
-      </GlassCard>
-    </v-col>
+          </v-col>
   </v-row>
 </template>
 

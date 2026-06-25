@@ -171,27 +171,161 @@ body {
 }
 
 
-/* ===== Liquid Glass Card Effect ===== */
-.glass-card, .v-card {
-  backdrop-filter: blur(12px) saturate(150%) !important;
-  -webkit-backdrop-filter: blur(12px) saturate(150%) !important;
-  background: rgba(var(--v-theme-surface), 0.55) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+/* ===== Liquid Glass (Pure CSS) ===== */
+.glass-wrapper,
+.glass-card,
+.v-card {
+  position: relative;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  background: rgba(var(--v-theme-surface), 0.45) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
   box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.08),
-    0 1px 2px rgba(0, 0, 0, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+    0 4px 16px rgba(0, 0, 0, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.02) !important;
+  overflow: hidden;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
-.glass-card:hover, .v-card:hover {
+/* Top-left corner highlight */
+.glass-wrapper::before,
+.glass-card::before,
+.v-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.25) 0%,
+    rgba(255, 255, 255, 0.08) 40%,
+    transparent 100%
+  );
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Left edge highlight */
+.glass-wrapper::after,
+.glass-card::after,
+.v-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.05) 50%,
+    transparent 100%
+  );
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Hover: lift + brighter edges */
+.glass-wrapper:hover,
+.glass-card:hover,
+.v-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    0 2px 8px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Dark theme glass */
+.v-theme--dark .v-card,
+.v-theme--midnight .v-card,
+.v-theme--ocean .v-card,
+.v-theme--forest .v-card,
+.v-theme--cyberpunk .v-card,
+.v-theme--nord .v-card,
+.v-theme--dracula .v-card {
+  background: rgba(18, 18, 18, 0.5) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.02) !important;
+}
+
+.v-theme--dark .v-card:hover,
+.v-theme--midnight .v-card:hover,
+.v-theme--ocean .v-card:hover,
+.v-theme--forest .v-card:hover,
+.v-theme--cyberpunk .v-card:hover,
+.v-theme--nord .v-card:hover,
+.v-theme--dracula .v-card:hover {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.03) !important;
+}
+
+.v-theme--dark .v-card::before,
+.v-theme--midnight .v-card::before,
+.v-theme--ocean .v-card::before,
+.v-theme--forest .v-card::before,
+.v-theme--cyberpunk .v-card::before,
+.v-theme--nord .v-card::before,
+.v-theme--dracula .v-card::before {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0.04) 40%,
+    transparent 100%
+  );
+}
+
+.v-theme--dark .v-card::after,
+.v-theme--midnight .v-card::after,
+.v-theme--ocean .v-card::after,
+.v-theme--forest .v-card::after,
+.v-theme--cyberpunk .v-card::after,
+.v-theme--nord .v-card::after,
+.v-theme--dracula .v-card::after {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.15) 0%,
+    rgba(255, 255, 255, 0.03) 50%,
+    transparent 100%
+  );
+}
+
+/* ===== Menu Glass ===== */
+.glass-menu,
+.v-menu .v-card,
+.v-overlay .v-card {
+  backdrop-filter: blur(20px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(200%) !important;
+  background: rgba(var(--v-theme-surface), 0.55) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 14px !important;
   box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.12),
-    0 2px 8px rgba(0, 0, 0, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
-  border-color: rgba(255, 255, 255, 0.12) !important;
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.02) !important;
 }
 
-/* ===== Dark Theme Overrides ===== */
+/* ===== Button Glass ===== */
+.glass-btn,
+.v-btn {
+  backdrop-filter: blur(8px) saturate(150%) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(150%) !important;
+}
+
+/* ===== Responsive ===== */
+
 .v-theme--dark .v-card,
 .v-theme--midnight .v-card,
 .v-theme--ocean .v-card,
@@ -435,47 +569,7 @@ body {
 }
 
 
-/* ===== Liquid Glass Integration ===== */
-.glass-wrapper {
-  position: relative;
-  border-radius: 16px;
-}
-
-/* Hover lift effect for glass cards */
-.glass-wrapper:hover {
-  transform: translateY(-2px);
-}
-
-/* Menu dropdown glass styling */
-.glass-menu {
-  backdrop-filter: blur(16px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-  background: rgba(var(--v-theme-surface), 0.6) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  border-radius: 14px !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
-}
-
-.v-theme--dark .glass-menu {
-  background: rgba(18, 18, 18, 0.65) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-}
-
-/* Glass button hover */
-.glass-btn {
-  transition: all 0.2s ease !important;
-}
-
-.glass-btn:hover {
-  transform: translateY(-1px);
-}
-
-.glass-btn:active {
-  transform: translateY(0) scale(0.98);
-}
-
-
-/* ===== Responsive ===== */
+/* ===== Liquid Glass (Pure CSS) ===== */
 @media (max-width: 960px) {
   .v-card {
     margin-bottom: 8px;
