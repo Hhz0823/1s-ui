@@ -129,9 +129,10 @@ const Logout = async () => {
 
 /* Expanded (desktop non-rail) -> opaque */
 .v-navigation-drawer:not(.v-navigation-drawer--rail):not(.v-navigation-drawer--is-floating) {
-  background: rgba(var(--v-theme-surface), 1) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  background: rgba(var(--v-theme-surface), 0.85) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 
 /* Mobile temporary -> opaque */
