@@ -142,6 +142,12 @@ const Logout = async () => {
 }
 
 /* Rail mode -> transparent glass */
+/* Transparent scrim for temporary drawer */
+.v-navigation-drawer .v-overlay__scrim {
+  background: rgba(0, 0, 0, 0.25) !important;
+  backdrop-filter: blur(4px) !important;
+}
+
 .v-navigation-drawer--rail {
   background: rgba(var(--v-theme-surface), 0.3) !important;
   backdrop-filter: blur(20px) saturate(180%) !important;
