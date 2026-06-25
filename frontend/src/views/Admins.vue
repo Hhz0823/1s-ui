@@ -26,8 +26,8 @@
   </v-row>
   <v-row>
     <v-col cols="12" sm="4" md="3" lg="2" v-for="(item, index) in <any[]>users" :key="item.id">
-      <v-card rounded="xl" elevation="5" min-width="200" :title="item.username">
-        <v-card-subtitle style="margin-top: -15px;">
+      <v-card rounded="xl" elevation="2" min-width="180" :title="item.username">
+        <v-card-subtitle >
           {{ $t('admin.lastLogin') }}
         </v-card-subtitle>
         <v-card-text>
@@ -51,7 +51,7 @@
           </v-row>
         </v-card-text>
         <v-divider></v-divider>
-        <v-card-actions style="padding: 0;">
+        <v-card-actions>
           <v-btn icon="mdi-account-edit" @click="showEditModal(item)">
             <v-icon />
             <v-tooltip activator="parent" location="top" :text="$t('actions.edit')"></v-tooltip>
