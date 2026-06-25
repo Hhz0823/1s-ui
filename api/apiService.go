@@ -438,7 +438,11 @@ func (a *ApiService) PinnedSha256(c *gin.Context) {
 	} else if req.Cert != "" {
 		certPEM = []byte(req.Cert)
 	} else if req.ServerName != "" {
-		conn, err := tls.Dial("tcp", req.ServerName+":443", &tls.Config{InsecureSkipVerify: true})
+		addr := req.ServerName
+		if !strings.Contains(addr, ":") {
+			addr = addr + ":443"
+		}
+		conn, err := tls.Dial("tcp", addr, &tls.Config{InsecureSkipVerify: true})
 		if err != nil {
 			jsonMsg(c, "pinnedSha256", common.NewError("failed to connect: ", err.Error()))
 			return
