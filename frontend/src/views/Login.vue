@@ -162,7 +162,7 @@ const isActiveTheme = (th: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgb(var(--v-theme-background));
+  background: transparent;
   position: relative;
   overflow: hidden;
 }
@@ -185,8 +185,18 @@ const isActiveTheme = (th: string) => {
 .login-card {
   border-radius: 20px !important;
   padding: 0;
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(var(--v-theme-on-surface), 0.06) !important;
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  background: rgba(var(--v-theme-surface), 0.55) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.02) !important;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
 }
 
 .login-header {

@@ -357,19 +357,9 @@ const genSelfSignedTls = async (serverName: string): Promise<number> => {
       },
       client: {}
     }
-    const body = new URLSearchParams()
-    body.append('object', 'tls')
-    body.append('action', 'new')
-    body.append('data', JSON.stringify(tlsConfig))
-    const resp = await fetch('api/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString(),
-      credentials: 'include',
-    })
-    const saveMsg = await resp.json()
-    if (saveMsg.success && saveMsg.obj && saveMsg.obj.tls) {
-      const saved = saveMsg.obj.tls.find((t: any) => t.name === tlsName)
+    const success = await Data().save('tls', 'new', tlsConfig)
+    if (success) {
+      const saved = Data().tlsConfigs.find((t: any) => t.name === tlsName)
       if (saved && saved.id) return saved.id
     }
   } catch (e) {

@@ -58,7 +58,7 @@ body {
   border: 1px solid rgba(var(--v-theme-on-surface), 0.06);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.03) !important;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  overflow: hidden !important;
+  overflow: visible;
 }
 
 .v-card:hover {
@@ -193,6 +193,7 @@ body {
 .v-card.rounded-xl,
 .v-card.rounded-lg {
   position: relative;
+  overflow: hidden;
   backdrop-filter: blur(16px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
   background: rgba(var(--v-theme-surface), 0.55) !important;

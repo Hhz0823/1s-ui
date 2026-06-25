@@ -119,40 +119,51 @@ const Logout = async () => {
 
 /* ===== Liquid Glass Drawer ===== */
 .app-drawer {
-  transition: background 0.3s ease, backdrop-filter 0.3s ease !important;
-  backdrop-filter: blur(20px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
-  background: rgba(var(--v-theme-surface), 0.3) !important;
+  --drawer-bg-rail: 0.3;
+  --drawer-bg-expanded: 0.45;
+  --drawer-blur-rail: 20px;
+  --drawer-blur-expanded: 24px;
+  transition:
+    background 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    backdrop-filter 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    -webkit-backdrop-filter 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  backdrop-filter: blur(var(--drawer-blur-rail)) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(var(--drawer-blur-rail)) saturate(180%) !important;
+  background: rgba(var(--v-theme-surface), var(--drawer-bg-rail)) !important;
   border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
   box-shadow: 1px 0 0 rgba(255, 255, 255, 0.05), 4px 0 16px rgba(0, 0, 0, 0.06) !important;
 }
 
-/* Expanded (desktop non-rail) -> opaque */
-.v-navigation-drawer:not(.v-navigation-drawer--rail):not(.v-navigation-drawer--is-floating) {
-  background: rgba(var(--v-theme-surface), 0.85) !important;
-  backdrop-filter: blur(20px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
-  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+/* Expanded (desktop non-rail OR rail+hovering) -> transparent glass */
+.v-navigation-drawer:not(.v-navigation-drawer--rail):not(.v-navigation-drawer--is-floating),
+.v-navigation-drawer--rail.v-navigation-drawer--is-hovering {
+  background: rgba(var(--v-theme-surface), var(--drawer-bg-expanded)) !important;
+  backdrop-filter: blur(var(--drawer-blur-expanded)) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(var(--drawer-blur-expanded)) saturate(180%) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 1px 0 0 rgba(255, 255, 255, 0.06), 4px 0 20px rgba(0, 0, 0, 0.08) !important;
 }
 
 /* Mobile temporary -> opaque */
 .v-navigation-drawer--temporary.v-navigation-drawer--active {
-  background: rgba(var(--v-theme-surface), 1) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  background: rgba(var(--v-theme-surface), 0.92) !important;
+  backdrop-filter: blur(30px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(30px) saturate(180%) !important;
 }
 
-/* Rail mode -> transparent glass */
-/* Transparent scrim for temporary drawer */
+/* Rail mode (not hovering) -> transparent glass */
+.v-navigation-drawer--rail:not(.v-navigation-drawer--is-hovering) {
+  background: rgba(var(--v-theme-surface), var(--drawer-bg-rail)) !important;
+  backdrop-filter: blur(var(--drawer-blur-rail)) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(var(--drawer-blur-rail)) saturate(180%) !important;
+}
+
+/* Scrim override */
 .v-navigation-drawer .v-overlay__scrim {
-  background: rgba(0, 0, 0, 0.25) !important;
-  backdrop-filter: blur(4px) !important;
-}
-
-.v-navigation-drawer--rail {
-  background: rgba(var(--v-theme-surface), 0.3) !important;
-  backdrop-filter: blur(20px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
 }
 
 .drawer-header {
