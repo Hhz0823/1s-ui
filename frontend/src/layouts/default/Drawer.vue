@@ -119,11 +119,33 @@ const Logout = async () => {
 
 /* ===== Liquid Glass Drawer ===== */
 .app-drawer {
+  transition: background 0.3s ease, backdrop-filter 0.3s ease !important;
   backdrop-filter: blur(20px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
-  background: rgba(var(--v-theme-surface), 0.42) !important;
+  background: rgba(var(--v-theme-surface), 0.3) !important;
   border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
   box-shadow: 1px 0 0 rgba(255, 255, 255, 0.05), 4px 0 16px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Expanded (desktop non-rail) -> opaque */
+.v-navigation-drawer:not(.v-navigation-drawer--rail):not(.v-navigation-drawer--is-floating) {
+  background: rgba(var(--v-theme-surface), 1) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Mobile temporary -> opaque */
+.v-navigation-drawer--temporary.v-navigation-drawer--active {
+  background: rgba(var(--v-theme-surface), 1) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Rail mode -> transparent glass */
+.v-navigation-drawer--rail {
+  background: rgba(var(--v-theme-surface), 0.3) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
 }
 
 .drawer-header {

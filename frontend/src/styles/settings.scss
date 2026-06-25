@@ -396,6 +396,44 @@ body {
   overflow: hidden;
 }
 
+
+/* ===== Card Edge Highlight ===== */
+.v-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(255, 255, 255, 0.05) 40%,
+    rgba(255, 255, 255, 0.0) 60%,
+    rgba(255, 255, 255, 0.08) 100%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.v-theme--dark .v-card::before,
+.v-theme--midnight .v-card::before,
+.v-theme--ocean .v-card::before,
+.v-theme--forest .v-card::before,
+.v-theme--cyberpunk .v-card::before,
+.v-theme--nord .v-card::before,
+.v-theme--dracula .v-card::before {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.06) 35%,
+    rgba(255, 255, 255, 0.0) 55%,
+    rgba(255, 255, 255, 0.12) 100%
+  );
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 960px) {
   .v-card {
