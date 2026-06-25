@@ -47,7 +47,7 @@
               <v-icon icon="mdi-translate" size="20" />
             </v-btn>
           </template>
-          <v-card class="menu-card" elevation="8">
+          <GlassMenu>
             <v-list density="compact" class="menu-dropdown">
               <v-list-item
                 v-for="lang in languages"
@@ -59,7 +59,7 @@
                 <v-list-item-title>{{ lang.title }}</v-list-item-title>
               </v-list-item>
             </v-list>
-          </v-card>
+          </GlassMenu>
         </v-menu>
 
         <v-menu :close-on-content-click="false" location="bottom end">
@@ -68,7 +68,7 @@
               <v-icon icon="mdi-palette-outline" size="20" />
             </v-btn>
           </template>
-          <v-card class="menu-card theme-card" elevation="8">
+          <GlassMenu>
             <div class="theme-grid">
               <button
                 v-for="th in themes"
@@ -81,7 +81,7 @@
                 <span>{{ $t('theme.' + th.value) }}</span>
               </button>
             </div>
-          </v-card>
+          </GlassMenu>
         </v-menu>
       </div>
     </template>
@@ -97,6 +97,8 @@ import { languages } from '@/locales'
 defineProps(['isMobile', 'menuPosition', 'menuItems'])
 
 const route = useRoute()
+import GlassMenu from '@/components/glass/GlassMenu.vue'
+
 const { locale: i18nLocale } = useI18n()
 const vuetifyLocale = useLocale()
 const theme = useTheme()

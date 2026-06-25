@@ -434,6 +434,47 @@ body {
   );
 }
 
+
+/* ===== Liquid Glass Integration ===== */
+.glass-wrapper {
+  position: relative;
+  border-radius: 16px;
+}
+
+/* Hover lift effect for glass cards */
+.glass-wrapper:hover {
+  transform: translateY(-2px);
+}
+
+/* Menu dropdown glass styling */
+.glass-menu {
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  background: rgba(var(--v-theme-surface), 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+.v-theme--dark .glass-menu {
+  background: rgba(18, 18, 18, 0.65) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Glass button hover */
+.glass-btn {
+  transition: all 0.2s ease !important;
+}
+
+.glass-btn:hover {
+  transform: translateY(-1px);
+}
+
+.glass-btn:active {
+  transform: translateY(0) scale(0.98);
+}
+
+
 /* ===== Responsive ===== */
 @media (max-width: 960px) {
   .v-card {

@@ -114,7 +114,8 @@
   </v-row>
   <v-row>
     <v-col cols="12" sm="4" md="3" lg="2" v-for="(item, index) in <any[]>inbounds" :key="item.tag">
-      <v-card rounded="xl" elevation="2" min-width="180" :title="item.tag">
+      <GlassCard>
+        <v-card rounded="xl" elevation="0" :title="item.tag">
         <v-card-subtitle>
           <v-row>
             <v-col>{{ item.type }}</v-col>
@@ -194,8 +195,9 @@
             <v-tooltip activator="parent" location="top" :text="$t('stats.graphTitle')"></v-tooltip>
           </v-btn>
         </v-card-actions>
-      </v-card>      
-    </v-col>
+      </v-card>
+        </GlassCard>
+      </v-col>
   </v-row>
 </template>
 
@@ -208,6 +210,7 @@ import { Config } from '@/types/config'
 import { computed, ref, watch } from 'vue'
 import { createInbound, Inbound } from '@/types/inbounds'
 import RandomUtil from '@/plugins/randomUtil'
+import GlassCard from '@/components/glass/GlassCard.vue'
 import { i18n } from '@/locales'
 import { push } from 'notivue'
 

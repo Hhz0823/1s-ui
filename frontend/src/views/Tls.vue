@@ -14,7 +14,8 @@
   </v-row>
   <v-row>
     <v-col cols="12" sm="4" md="3" lg="2" v-for="(item, index) in <any[]>tlsConfigs" :key="item.id">
-      <v-card rounded="xl" elevation="2" min-width="180" :title="item.name">
+      <GlassCard>
+      <v-card rounded="xl" elevation="0" :title="item.name">
         <v-card-subtitle>
           {{ item.server?.server_name?.length>0 ? item.server.server_name : "-" }}
         </v-card-subtitle>
@@ -80,6 +81,7 @@
           </v-btn>
         </v-card-actions>
       </v-card>
+      </GlassCard>
     </v-col>
   </v-row>
 </template>
@@ -87,6 +89,7 @@
 <script lang="ts" setup>
 import TlsVue from '@/layouts/modals/Tls.vue'
 import Data from '@/store/modules/data'
+import GlassCard from '@/components/glass/GlassCard.vue'
 import { computed, ref } from 'vue'
 import { Inbound } from '@/types/inbounds'
 import { tls } from '@/types/tls'
