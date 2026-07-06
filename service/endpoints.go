@@ -71,6 +71,9 @@ func (s *EndpointService) Save(tx *gorm.DB, act string, data json.RawMessage) er
 		if err != nil {
 			return err
 		}
+		if err = validateEndpointLiteFeature(&endpoint); err != nil {
+			return err
+		}
 
 		if endpoint.Type == "warp" {
 			if act == "new" {

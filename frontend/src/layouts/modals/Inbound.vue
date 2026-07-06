@@ -130,6 +130,9 @@ import XrayTransport from '@/components/XrayTransport.vue'
 import AddrVue from '@/components/Addr.vue'
 import OutJsonVue from '@/components/OutJson.vue'
 import Data from '@/store/modules/data'
+
+const isOpenWrtLite = import.meta.env.VITE_OPENWRT_LITE === 'true'
+
 export default {
   props: ['visible', 'id', 'inTags', 'tlsConfigs'],
   emits: ['close'],
@@ -140,10 +143,12 @@ export default {
       loading: false,
       side: "s",
       coreTypes: CoreTypes,
-      coreItems: [
-        { title: 'sing-box', value: CoreTypes.SingBox },
-        { title: 'Xray-core', value: CoreTypes.Xray },
-      ],
+      coreItems: isOpenWrtLite
+        ? [{ title: 'sing-box', value: CoreTypes.SingBox }]
+        : [
+            { title: 'sing-box', value: CoreTypes.SingBox },
+            { title: 'Xray-core', value: CoreTypes.Xray },
+          ],
       inTypes: InTypes,
       inboundWithUsers: ['mixed', 'socks', 'http', 'shadowsocks', 'vmess', 'trojan', 'naive', 'hysteria', 'shadowtls', 'tuic', 'hysteria2', 'vless', 'anytls'],
       initUsers: {

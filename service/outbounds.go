@@ -68,6 +68,9 @@ func (s *OutboundService) Save(tx *gorm.DB, act string, data json.RawMessage) er
 		if err != nil {
 			return err
 		}
+		if err = validateOutboundLiteFeature(&outbound); err != nil {
+			return err
+		}
 
 		if corePtr.IsRunning() {
 			configData, err := outbound.MarshalJSON()

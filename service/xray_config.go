@@ -1,3 +1,5 @@
+//go:build !openwrt_lite
+
 package service
 
 import (

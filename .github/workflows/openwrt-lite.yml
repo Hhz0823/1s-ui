@@ -1,0 +1,151 @@
+name: OpenWrt Lite
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "发布标签"
+        required: true
+        default: "v1.4.7"
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: "25"
+  BOOTLIN_BASE_URL: https://toolchains.bootlin.com/downloads/releases/toolchains
+
+jobs:
+  build-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v6.0.2
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 构建 OpenWrt Lite 前端
+        run: |
+          cd frontend
+          npm install
+          VITE_OPENWRT_LITE=true npm run build
+
+      - name: 上传前端构建产物
+        uses: actions/upload-artifact@v7
+        with:
+          name: openwrt-lite-frontend
+          path: frontend/dist/
+          retention-days: 1
+
+  build-openwrt-lite:
+    name: 构建-${{ matrix.openwrt }}
+    needs: build-frontend
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { openwrt: x86_64, bootlin: x86-64 }
+          - { openwrt: aarch64_generic, bootlin: aarch64 }
+          - { openwrt: aarch64_cortex-a53, bootlin: aarch64 }
+          - { openwrt: aarch64_cortex-a72, bootlin: aarch64 }
+          - { openwrt: arm_cortex-a7_neon-vfpv4, bootlin: armv7-eabihf }
+          - { openwrt: arm_cortex-a9, bootlin: armv7-eabihf }
+          - { openwrt: arm_cortex-a15_neon-vfpv4, bootlin: armv7-eabihf }
+          - { openwrt: mips_24kc, bootlin: mips32 }
+          - { openwrt: mipsel_24kc, bootlin: mips32el }
+          - { openwrt: mipsel_74kc, bootlin: mips32el }
+          - { openwrt: riscv64_generic, bootlin: riscv64 }
+
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v6.0.2
+
+      - name: 下载前端构建产物
+        uses: actions/download-artifact@v8
+        with:
+          name: openwrt-lite-frontend
+          path: web/html
+
+      - name: 设置 Go
+        uses: actions/setup-go@v6
+        with:
+          cache: false
+          go-version-file: go.mod
+
+      - name: 设置 Bootlin musl 工具链
+        run: |
+          set -e
+          BOOTLIN_ARCH="${{ matrix.bootlin }}"
+          TARBALL_BASE="${{ env.BOOTLIN_BASE_URL }}/$BOOTLIN_ARCH/tarballs"
+          TARBALL_NAME=$(curl -fsSL "$TARBALL_BASE/" | grep -oE "${BOOTLIN_ARCH}--musl--stable-[^\"]+\\.tar\\.xz" | sort -r | head -n1)
+          [ -n "$TARBALL_NAME" ] || { echo "未找到 $BOOTLIN_ARCH musl 工具链" >&2; exit 1; }
+          curl -fL -sS -o "/tmp/$TARBALL_NAME" "$TARBALL_BASE/$TARBALL_NAME"
+          tar -C /tmp -xf "/tmp/$TARBALL_NAME"
+          TOOLCHAIN_DIR=$(find /tmp -maxdepth 1 -type d -name "${BOOTLIN_ARCH}--musl--stable-*" | head -n1)
+          BIN_DIR="$TOOLCHAIN_DIR/bin"
+          CC=$(find "$BIN_DIR" -maxdepth 1 \( -name '*-gcc.br_real' -o -name '*-gcc' \) -type f -executable 2>/dev/null | grep -v g++ | head -n1)
+          [ -n "$CC" ] || { echo "在 $BIN_DIR 中未找到 gcc" >&2; exit 1; }
+          echo "PATH=$BIN_DIR:$PATH" >> "$GITHUB_ENV"
+          echo "CC=$CC" >> "$GITHUB_ENV"
+          SYSROOT=""
+          HEADER=$(find "$TOOLCHAIN_DIR" -name "libc-header-start.h" 2>/dev/null | head -1)
+          if [ -n "$HEADER" ]; then
+            SYSROOT=$(dirname "$(dirname "$(dirname "$(dirname "$HEADER")")")")
+          fi
+          if [ -n "$SYSROOT" ] && [ -d "$SYSROOT" ]; then
+            echo "CGO_CFLAGS=--sysroot=$SYSROOT" >> "$GITHUB_ENV"
+            echo "CGO_LDFLAGS=--sysroot=$SYSROOT -static" >> "$GITHUB_ENV"
+          fi
+
+      - name: 构建 OpenWrt Lite ipk
+        run: SKIP_FRONTEND=1 scripts/build-openwrt-lite.sh ${{ matrix.openwrt }}
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v7
+        with:
+          name: s-ui-lite-${{ matrix.openwrt }}
+          path: dist/openwrt-lite/*.ipk
+          retention-days: 1
+
+  publish-openwrt-lite:
+    name: 发布 OpenWrt Lite 产物
+    needs: build-openwrt-lite
+    runs-on: ubuntu-latest
+    steps:
+      - name: 规范化发布标签
+        id: vars
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          TAG="${INPUT_TAG:-$REF_NAME}"
+          case "$TAG" in
+            v*) echo "tag=$TAG" >> "$GITHUB_OUTPUT" ;;
+            *) echo "tag=v$TAG" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: 下载 OpenWrt Lite 构建产物
+        uses: actions/download-artifact@v8
+        with:
+          pattern: s-ui-lite-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: 发布到当前仓库 Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: s-ui ${{ steps.vars.outputs.tag }}
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          files: release-assets/*.ipk

@@ -21,7 +21,7 @@
                   <v-select
                   hide-details
                   :label="$t('type')"
-                  :items="Object.keys(outTypes).map((key,index) => ({title: key, value: Object.values(outTypes)[index]}))"
+                  :items="outboundTypeItems"
                   v-model="outbound.type"
                   @update:modelValue="changeType">
                   </v-select>
@@ -132,6 +132,9 @@ import UrlTest from '@/components/protocols/UrlTest.vue'
 import HttpUtils from '@/plugins/httputil'
 import AnyTls from '@/components/protocols/AnyTls.vue'
 import Data from '@/store/modules/data'
+
+const isOpenWrtLite = import.meta.env.VITE_OPENWRT_LITE === 'true'
+
 export default {
   props: ['visible', 'data', 'id', 'tags'],
   emits: ['close'],
@@ -146,6 +149,13 @@ export default {
       NoDial: [OutTypes.Selector, OutTypes.URLTest],
       NoServer: [OutTypes.Direct, OutTypes.Selector, OutTypes.URLTest, OutTypes.Tor],
     }
+  },
+  computed: {
+    outboundTypeItems() {
+      return Object.keys(this.outTypes)
+        .map((key, index) => ({ title: key, value: Object.values(this.outTypes)[index] }))
+        .filter(item => !isOpenWrtLite || item.value !== OutTypes.Naive)
+    },
   },
   methods: {
     updateData(id: number) {

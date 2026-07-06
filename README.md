@@ -133,6 +133,23 @@ Windows 相关脚本在 [windows](windows) 目录中。
 | Windows | amd64, 386, arm64 | 支持 |
 | macOS | amd64, arm64 | 实验性 |
 | Docker | linux/amd64, linux/arm64 | 支持 |
+| OpenWrt Lite | x86_64, aarch64, armv7, mips, mipsel, riscv64 | sing-box only |
+
+---
+
+## OpenWrt Lite
+
+OpenWrt Lite 是给路由器和低内存设备准备的轻量包，只保留内置 sing-box 内核，Xray-core 运行时和 Xray 入站会在 Lite 构建中禁用。
+
+从 [Releases](https://github.com/Hhz0823/1s-ui/releases/latest) 下载匹配架构的 `s-ui-lite_*.ipk` 后安装：
+
+```bash
+opkg install ./s-ui-lite_1.4.7-1_x86_64.ipk
+/etc/init.d/s-ui-lite enable
+/etc/init.d/s-ui-lite start
+```
+
+更多架构和构建说明见 [docs/openwrt-lite.md](docs/openwrt-lite.md)。
 
 ---
 

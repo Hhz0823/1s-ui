@@ -218,6 +218,8 @@ import RandomUtil from '@/plugins/randomUtil'
 import { i18n } from '@/locales'
 import { push } from 'notivue'
 
+const isOpenWrtLite = import.meta.env.VITE_OPENWRT_LITE === 'true'
+
 const appConfig = computed((): Config => {
   return <Config> Data().config
 })
@@ -266,10 +268,11 @@ const quickAdd = ref({
   loading: false,
 })
 
-const coreOptions = [
-  { title: 'sing-box', value: CoreTypes.SingBox },
-  { title: 'Xray-core', value: CoreTypes.Xray },
-]
+const coreOptions = computed(() => {
+  const items = [{ title: 'sing-box', value: CoreTypes.SingBox }]
+  if (!isOpenWrtLite) items.push({ title: 'Xray-core', value: CoreTypes.Xray })
+  return items
+})
 
 watch(() => quickAdd.value.protocol, (val) => {
   quickAdd.value.hasPassword = val === 'shadowsocks'
@@ -280,6 +283,10 @@ watch(() => quickAdd.value.protocol, (val) => {
 })
 
 watch(() => quickAdd.value.core_type, (val) => {
+  if (isOpenWrtLite && val !== CoreTypes.SingBox) {
+    quickAdd.value.core_type = CoreTypes.SingBox
+    return
+  }
   if (val === CoreTypes.Xray) {
     quickAdd.value.protocol = 'vless'
   }

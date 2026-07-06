@@ -12,7 +12,7 @@
             hide-details
             :disabled="endpoint.id > 0"
             :label="$t('type')"
-            :items="Object.keys(epTypes).map((key,index) => ({title: key, value: Object.values(epTypes)[index]}))"
+            :items="endpointTypeItems"
             v-model="endpoint.type"
             @update:modelValue="changeType">
             </v-select>
@@ -65,6 +65,9 @@ import HttpUtils from '@/plugins/httputil'
 import { push } from 'notivue'
 import { i18n } from '@/locales'
 import Data from '@/store/modules/data'
+
+const isOpenWrtLite = import.meta.env.VITE_OPENWRT_LITE === 'true'
+
 export default {
   props: ['visible', 'data', 'id', 'tags'],
   emits: ['close'],
@@ -76,6 +79,13 @@ export default {
       loading: false,
       epTypes: EpTypes,
     }
+  },
+  computed: {
+    endpointTypeItems() {
+      return Object.keys(this.epTypes)
+        .map((key, index) => ({ title: key, value: Object.values(this.epTypes)[index] }))
+        .filter(item => !isOpenWrtLite || item.value !== EpTypes.Tailscale)
+    },
   },
   methods: {
     async updateData(id: number) {

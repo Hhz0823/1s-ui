@@ -245,8 +245,14 @@ import LogVue from '@/layouts/modals/Logs.vue'
 import Backup from '@/layouts/modals/Backup.vue'
 import UsageStats from '@/layouts/modals/UsageStats.vue'
 
+const isOpenWrtLite = import.meta.env.VITE_OPENWRT_LITE === 'true'
 const loading = ref(false)
 const menu = ref(false)
+const infoItems = [
+  { title: i18n.global.t('main.info.sys'), value: "i-sys" },
+  { title: i18n.global.t('main.info.sbd'), value: "i-sbd" },
+  { title: i18n.global.t('main.info.xry'), value: "i-xry" },
+].filter(item => !isOpenWrtLite || item.value !== "i-xry")
 const menuItems = [
   { title: i18n.global.t('main.gauges'), value: [
     { title: i18n.global.t('main.gauge.cpu'), value: "g-cpu" },
@@ -263,19 +269,17 @@ const menuItems = [
     { title: i18n.global.t('main.chart.dio'), value: "h-dio" },
     ]
   },
-  { title: i18n.global.t('main.infos'), value: [
-    { title: i18n.global.t('main.info.sys'), value: "i-sys" },
-    { title: i18n.global.t('main.info.sbd'), value: "i-sbd" },
-    { title: i18n.global.t('main.info.xry'), value: "i-xry" },
-    ]
-  },
+  { title: i18n.global.t('main.infos'), value: infoItems },
 ]
 
 const tilesData = ref(<any>{})
 
 const reloadItems = computed({
-  get() { return Data().reloadItems },
+  get() {
+    return isOpenWrtLite ? Data().reloadItems.filter(item => item !== "i-xry") : Data().reloadItems
+  },
   set(v:string[]) {
+    if (isOpenWrtLite) v = v.filter(item => item !== "i-xry")
     if (Data().reloadItems.length == 0 && v.length>0) startTimer()
     if (Data().reloadItems.length > 0 && v.length == 0) stopTimer()
     Data().reloadItems = v
@@ -316,6 +320,9 @@ const stopTimer = () => {
 
 onMounted(async () => {
   loading.value = true
+  if (isOpenWrtLite && Data().reloadItems.includes("i-xry")) {
+    reloadItems.value = Data().reloadItems
+  }
   if (Data().reloadItems.length != 0) {
     await reloadData()
     startTimer()
