@@ -9,7 +9,7 @@ on:
       tag:
         description: "发布标签"
         required: true
-        default: "v1.4.6"
+        default: "v1.4.7"
         type: string
 
 permissions:
@@ -112,22 +112,49 @@ jobs:
         run: |
           curl -qsL -o s-ui-windows/libcronet.dll ${{ env.LIBCRONET_BASE_URL }}/libcronet-windows-${{ matrix.arch }}.dll
 
-      - name: 下载 Xray-core
+      - name: 下载 Xray-core（Windows amd64）
+        if: matrix.arch == 'amd64'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $asset = "Xray-windows-64.zip"
+          $zipPath = Join-Path $env:RUNNER_TEMP "xray.zip"
+          $extractDir = Join-Path $env:RUNNER_TEMP "xray"
+          $binDir = "s-ui-windows/bin"
+
+          New-Item -ItemType Directory -Force -Path $binDir, $extractDir | Out-Null
+          $url = "${{ env.XRAY_BASE_URL }}/$asset"
+          for ($i = 1; $i -le 3; $i++) {
+            try {
+              Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
+              break
+            } catch {
+              if ($i -eq 3) { throw }
+              Start-Sleep -Seconds (5 * $i)
+            }
+          }
+          Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+          Copy-Item (Join-Path $extractDir "xray.exe") (Join-Path $binDir "xray.exe") -Force
+          Copy-Item (Join-Path $extractDir "geoip.dat") (Join-Path $binDir "geoip.dat") -Force
+          Copy-Item (Join-Path $extractDir "geosite.dat") (Join-Path $binDir "geosite.dat") -Force
+
+      - name: 下载 Xray-core（Windows arm64）
+        if: matrix.arch == 'arm64'
         shell: bash
         run: |
-          case "${{ matrix.arch }}" in
-            amd64) XRAY_ASSET="Xray-windows-64.zip" ;;
-            arm64) XRAY_ASSET="Xray-windows-arm64-v8a.zip" ;;
-          esac
-          mkdir -p s-ui-windows/bin /tmp/xray
-          curl -fsSL -o /tmp/xray.zip "${{ env.XRAY_BASE_URL }}/${XRAY_ASSET}"
-          python - <<'PY'
+          XRAY_ASSET="Xray-windows-arm64-v8a.zip"
+          XRAY_TMP="${RUNNER_TEMP:-/tmp}/xray"
+          mkdir -p s-ui-windows/bin "$XRAY_TMP"
+          curl --retry 3 --retry-delay 5 -fsSL -o "${XRAY_TMP}.zip" "${{ env.XRAY_BASE_URL }}/${XRAY_ASSET}"
+          XRAY_TMP="$XRAY_TMP" python3 - <<'PY'
+          import os
           import zipfile
-          with zipfile.ZipFile('/tmp/xray.zip') as archive:
-              archive.extractall('/tmp/xray')
+          tmp = os.environ['XRAY_TMP']
+          with zipfile.ZipFile(tmp + '.zip') as archive:
+              archive.extractall(tmp)
           PY
-          cp /tmp/xray/xray.exe s-ui-windows/bin/xray.exe
-          cp /tmp/xray/geoip.dat /tmp/xray/geosite.dat s-ui-windows/bin/
+          cp "$XRAY_TMP/xray.exe" s-ui-windows/bin/xray.exe
+          cp "$XRAY_TMP/geoip.dat" "$XRAY_TMP/geosite.dat" s-ui-windows/bin/
 
       - name: 打包
         shell: bash

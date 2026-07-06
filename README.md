@@ -65,13 +65,13 @@ s-ui update
 在安装命令后追加版本号即可：
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/master/install.sh) v1.4.6
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/master/install.sh) v1.4.7
 ```
 
 版本号也可以省略开头的 `v`：
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/master/install.sh) 1.4.6
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/master/install.sh) 1.4.7
 ```
 
 ---
