@@ -199,4 +199,5 @@ jobs:
           name: s-ui ${{ steps.vars.outputs.tag }}
           target_commitish: ${{ github.sha }}
           fail_on_unmatched_files: true
+          overwrite_files: true
           files: release-assets/*
