@@ -2,7 +2,7 @@
   <LogVue v-model="logModal.visible" :control="logModal" :visible="logModal.visible" />
   <Backup v-model="backupModal.visible" :control="backupModal" :visible="backupModal.visible" />
   <UsageStats v-model:visible="usageStatsModal.visible" />
-  <v-container class="fill-height" :loading="loading">
+  <v-container class="home-dashboard fill-height" :loading="loading">
     <v-responsive :class="reloadItems.length>0 ? 'fill-height text-center' : 'align-center'" >
       <v-row class="d-flex align-center justify-center">
         <v-col cols="auto">
@@ -353,10 +353,38 @@ const shortText = (text?: string) => {
 </script>
 
 <style scoped>
+.home-dashboard {
+  min-height: calc(100vh - 112px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 24px;
+}
+
+.home-dashboard :deep(.v-responsive) {
+  width: min(100%, 760px);
+  margin-inline: auto;
+}
+
+.home-dashboard :deep(.v-row) {
+  margin-inline: 0;
+}
+
+.home-dashboard :deep(.v-col) {
+  padding-inline: 6px;
+}
+
 .action-pill {
   border-radius: 20px !important;
   font-weight: 500;
   letter-spacing: 0.01em;
   text-transform: none;
+}
+
+@media (max-width: 600px) {
+  .home-dashboard {
+    min-height: calc(100vh - 96px);
+    padding-inline: 12px;
+  }
 }
 </style>

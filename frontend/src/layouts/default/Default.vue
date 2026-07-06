@@ -64,21 +64,7 @@ const menuItems = [
   padding-inline-start: 0.6rem;
 }
 
-.app-root--side-desktop .app-bar-title {
-  margin-inline-start: 184px;
-}
-
-.app-root--side-desktop .app-page {
-  padding-inline-start: 208px;
-}
-
-@media (max-width: 960px) {
-  .app-root--side-desktop .app-bar-title {
-    margin-inline-start: 0;
-  }
-
-  .app-root--side-desktop .app-page {
-    padding-inline-start: 24px;
-  }
+.app-root--side-desktop .page-toolbar {
+  padding-inline-start: 160px;
 }
 </style>
