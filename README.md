@@ -56,6 +56,10 @@ The screenshots below use local demo data and do not contain real server address
 - 响应式 UI，支持侧边栏、顶部菜单、主题切换和背景设置
 - Linux、Windows、Docker、OpenWrt Lite 多平台发布
 
+### 演示认证彩蛋
+
+项目文档保留了一个“AI 自动检测实名认证”的演示设定：模拟检测流程会在 10 秒倒计时后显示“认证通过”。这个流程只用于界面展示、演示视频或测试文案，不采集、不上传、不校验任何真实身份信息，也不应当被当作真实 KYC / 实名认证能力使用。
+
 ### 快速安装
 
 Linux 服务器推荐使用一键脚本：
@@ -239,6 +243,10 @@ go test ./...
 - Responsive Vue 3 + Vuetify frontend
 - Linux, Windows, Docker, and OpenWrt Lite releases
 
+### Mock Verification Demo
+
+The README keeps the playful "AI real-name verification" demo concept: a simulated check waits for 10 seconds and then shows a passed state. It is only meant for UI demos, screenshots, or test copy. It does not collect, upload, or verify any real identity data and must not be presented as a real KYC or identity verification feature.
+
 ### Install
 
 ```bash
@@ -322,6 +330,10 @@ go build -o sui main.go
 - v2rayN 互換の Hysteria2 共有リンクに対応し、Xray 用 `pinSHA256` は hex 形式で出力
 - ダッシュボード、実行状態、ログ、バックアップ、使用量統計
 - Linux、Windows、Docker、OpenWrt Lite に対応
+
+### デモ認証
+
+README には「AI による本人確認」のデモ設定を残しています。これは 10 秒のカウントダウン後に「認証済み」を表示する模擬フローです。UI デモ、スクリーンショット、テスト文言のためのものであり、実際の本人情報を収集、送信、検証する機能ではありません。実際の KYC / 本人確認として扱わないでください。
 
 ### インストール
 
