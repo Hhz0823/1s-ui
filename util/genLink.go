@@ -18,6 +18,16 @@ type LinkParam struct {
 	Value string
 }
 
+func removeLinkParam(params []LinkParam, key string) []LinkParam {
+	filtered := params[:0]
+	for _, param := range params {
+		if param.Key != key {
+			filtered = append(filtered, param)
+		}
+	}
+	return filtered
+}
+
 func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname string) []string {
 	inbound, err := i.MarshalFull()
 	if err != nil {
@@ -295,7 +305,8 @@ func hysteria2Link(
 		}
 		if tls, ok := addr["tls"].(map[string]interface{}); ok {
 			getTlsParams(&params, tls, "insecure")
-			if pinSHA256 := getPinnedPeerCertSha256(tls); pinSHA256 != "" {
+			params = removeLinkParam(params, "pcs")
+			if pinSHA256 := pinnedPeerCertSha256ForLink(getPinnedPeerCertSha256(tls)); pinSHA256 != "" {
 				params = append(params, LinkParam{"pinSHA256", pinSHA256})
 			}
 		}

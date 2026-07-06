@@ -2,9 +2,9 @@
   <LogVue v-model="logModal.visible" :control="logModal" :visible="logModal.visible" />
   <Backup v-model="backupModal.visible" :control="backupModal" :visible="backupModal.visible" />
   <UsageStats v-model:visible="usageStatsModal.visible" />
-  <v-container class="home-dashboard fill-height" :loading="loading">
-    <v-responsive :class="reloadItems.length>0 ? 'fill-height text-center' : 'align-center'" >
-      <v-row class="d-flex align-center justify-center">
+  <v-container class="home-dashboard" :class="{ 'home-dashboard--active': reloadItems.length > 0 }" :loading="loading">
+    <v-responsive :class="reloadItems.length>0 ? 'home-dashboard__content home-dashboard__content--active text-center' : 'home-dashboard__content align-center'" >
+      <v-row class="home-logo-row d-flex align-center justify-center">
         <v-col cols="auto">
           <v-img src="@/assets/logo.svg" :width="reloadItems.length>0 ? 100 : 200"></v-img>
         </v-col>
@@ -62,10 +62,17 @@
           </div>
         </v-col>
       </v-row>
-      <v-row>
-        <v-col cols="12" sm="6" md="3" v-for="i in reloadItems" :key="i">
-          <v-card class="rounded-lg" variant="outlined" height="210px" elevation="5">
-            <v-card-title>
+      <v-row class="home-tiles-row">
+        <v-col class="home-tile-col" cols="12" sm="6" md="4" lg="3" v-for="i in reloadItems" :key="i">
+          <v-card
+            :class="['home-tile-card', 'rounded-lg', {
+              'home-tile-card--gauge': i.charAt(0) == 'g',
+              'home-tile-card--chart': i.charAt(0) == 'h',
+              'home-tile-card--info': i.charAt(0) == 'i',
+            }]"
+            variant="outlined"
+            elevation="5">
+            <v-card-title class="home-tile-title">
               {{ menuItems.flatMap(cat => cat.value).find(m => m.value == i)?.title }}
               <template v-if="i == 'i-sys'">
                 <v-icon icon="mdi-update" color="primary"
@@ -82,11 +89,11 @@
                 </v-icon>
               </template>
             </v-card-title>
-            <v-card-text style="padding: 0 16px;" align="center" justify="center">
+            <v-card-text class="home-tile-body" align="center" justify="center">
               <Gauge :tilesData="tilesData" :type="i" v-if="i.charAt(0) == 'g'" />
               <History :tilesData="tilesData" :type="i" v-if="i.charAt(0) == 'h'" />
               <template v-if="i == 'i-sys'">
-                <v-row>
+                <v-row class="home-info-grid">
                   <v-col cols="3">{{ $t('main.info.host') }}</v-col>
                   <v-col cols="9" style="text-wrap: nowrap; overflow: hidden">{{ tilesData.sys?.hostName }}</v-col>
                   <v-col cols="3">{{ $t('main.info.cpu') }}</v-col>
@@ -127,7 +134,7 @@
                 </v-row>
               </template>
               <template v-if="i == 'i-sbd'">
-                <v-row>
+                <v-row class="home-info-grid">
                   <v-col cols="4">{{ $t('main.info.running') }}</v-col>
                   <v-col cols="8">
                     <v-chip density="compact" color="success" variant="flat" v-if="tilesData.sbd?.running">{{ $t('main.info.runningYes') }}</v-chip>
@@ -156,33 +163,33 @@
                   <v-col cols="4">{{ $t('online') }}</v-col>
                   <v-col cols="8">
                     <template v-if="tilesData.sbd?.running">
-                      <v-chip density="compact" color="primary" variant="flat" v-if="Data().onlines.user">
+                      <v-chip density="compact" color="primary" variant="flat" v-if="Data().onlines?.user">
                         <v-tooltip activator="parent" location="top" overflow="auto">
                           <span v-text="$t('pages.clients')" style="font-weight: bold;"></span><br/>
-                          <span v-for="user in Data().onlines.user">{{ user }}<br /></span>
+                          <span v-for="user in Data().onlines?.user">{{ user }}<br /></span>
                         </v-tooltip>
-                        {{ Data().onlines.user?.length }}
+                        {{ Data().onlines?.user?.length }}
                       </v-chip>
-                      <v-chip density="compact" color="success" variant="flat" v-if="Data().onlines.inbound">
+                      <v-chip density="compact" color="success" variant="flat" v-if="Data().onlines?.inbound">
                         <v-tooltip activator="parent" location="top" :text="$t('pages.inbounds')">
                           <span v-text="$t('pages.inbounds')" style="font-weight: bold;"></span><br/>
-                          <span v-for="i in Data().onlines.inbound">{{ i }}<br /></span>
+                          <span v-for="i in Data().onlines?.inbound">{{ i }}<br /></span>
                         </v-tooltip>
-                        {{ Data().onlines.inbound?.length }}
+                        {{ Data().onlines?.inbound?.length }}
                       </v-chip>
-                      <v-chip density="compact" color="info" variant="flat" v-if="Data().onlines.outbound">
+                      <v-chip density="compact" color="info" variant="flat" v-if="Data().onlines?.outbound">
                         <v-tooltip activator="parent" location="top" :text="$t('pages.outbounds')">
                           <span v-text="$t('pages.outbounds')" style="font-weight: bold;"></span><br/>
-                          <span v-for="o in Data().onlines.outbound">{{ o }}<br /></span>
+                          <span v-for="o in Data().onlines?.outbound">{{ o }}<br /></span>
                         </v-tooltip>
-                        {{ Data().onlines.outbound?.length }}
+                        {{ Data().onlines?.outbound?.length }}
                       </v-chip>
                     </template>
                   </v-col>
                 </v-row>
               </template>
               <template v-if="i == 'i-xry'">
-                <v-row>
+                <v-row class="home-info-grid">
                   <v-col cols="4">{{ $t('main.info.running') }}</v-col>
                   <v-col cols="8">
                     <v-chip density="compact" color="success" variant="flat" v-if="tilesData.xry?.running">{{ $t('main.info.runningYes') }}</v-chip>
@@ -382,12 +389,22 @@ const shortText = (text?: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-inline: 24px;
+  padding: 22px clamp(12px, 2vw, 28px) 34px;
 }
 
-.home-dashboard :deep(.v-responsive) {
+.home-dashboard--active {
+  align-items: flex-start;
+  min-height: auto;
+  padding-top: 16px;
+}
+
+.home-dashboard__content {
   width: min(100%, 760px);
   margin-inline: auto;
+}
+
+.home-dashboard__content--active {
+  width: min(100%, 1320px);
 }
 
 .home-dashboard :deep(.v-row) {
@@ -399,7 +416,7 @@ const shortText = (text?: string) => {
 }
 
 .home-actions-row {
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .home-actions {
@@ -421,6 +438,96 @@ const shortText = (text?: string) => {
   text-transform: none;
 }
 
+.home-tiles-row {
+  align-items: stretch;
+  justify-content: center;
+  margin-top: 14px;
+  row-gap: 14px;
+}
+
+.home-tile-col {
+  display: flex;
+}
+
+.home-tile-card {
+  width: 100%;
+  min-height: 166px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.home-tile-card--chart {
+  min-height: 190px;
+}
+
+.home-tile-card--info {
+  min-height: 202px;
+}
+
+.home-tile-title {
+  min-height: 36px;
+  padding: 12px 16px 2px !important;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: start;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-tile-body {
+  flex: 1;
+  min-height: 0;
+  padding: 4px 16px 14px !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.home-tile-card--chart .home-tile-body {
+  padding-top: 0 !important;
+}
+
+.home-info-grid {
+  width: 100%;
+  align-items: center;
+  row-gap: 2px;
+  text-align: start;
+}
+
+.home-info-grid :deep(.v-col) {
+  min-width: 0;
+  padding: 3px 4px !important;
+}
+
+.home-info-grid :deep(.v-col:nth-child(odd)) {
+  color: rgba(var(--v-theme-on-surface), 0.72);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.home-info-grid :deep(.v-col:nth-child(even)) {
+  overflow: hidden;
+  text-align: end;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.home-info-grid :deep(.v-chip) {
+  max-width: 100%;
+}
+
+.home-info-grid :deep(.v-chip__content) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 @media (max-width: 600px) {
   .home-dashboard {
     min-height: calc(100vh - 96px);
@@ -435,6 +542,12 @@ const shortText = (text?: string) => {
     flex: 1 1 calc(50% - 8px);
     min-width: 0;
     max-width: 164px;
+  }
+
+  .home-tile-card,
+  .home-tile-card--chart,
+  .home-tile-card--info {
+    min-height: 168px;
   }
 }
 </style>

@@ -539,6 +539,10 @@ func getTls(security string, q *url.Values) map[string]interface{} {
 	tls_insecure := q.Get("insecure")
 	tls_alpn := q.Get("alpn")
 	tls_ech := q.Get("ech")
+	tls_pin := q.Get("pcs")
+	if tls_pin == "" {
+		tls_pin = q.Get("pinSHA256")
+	}
 	disable_sni := q.Get("disable_sni")
 	switch security {
 	case "tls":
@@ -576,6 +580,9 @@ func getTls(security string, q *url.Values) map[string]interface{} {
 	}
 	if disable_sni == "1" || disable_sni == "true" {
 		tls["disable_sni"] = true
+	}
+	if tlsPin := pinnedPeerCertSha256ForConfig(tls_pin); tlsPin != "" {
+		tls["pinned_peer_certificate_sha256"] = []string{tlsPin}
 	}
 	return tls
 }

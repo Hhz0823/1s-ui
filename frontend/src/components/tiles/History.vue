@@ -1,5 +1,7 @@
 <template>
-  <Line v-if="loaded" :data="data" :options="<any>options" />
+  <div class="history-tile">
+    <Line v-if="loaded" :data="data" :options="<any>options" />
+  </div>
 </template>
 
 <script lang="ts">
@@ -211,3 +213,11 @@ export default {
   }
 }
 </script>
+
+<style scoped>
+.history-tile {
+  width: 100%;
+  height: 136px;
+  min-height: 120px;
+}
+</style>
