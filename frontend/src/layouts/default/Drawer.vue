@@ -2,19 +2,30 @@
   <v-navigation-drawer
     v-model="showDrawer"
     :temporary="isMobile"
-    :expand-on-hover="!isMobile"
-    :rail="!isMobile"
+    :expand-on-hover="false"
+    :rail="!isMobile && !expanded"
     :permanent="!isMobile"
-    :width="isMobile ? 280 : 240"
-    @click="isMobile ? $emit('toggleDrawer') : null"
+    :width="isMobile ? 280 : 264"
+    :rail-width="72"
     class="app-drawer"
+    :class="{ 'app-drawer--expanded': expanded || isMobile, 'app-drawer--rail': !expanded && !isMobile }"
   >
     <div class="drawer-header">
       <div class="drawer-logo">
         <v-img src="@/assets/logo.svg" :width="36" :height="36" />
         <span class="drawer-brand">1S-UI</span>
       </div>
-      <v-btn v-if="isMobile" icon variant="text" size="small" @click.stop="$emit('toggleDrawer')">
+      <v-btn
+        v-if="!isMobile"
+        icon
+        variant="text"
+        size="small"
+        class="drawer-toggle"
+        @click.stop="$emit('toggleDrawer')"
+      >
+        <v-icon :icon="expanded ? 'mdi-chevron-left' : 'mdi-chevron-right'" size="20" />
+      </v-btn>
+      <v-btn v-else icon variant="text" size="small" @click.stop="$emit('closeDrawer')">
         <v-icon icon="mdi-close" size="20" />
       </v-btn>
     </div>
@@ -33,6 +44,7 @@
             :active="router.currentRoute.value.path === item.path"
             class="menu-item"
             :class="{ 'menu-item--active': router.currentRoute.value.path === item.path }"
+            @click="closeMobileDrawer"
           >
             <template v-slot:prepend>
               <div class="menu-icon-wrap">
@@ -40,6 +52,12 @@
               </div>
             </template>
             <v-list-item-title class="menu-title">{{ $t(item.title) }}</v-list-item-title>
+            <v-tooltip
+              v-if="!isMobile && !expanded"
+              activator="parent"
+              location="end"
+              :text="$t(item.title)"
+            />
           </v-list-item>
         </v-list>
       </div>
@@ -53,7 +71,14 @@
           :title="$t('menu.logout')"
           @click="Logout"
           class="menu-item menu-item--logout"
-        />
+        >
+          <v-tooltip
+            v-if="!isMobile && !expanded"
+            activator="parent"
+            location="end"
+            :text="$t('menu.logout')"
+          />
+        </v-list-item>
       </div>
     </template>
   </v-navigation-drawer>
@@ -64,10 +89,14 @@ import { computed } from 'vue'
 import router from '@/router'
 import { logout } from '@/plugins/httputil'
 
-const props = defineProps(['isMobile', 'displayDrawer'])
+const props = defineProps(['isMobile', 'displayDrawer', 'expanded'])
+const emit = defineEmits(['toggleDrawer', 'closeDrawer'])
 
-const showDrawer = computed((): boolean => {
-  return props.displayDrawer
+const showDrawer = computed({
+  get: (): boolean => props.displayDrawer,
+  set: (value: boolean) => {
+    if (!value) emit('closeDrawer')
+  },
 })
 
 const menuGroups = [
@@ -113,6 +142,10 @@ const menuGroups = [
 const Logout = async () => {
   logout()
 }
+
+const closeMobileDrawer = () => {
+  if (props.isMobile) emit('closeDrawer')
+}
 </script>
 
 <style scoped>
@@ -128,7 +161,8 @@ const Logout = async () => {
     backdrop-filter 0.4s cubic-bezier(0.4, 0, 0.2, 1),
     -webkit-backdrop-filter 0.4s cubic-bezier(0.4, 0, 0.2, 1),
     box-shadow 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-    border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    border-color 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.28s cubic-bezier(0.2, 0, 0, 1) !important;
   backdrop-filter: blur(var(--drawer-blur-rail)) saturate(180%) !important;
   -webkit-backdrop-filter: blur(var(--drawer-blur-rail)) saturate(180%) !important;
   background: rgba(var(--v-theme-surface), var(--drawer-bg-rail)) !important;
@@ -136,9 +170,8 @@ const Logout = async () => {
   box-shadow: 1px 0 0 rgba(255, 255, 255, 0.05), 4px 0 16px rgba(0, 0, 0, 0.06) !important;
 }
 
-/* Expanded (desktop non-rail OR rail+hovering) -> transparent glass */
-.v-navigation-drawer:not(.v-navigation-drawer--rail):not(.v-navigation-drawer--is-floating),
-.v-navigation-drawer--rail.v-navigation-drawer--is-hovering {
+/* Expanded (desktop non-rail) -> transparent glass */
+.v-navigation-drawer:not(.v-navigation-drawer--rail):not(.v-navigation-drawer--is-floating) {
   background: rgba(var(--v-theme-surface), var(--drawer-bg-expanded)) !important;
   backdrop-filter: blur(var(--drawer-blur-expanded)) saturate(180%) !important;
   -webkit-backdrop-filter: blur(var(--drawer-blur-expanded)) saturate(180%) !important;
@@ -170,14 +203,17 @@ const Logout = async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px 12px;
-  min-height: 64px;
+  gap: 12px;
+  padding: 14px 16px 12px;
+  min-height: 72px;
+  transition: padding 0.28s cubic-bezier(0.2, 0, 0, 1), gap 0.28s cubic-bezier(0.2, 0, 0, 1);
 }
 
 .drawer-logo {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .drawer-brand {
@@ -188,6 +224,19 @@ const Logout = async () => {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity 0.2s ease, max-width 0.28s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.drawer-toggle {
+  flex: 0 0 auto;
+  opacity: 0.75;
+}
+
+.drawer-toggle:hover {
+  opacity: 1;
+  background: rgba(var(--v-theme-primary), 0.1);
 }
 
 .drawer-divider {
@@ -283,12 +332,28 @@ const Logout = async () => {
   margin: 1px 2px;
 }
 
+.v-navigation-drawer--rail .menu-title,
+.v-navigation-drawer--rail :deep(.v-list-item__content) {
+  display: none;
+}
+
+.v-navigation-drawer--rail :deep(.v-list-item__prepend) {
+  margin-inline-end: 0;
+}
+
 .v-navigation-drawer--rail .drawer-header {
-  padding: 16px 12px 12px;
+  flex-direction: column;
+  justify-content: center;
+  padding: 14px 8px 10px;
+  gap: 8px;
+}
+
+.v-navigation-drawer--rail .drawer-logo {
   justify-content: center;
 }
 
 .v-navigation-drawer--rail .drawer-brand {
-  display: none;
+  max-width: 0;
+  opacity: 0;
 }
 </style>

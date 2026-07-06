@@ -2,7 +2,7 @@
   <v-app-bar :elevation="0" class="app-bar" :height="56">
     <template v-slot:prepend>
       <v-btn
-        v-if="isMobile || menuPosition === 'top'"
+        v-if="isMobile"
         icon
         variant="text"
         size="small"
@@ -94,7 +94,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { languages } from '@/locales'
 
-defineProps(['isMobile', 'menuPosition', 'menuItems'])
+defineProps(['isMobile', 'menuPosition', 'menuItems', 'drawerExpanded'])
 
 const route = useRoute()
 const { locale: i18nLocale } = useI18n()
@@ -238,7 +238,7 @@ const isActiveTheme = (th: string) => {
 
 @media (max-width: 600px) {
   .app-bar-title {
-    inset-inline: 96px;
+    inset-inline: 88px;
   }
 }
 </style>
