@@ -64,7 +64,7 @@ jobs:
           - { openwrt: mips_24kc, bootlin: mips32 }
           - { openwrt: mipsel_24kc, bootlin: mips32el }
           - { openwrt: mipsel_74kc, bootlin: mips32el }
-          - { openwrt: riscv64_generic, bootlin: riscv64 }
+          - { openwrt: riscv64_generic, bootlin: riscv64-lp64d }
 
     steps:
       - name: 检出仓库
