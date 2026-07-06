@@ -1,87 +1,90 @@
 <template>
   <div class="login-page">
     <div class="login-bg-pattern"></div>
-    <v-container class="fill-height login-container">
-      <v-row justify="center" align="center">
-        <v-col cols="12" sm="8" md="4" lg="3">
-          <v-card class="login-card" elevation="0">
-            <!-- Logo -->
-            <div class="login-header">
-              <v-img src="@/assets/logo.svg" :width="56" :height="56" class="login-logo" />
-              <h2 class="login-brand">1S-UI</h2>
-              <p class="login-subtitle">{{ $t('login.title') }}</p>
-            </div>
+    <main class="login-shell">
+      <v-card class="login-card" elevation="0">
+        <div class="login-header">
+          <v-img src="@/assets/logo.svg" :width="64" :height="64" class="login-logo" />
+          <h1 class="login-brand">1S-UI</h1>
+          <p class="login-subtitle">{{ $t('login.title') }}</p>
+        </div>
 
-            <!-- Form -->
-            <v-card-text class="login-form">
-              <v-form @submit.prevent="login" ref="form">
-                <v-text-field
-                  v-model="username"
-                  :label="$t('login.username')"
-                  :rules="usernameRules"
-                  required
-                  prepend-inner-icon="mdi-account-outline"
-                  class="login-input"
-                />
-                <v-text-field
-                  v-model="password"
-                  :label="$t('login.password')"
-                  :rules="passwordRules"
-                  type="password"
-                  required
-                  prepend-inner-icon="mdi-lock-outline"
-                  class="login-input"
-                />
+        <v-card-text class="login-form">
+          <v-form @submit.prevent="login" ref="form">
+            <v-text-field
+              v-model="username"
+              :label="$t('login.username')"
+              :rules="usernameRules"
+              required
+              autocomplete="username"
+              density="comfortable"
+              variant="outlined"
+              prepend-inner-icon="mdi-account-outline"
+              class="login-input"
+            />
+            <v-text-field
+              v-model="password"
+              :label="$t('login.password')"
+              :rules="passwordRules"
+              type="password"
+              required
+              autocomplete="current-password"
+              density="comfortable"
+              variant="outlined"
+              prepend-inner-icon="mdi-lock-outline"
+              class="login-input"
+            />
+            <v-btn
+              :loading="loading"
+              type="submit"
+              color="primary"
+              block
+              size="large"
+              class="login-btn"
+            >
+              {{ $t('actions.submit') }}
+            </v-btn>
+          </v-form>
+
+          <div class="login-settings">
+            <v-select
+              density="comfortable"
+              hide-details
+              variant="outlined"
+              :items="languages"
+              v-model="$i18n.locale"
+              @update:modelValue="changeLocale"
+              class="lang-select"
+            />
+            <v-menu location="bottom end">
+              <template v-slot:activator="{ props }">
                 <v-btn
-                  :loading="loading"
-                  type="submit"
+                  icon="mdi-palette-outline"
+                  variant="outlined"
                   color="primary"
-                  block
-                  size="large"
-                  class="login-btn"
-                >
-                  {{ $t('actions.submit') }}
-                </v-btn>
-              </v-form>
-
-              <!-- Settings Row -->
-              <div class="login-settings">
-                <v-select
-                  density="compact"
-                  hide-details
-                  variant="solo"
-                  :items="languages"
-                  v-model="$i18n.locale"
-                  @update:modelValue="changeLocale"
-                  class="lang-select"
+                  class="theme-trigger"
+                  v-bind="props"
                 />
-                <v-menu location="bottom end">
-                  <template v-slot:activator="{ props }">
-                    <v-btn icon variant="text" size="small" v-bind="props">
-                      <v-icon icon="mdi-palette-outline" size="20" />
-                    </v-btn>
-                  </template>
-                  <v-card class="theme-card" elevation="8">
-                    <div class="theme-grid">
-                      <button
-                        v-for="th in themes"
-                        :key="th.value"
-                        @click="changeTheme(th.value)"
-                        class="theme-chip"
-                        :class="{ 'theme-chip--active': isActiveTheme(th.value) }"
-                      >
-                        <v-icon :icon="th.icon" size="16" />
-                        <span>{{ $t('theme.' + th.value) }}</span>
-                      </button>
-                    </div>
-                  </v-card>
-                </v-menu>
-              </div>
-            </v-card-text>
-          </v-card>
-        </v-col>
-      </v-row>
-    </v-container>
+              </template>
+              <v-card class="theme-card" elevation="8">
+                <div class="theme-grid">
+                  <button
+                    v-for="th in themes"
+                    :key="th.value"
+                    @click="changeTheme(th.value)"
+                    class="theme-chip"
+                    :class="{ 'theme-chip--active': isActiveTheme(th.value) }"
+                  >
+                    <v-icon :icon="th.icon" size="16" />
+                    <span>{{ $t('theme.' + th.value) }}</span>
+                  </button>
+                </div>
+              </v-card>
+            </v-menu>
+          </div>
+        </v-card-text>
+      </v-card>
+    </main>
   </div>
 </template>
 
@@ -159,52 +162,49 @@ const isActiveTheme = (th: string) => {
 <style scoped>
 .login-page {
   min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  background: rgb(var(--v-theme-background));
   position: relative;
-  overflow: hidden;
+  overflow: auto;
+  padding: 24px;
 }
 
 .login-bg-pattern {
-  position: absolute;
+  position: fixed;
   inset: 0;
   background:
-    radial-gradient(circle at 20% 50%, rgba(var(--v-theme-primary), 0.06) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(var(--v-theme-secondary), 0.04) 0%, transparent 50%),
-    radial-gradient(circle at 50% 80%, rgba(var(--v-theme-primary), 0.03) 0%, transparent 50%);
+    linear-gradient(180deg, rgba(var(--v-theme-primary), 0.05), transparent 38%),
+    linear-gradient(90deg, rgba(var(--v-theme-on-surface), 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(var(--v-theme-on-surface), 0.035) 1px, transparent 1px);
+  background-size: auto, 44px 44px, 44px 44px;
   pointer-events: none;
 }
 
-.login-container {
+.login-shell {
   position: relative;
   z-index: 1;
+  width: min(100%, 420px);
 }
 
 .login-card {
-  border-radius: 20px !important;
-  padding: 0;
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
-  background: rgba(var(--v-theme-surface), 0.55) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 8px !important;
+  padding: 32px 34px 28px;
+  background: rgba(var(--v-theme-surface), 0.96) !important;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.08) !important;
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.08),
-    0 2px 8px rgba(0, 0, 0, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.02) !important;
+    0 18px 50px rgba(0, 0, 0, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.04) !important;
   overflow: hidden;
-  position: relative;
-  z-index: 1;
 }
 
 .login-header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 32px 24px 16px;
-  gap: 8px;
+  padding: 0 0 24px;
+  gap: 10px;
 }
 
 .login-logo {
@@ -212,9 +212,10 @@ const isActiveTheme = (th: string) => {
 }
 
 .login-brand {
-  font-size: 22px;
+  font-size: 28px;
+  line-height: 1;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0;
   margin: 0;
   background: linear-gradient(135deg, rgb(var(--v-theme-primary)), rgb(var(--v-theme-secondary)));
   -webkit-background-clip: text;
@@ -223,43 +224,52 @@ const isActiveTheme = (th: string) => {
 }
 
 .login-subtitle {
-  font-size: 13px;
-  opacity: 0.5;
+  font-size: 14px;
+  opacity: 0.62;
   margin: 0;
 }
 
 .login-form {
-  padding: 8px 24px 24px !important;
+  padding: 0 !important;
 }
 
 .login-input {
-  margin-bottom: 4px;
+  margin-bottom: 14px;
 }
 
 .login-btn {
-  margin-top: 12px;
+  width: 100%;
+  margin-top: 4px;
   font-size: 15px;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  height: 44px !important;
-  border-radius: 12px !important;
+  letter-spacing: 0;
+  height: 48px !important;
+  border-radius: 8px !important;
 }
 
 .login-settings {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 16px;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 .lang-select {
   flex: 1;
+  min-width: 0;
+}
+
+.theme-trigger {
+  flex: 0 0 48px;
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 8px !important;
 }
 
 .theme-card {
-  border-radius: 14px !important;
+  border-radius: 8px !important;
   overflow: hidden;
-  min-width: 220px;
+  min-width: 240px;
 }
 
 .theme-grid {
@@ -273,7 +283,7 @@ const isActiveTheme = (th: string) => {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 10px;
+  padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid transparent;
   background: transparent;
@@ -293,5 +303,45 @@ const isActiveTheme = (th: string) => {
   background: rgba(var(--v-theme-primary), 0.12);
   border-color: rgba(var(--v-theme-primary), 0.3);
   color: rgb(var(--v-theme-primary));
+}
+
+.login-card :deep(.v-text-field),
+.login-card :deep(.v-select) {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.login-card :deep(.v-field) {
+  min-height: 52px;
+  border-radius: 8px !important;
+  background: rgba(var(--v-theme-surface), 0.92) !important;
+  box-shadow: none !important;
+}
+
+.login-card :deep(.v-field__outline) {
+  --v-field-border-opacity: 0.16;
+}
+
+.login-card :deep(.v-field--focused .v-field__outline) {
+  --v-field-border-opacity: 0.42;
+}
+
+.login-card :deep(.v-input__details) {
+  padding-inline: 2px;
+}
+
+@media (max-width: 600px) {
+  .login-page {
+    padding: 16px;
+  }
+
+  .login-shell {
+    width: 100%;
+  }
+
+  .login-card {
+    padding: 28px 22px 22px;
+  }
 }
 </style>
