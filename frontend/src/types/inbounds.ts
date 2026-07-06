@@ -2,6 +2,7 @@ import { iMultiplex } from "./multiplex"
 import { iTls } from "./tls"
 import { Dial } from "./dial"
 import { Transport } from "./transport"
+import RandomUtil from "@/plugins/randomUtil"
 
 export const InTypes = {
   Direct: 'direct',
@@ -209,7 +210,7 @@ const defaultValues: Record<InType, Inbound> = {
   mixed: <Mixed>{ type: InTypes.Mixed },
   socks: <SOCKS>{ type: InTypes.SOCKS },
   http: <HTTP>{ type: InTypes.HTTP, tls_id: 0 },
-  shadowsocks: <Shadowsocks>{ type: InTypes.Shadowsocks, method: 'none' },
+  shadowsocks: <Shadowsocks>{ type: InTypes.Shadowsocks, method: '2022-blake3-aes-256-gcm' },
   vmess: <VMess>{ type: InTypes.VMess, tls_id: 0, transport: {} },
   trojan: <Trojan>{ type: InTypes.Trojan, tls_id: 0, transport: {} },
   naive: <Naive>{ type: InTypes.Naive, tls_id: 0 },
@@ -236,5 +237,13 @@ const defaultValues: Record<InType, Inbound> = {
 
 export function createInbound<T extends Inbound>(type: InType,json?: Partial<T>): Inbound {
   const defaultObject: Inbound = { ...defaultValues[type] ?? {}, ...(json ?? {}) }
+  if (type == InTypes.Shadowsocks && !(<Shadowsocks>defaultObject).password) {
+    const method = (<Shadowsocks>defaultObject).method
+    if (method == "2022-blake3-aes-128-gcm") {
+      (<Shadowsocks>defaultObject).password = RandomUtil.randomShadowsocksPassword(16)
+    } else if (method?.startsWith("2022")) {
+      (<Shadowsocks>defaultObject).password = RandomUtil.randomShadowsocksPassword(32)
+    }
+  }
   return defaultObject
 }

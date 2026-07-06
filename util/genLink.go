@@ -287,6 +287,9 @@ func hysteria2Link(
 		}
 		if tls, ok := addr["tls"].(map[string]interface{}); ok {
 			getTlsParams(&params, tls, "insecure")
+			if pinSHA256 := getPinnedPeerCertSha256(tls); pinSHA256 != "" {
+				params = append(params, LinkParam{"pinSHA256", pinSHA256})
+			}
 		}
 		if obfs, ok := inbound["obfs"].(map[string]interface{}); ok {
 			if obfsType, ok := obfs["type"].(string); ok {
@@ -502,6 +505,8 @@ func populateVmessTlsParams(obj map[string]interface{}, tlsConfig interface{}) {
 				obj["fp"] = p.Value
 			case "alpn":
 				obj["alpn"] = p.Value
+			case "pcs":
+				obj["pcs"] = p.Value
 			}
 		}
 	} else {
@@ -612,4 +617,27 @@ func getTlsParams(params *[]LinkParam, tls map[string]interface{}, insecureKey s
 		}
 		*params = append(*params, LinkParam{"alpn", strings.Join(alpnList, ",")})
 	}
+	if pcs := getPinnedPeerCertSha256(tls); pcs != "" {
+		*params = append(*params, LinkParam{"pcs", pcs})
+	}
+}
+
+func getPinnedPeerCertSha256(tls map[string]interface{}) string {
+	switch values := tls["pinned_peer_certificate_sha256"].(type) {
+	case []interface{}:
+		for _, value := range values {
+			if sha, ok := value.(string); ok && sha != "" {
+				return sha
+			}
+		}
+	case []string:
+		for _, sha := range values {
+			if sha != "" {
+				return sha
+			}
+		}
+	case string:
+		return values
+	}
+	return ""
 }

@@ -18,6 +18,8 @@ tmp
 # Log files
 *.log*
 .cache
+.playwright-cli/
+output/
 
 # Windows build artifacts
 *.exe

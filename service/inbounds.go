@@ -304,8 +304,30 @@ func (s *InboundService) addUsers(db *gorm.DB, inboundJson []byte, inboundId uin
 }
 
 func (s *InboundService) initUsers(db *gorm.DB, inboundJson []byte, clientIds string, inboundType string) ([]byte, error) {
+	clientIds = strings.TrimSpace(clientIds)
+	if clientIds == "" {
+		return inboundJson, nil
+	}
+
 	ClientIds := strings.Split(clientIds, ",")
-	if len(ClientIds) == 0 {
+	validClientIds := make([]string, 0, len(ClientIds))
+	for _, id := range ClientIds {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		isNumber := true
+		for _, ch := range id {
+			if ch < '0' || ch > '9' {
+				isNumber = false
+				break
+			}
+		}
+		if isNumber {
+			validClientIds = append(validClientIds, id)
+		}
+	}
+	if len(validClientIds) == 0 {
 		return inboundJson, nil
 	}
 
@@ -319,7 +341,7 @@ func (s *InboundService) initUsers(db *gorm.DB, inboundJson []byte, clientIds st
 		return nil, err
 	}
 
-	condition := fmt.Sprintf("id IN (%s)", strings.Join(ClientIds, ","))
+	condition := fmt.Sprintf("id IN (%s)", strings.Join(validClientIds, ","))
 	inbound["users"], err = s.fetchUsers(db, inboundType, condition, inbound)
 	if err != nil {
 		return nil, err

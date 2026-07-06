@@ -1,14 +1,14 @@
 <template>
-  <v-dialog v-model="quickAdd.visible" transition="dialog-bottom-transition" width="500">
+  <v-dialog v-model="quickAdd.visible" transition="dialog-bottom-transition" width="min(560px, calc(100vw - 24px))">
     <v-card class="rounded-lg">
-      <v-card-title>{{ $t('quickAddNode') }}</v-card-title>
+      <v-card-title>{{ $t('pages.quickAddNode') }}</v-card-title>
       <v-divider></v-divider>
       <v-card-text>
         <v-row>
           <v-col cols="12">
             <v-select
               v-model="quickAdd.protocol"
-              :label="$t('selectProtocol')"
+              :label="$t('pages.selectProtocol')"
               :items="protocolOptions"
               item-title="title"
               item-value="value"
@@ -42,27 +42,28 @@
           <v-col cols="12" v-if="quickAdd.hasPassword">
             <v-text-field
               v-model="quickAdd.password"
-              label="Password"
+              :label="$t('types.pw')"
               hide-details
               readonly
             >
               <template v-slot:append-inner>
-                <v-icon icon="mdi-refresh" @click="quickAdd.password = RandomUtil.randomShadowsocksPassword(16)" style="cursor: pointer;" />
+                <v-icon icon="mdi-refresh" @click="quickAdd.password = randomPasswordForMethod(quickAdd.method)" style="cursor: pointer;" />
               </template>
             </v-text-field>
           </v-col>
           <v-col cols="12" v-if="quickAdd.hasMethod">
             <v-select
               v-model="quickAdd.method"
-              label="Method"
-              :items="['none', 'aes-128-gcm', 'aes-256-gcm', 'chacha20-ietf-poly1305']"
+              :label="$t('in.ssMethod')"
+              :items="shadowsocksMethods"
+              @update:model-value="quickAdd.password = randomPasswordForMethod($event)"
               hide-details
             ></v-select>
           </v-col>
           <v-col cols="12" v-if="quickAdd.hasObfs">
             <v-text-field
               v-model="quickAdd.obfsPassword"
-              label="Obfs Password"
+              :label="$t('types.hy.obfs')"
               hide-details
               readonly
             >
@@ -74,7 +75,7 @@
           <v-col cols="12" v-if="quickAdd.hasHandshake">
             <v-text-field
               v-model="quickAdd.handshakeServer"
-              label="Handshake Server"
+              :label="$t('types.shdwTls.hs')"
               hide-details
             ></v-text-field>
           </v-col>
@@ -103,57 +104,53 @@
     :tag="stats.tag"
     @close="closeStats"
   />
-  <v-row>
-    <v-col cols="12" justify="center" align="center" class="pt-2 pb-4">
-      <v-btn color="primary" @click="showModal(0)">{{ $t('actions.add') }}</v-btn>
-      <v-btn color="secondary" variant="tonal" class="ml-2" @click="openQuickAdd">
+  <v-row class="page-toolbar" align="center" justify="start">
+    <v-col cols="auto" class="page-toolbar__actions">
+      <v-btn color="primary" prepend-icon="mdi-plus" @click="showModal(0)">{{ $t('actions.add') }}</v-btn>
+      <v-btn color="primary" variant="tonal" class="ml-2" @click="openQuickAdd">
         <v-icon start icon="mdi-lightning-bolt"></v-icon>
-        {{ $t('quickAddNode') }}
+        {{ $t('pages.quickAddNode') }}
       </v-btn>
     </v-col>
   </v-row>
-  <v-row>
-    <v-col cols="12" sm="4" md="3" lg="2" v-for="(item, index) in <any[]>inbounds" :key="item.tag">
-              <v-card rounded="xl" elevation="0" :title="item.tag">
-        <v-card-subtitle>
-          <v-row>
-            <v-col>{{ item.type }}</v-col>
-          </v-row>
-        </v-card-subtitle>
-        <v-card-text>
-          <v-row>
-            <v-col>{{ $t('in.addr') }}</v-col>
-            <v-col>
+  <v-row class="resource-grid">
+    <v-col cols="12" sm="6" md="4" lg="3" xl="2" v-for="(item, index) in <any[]>inbounds" :key="item.tag" class="resource-col">
+      <v-card rounded="lg" elevation="1" :title="item.tag" class="resource-card">
+        <v-card-subtitle>{{ item.type }}</v-card-subtitle>
+        <v-card-text class="resource-card__body">
+          <v-row class="resource-row" no-gutters>
+            <v-col cols="5" class="resource-label">{{ $t('in.addr') }}</v-col>
+            <v-col cols="7" class="resource-value">
               {{ item.listen }}
             </v-col>
           </v-row>
-          <v-row>
-            <v-col>{{ $t('in.port') }}</v-col>
-            <v-col>
+          <v-row class="resource-row" no-gutters>
+            <v-col cols="5" class="resource-label">{{ $t('in.port') }}</v-col>
+            <v-col cols="7" class="resource-value">
               {{ item.listen_port }}
             </v-col>
           </v-row>
-          <v-row>
-            <v-col>{{ $t('objects.tls') }}</v-col>
-            <v-col>
+          <v-row class="resource-row" no-gutters>
+            <v-col cols="5" class="resource-label">{{ $t('objects.tls') }}</v-col>
+            <v-col cols="7" class="resource-value">
               {{ item.tls_id > 0 ? $t('enable') : $t('disable') }}
             </v-col>
           </v-row>
-          <v-row>
-            <v-col>{{ $t('pages.clients') }}</v-col>
-            <v-col>
+          <v-row class="resource-row" no-gutters>
+            <v-col cols="5" class="resource-label">{{ $t('pages.clients') }}</v-col>
+            <v-col cols="7" class="resource-value">
               <template v-if="item.users">
                 <v-tooltip activator="parent" dir="ltr" location="bottom" v-if="item.users.length > 0">
-                  <span v-for="u in item.users">{{ u }}<br /></span>
+                  <span v-for="u in item.users" :key="u">{{ u }}<br /></span>
                 </v-tooltip>
                 {{ item.users.length }}
               </template>
               <template v-else>-</template>
             </v-col>
           </v-row>
-          <v-row>
-            <v-col>{{ $t('online') }}</v-col>
-            <v-col>
+          <v-row class="resource-row" no-gutters>
+            <v-col cols="5" class="resource-label">{{ $t('online') }}</v-col>
+            <v-col cols="7" class="resource-value">
               <template v-if="onlines.includes(item.tag)">
                 <v-chip density="comfortable" size="small" color="success" variant="flat">{{ $t('online') }}</v-chip>
               </template>
@@ -162,12 +159,12 @@
           </v-row>
         </v-card-text>
         <v-divider></v-divider>
-        <v-card-actions>
-          <v-btn icon="mdi-file-edit" @click="showModal(item.id)">
+        <v-card-actions class="resource-actions">
+          <v-btn icon="mdi-file-edit" size="small" variant="text" @click="showModal(item.id)">
             <v-icon />
             <v-tooltip activator="parent" location="top" :text="$t('actions.edit')"></v-tooltip>
           </v-btn>
-          <v-btn icon="mdi-file-remove" color="warning" @click="delOverlay[index] = true">
+          <v-btn icon="mdi-file-remove" size="small" variant="text" color="warning" @click="delOverlay[index] = true">
             <v-icon />
             <v-tooltip activator="parent" location="top" :text="$t('actions.del')"></v-tooltip>
           </v-btn>
@@ -185,17 +182,17 @@
               </v-card-actions>
             </v-card>
           </v-overlay>
-          <v-btn icon="mdi-content-duplicate" :loading="cloneLoading" @click="clone(item.id)">
+          <v-btn icon="mdi-content-duplicate" size="small" variant="text" :loading="cloneLoading" @click="clone(item.id)">
             <v-icon />
             <v-tooltip activator="parent" location="top" :text="$t('actions.clone')"></v-tooltip>
           </v-btn>
-          <v-btn icon="mdi-chart-line" @click="showStats(item.tag)" v-if="Data().enableTraffic">
+          <v-btn icon="mdi-chart-line" size="small" variant="text" @click="showStats(item.tag)" v-if="Data().enableTraffic">
             <v-icon />
             <v-tooltip activator="parent" location="top" :text="$t('stats.graphTitle')"></v-tooltip>
           </v-btn>
         </v-card-actions>
       </v-card>
-              </v-col>
+    </v-col>
   </v-row>
 </template>
 
@@ -248,7 +245,7 @@ const quickAdd = ref({
   tag: '',
   port: RandomUtil.randomIntRange(10000, 60000),
   password: '',
-  method: 'none',
+  method: '2022-blake3-aes-256-gcm',
   obfsPassword: '',
   handshakeServer: 'www.microsoft.com',
   hasPassword: false,
@@ -305,16 +302,35 @@ const protocolOptions = [
   { title: 'Trojan', value: 'trojan' },
   { title: 'VLESS', value: 'vless' },
   { title: 'Hysteria2', value: 'hysteria2' },
+  { title: 'ShadowTLS', value: 'shadowtls' },
   { title: 'TUIC', value: 'tuic' },
   { title: 'Naive', value: 'naive' },
+  { title: 'AnyTLS', value: 'anytls' },
   { title: 'Direct', value: 'direct' },
 ]
+
+const shadowsocksMethods = [
+  'aes-128-gcm',
+  'aes-192-gcm',
+  'aes-256-gcm',
+  'chacha20-ietf-poly1305',
+  'xchacha20-ietf-poly1305',
+  '2022-blake3-aes-128-gcm',
+  '2022-blake3-aes-256-gcm',
+  '2022-blake3-chacha20-poly1305',
+]
+
+const randomPasswordForMethod = (method: string): string => {
+  if (method === '2022-blake3-aes-128-gcm') return RandomUtil.randomShadowsocksPassword(16)
+  if (method.startsWith('2022')) return RandomUtil.randomShadowsocksPassword(32)
+  return RandomUtil.randomSeq(16)
+}
 
 const regenerateQuickAdd = () => {
   const port = RandomUtil.randomIntRange(10000, 60000)
   quickAdd.value.tag = quickAdd.value.protocol + '-' + port
   quickAdd.value.port = port
-  quickAdd.value.password = RandomUtil.randomShadowsocksPassword(16)
+  quickAdd.value.password = randomPasswordForMethod(quickAdd.value.method)
 }
 
 const openQuickAdd = () => {
@@ -324,10 +340,30 @@ const openQuickAdd = () => {
 
 const needsTls = ['vmess', 'vless', 'trojan', 'hysteria2', 'tuic', 'naive', 'anytls']
 
-const genSelfSignedTls = async (serverName: string): Promise<number> => {
-  const tlsName = 'auto-' + quickAdd.value.tag
+const pinnedSha256FromCertificate = async (certificate: string[]): Promise<string[]> => {
   try {
-    const keyMsg = await HttpUtils.get('api/keypairs', { k: 'tls', o: serverName || "''" })
+    const resp = await fetch('api/pinnedSha256', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cert: certificate.join('\n') }),
+      credentials: 'include',
+    })
+    const msg = await resp.json()
+    if (msg.success && Array.isArray(msg.obj)) return msg.obj
+  } catch (e) {
+    console.error('pinnedSha256FromCertificate error:', e)
+  }
+  return []
+}
+
+const genSelfSignedTls = async (serverName: string): Promise<number> => {
+  let tlsName = 'auto-' + quickAdd.value.tag
+  while (Data().tlsConfigs.find((t: any) => t.name === tlsName)) {
+    tlsName += '-copy'
+  }
+  const cleanServerName = (serverName || quickAdd.value.tag).replace(/[^a-zA-Z0-9.-]/g, '-')
+  try {
+    const keyMsg = await HttpUtils.get('api/keypairs', { k: 'tls', o: cleanServerName })
     if (!keyMsg.success || !keyMsg.obj || !keyMsg.obj.length) return 0
     const lines: string[] = keyMsg.obj.filter((l: string) => l && l.trim())
     if (lines.length < 4) return 0
@@ -344,18 +380,32 @@ const genSelfSignedTls = async (serverName: string): Promise<number> => {
       else { if (inKey) privateKey.push(t); if (inCert) publicKey.push(t) }
     }
     if (!privateKey.length || !publicKey.length) return 0
+    const pinnedSha256 = await pinnedSha256FromCertificate(publicKey)
+    if (!pinnedSha256.length) return 0
     const tlsConfig = {
       id: 0,
       name: tlsName,
       server: {
         enabled: true,
+        server_name: cleanServerName,
         alpn: ['h3', 'h2', 'http/1.1'],
         min_version: '1.2',
         max_version: '1.3',
         key: privateKey,
         certificate: publicKey,
       },
-      client: {}
+      client: {
+        enabled: true,
+        server_name: cleanServerName,
+        pinned_peer_certificate_sha256: pinnedSha256,
+        alpn: ['h3', 'h2', 'http/1.1'],
+        min_version: '1.2',
+        max_version: '1.3',
+        utls: {
+          enabled: true,
+          fingerprint: 'chrome',
+        },
+      }
     }
     const success = await Data().save('tls', 'new', tlsConfig)
     if (success) {
@@ -394,7 +444,7 @@ const createQuickNode = async () => {
 
   switch (proto) {
     case 'shadowsocks':
-      ;(inbound as any).method = quickAdd.value.method || 'none'
+      ;(inbound as any).method = quickAdd.value.method || '2022-blake3-aes-256-gcm'
       ;(inbound as any).password = quickAdd.value.password
       inbound.addrs = []
       inbound.out_json = {}

@@ -6,9 +6,38 @@ import zhcn from './zhcn'
 import zhtw from './zhtw'
 import ru from './ru'
 
+export const normalizeLocale = (value: string | null | undefined) => {
+  switch ((value || '').toLowerCase()) {
+    case 'zhcn':
+    case 'zh-cn':
+    case 'zh_hans':
+    case 'zh-hans':
+    case 'zhhans':
+      return 'zhHans'
+    case 'zhtw':
+    case 'zh-tw':
+    case 'zh_hant':
+    case 'zh-hant':
+    case 'zhhant':
+      return 'zhHant'
+    case 'en':
+    case 'fa':
+    case 'vi':
+    case 'ru':
+      return (value || '').toLowerCase()
+    default:
+      return 'zhHans'
+  }
+}
+
+const initialLocale = normalizeLocale(localStorage.getItem("locale"))
+if (localStorage.getItem("locale") !== initialLocale) {
+  localStorage.setItem("locale", initialLocale)
+}
+
 export const i18n = createI18n({
   legacy: false,
-  locale: localStorage.getItem("locale") ?? 'zhHans',
+  locale: initialLocale,
   fallbackLocale: 'zhHans',
   messages: {
     en: en,

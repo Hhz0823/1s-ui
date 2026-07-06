@@ -35,7 +35,7 @@
     :tag="stats.tag"
     @close="closeStats"
   />
-  <v-row justify="center" align="center">
+  <v-row class="page-toolbar" justify="start" align="center">
     <v-col cols="auto">
       <v-btn color="primary" @click="showModal(0)">{{ $t('actions.add') }}</v-btn>
     </v-col>
@@ -69,8 +69,8 @@
             <v-icon :icon="filterSettings.enabled ? 'mdi-filter-check-outline' : 'mdi-filter-menu-outline'" :color="filterSettings.enabled ? 'primary' : ''" />
           </v-btn>
         </template>
-        <v-card>
-          <v-container>
+        <v-card class="filter-menu-card">
+          <v-container class="pa-3">
             <v-row>
               <v-col>
                 <v-select
@@ -104,24 +104,21 @@
               </v-col>
             </v-row>
           </v-container>
-          <v-card-actions>
-            <v-card-actions>
-              <v-spacer></v-spacer>
-              <v-btn
-                color="blue-darken-1"
-                variant="outlined"
-                @click="clearFilter"
-              >
-                {{ $t('actions.del') }}
-              </v-btn>
-              <v-btn
-                color="blue-darken-1"
-                variant="tonal"
-                @click="doFilter"
-              >
-                {{ $t('actions.update') }}
-              </v-btn>
-            </v-card-actions>
+          <v-card-actions class="justify-end">
+            <v-btn
+              color="blue-darken-1"
+              variant="outlined"
+              @click="clearFilter"
+            >
+              {{ $t('actions.del') }}
+            </v-btn>
+            <v-btn
+              color="blue-darken-1"
+              variant="tonal"
+              @click="doFilter"
+            >
+              {{ $t('actions.update') }}
+            </v-btn>
           </v-card-actions>
         </v-card>
       </v-menu>
@@ -141,7 +138,7 @@
         :mobile="smAndDown"
         mobile-breakpoint="sm"
         width="100%"
-        class="elevation-3 rounded"
+        class="app-data-table elevation-1 rounded"
         >
         <template v-slot:item.inbounds="{ item }">
           <span>
@@ -235,7 +232,11 @@
   min-height: 36px !important;
 }
 .v-data-table__tr--mobile td div {
-  width:max-content;
+  width: auto;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 </style>
 <script lang="ts" setup>

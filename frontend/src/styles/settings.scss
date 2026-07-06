@@ -647,3 +647,279 @@ body {
     font-size: 12px;
   }
 }
+
+/* ===== Layout Refinement ===== */
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+.app-root {
+  min-height: 100vh;
+  isolation: isolate;
+}
+
+.app-main {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+.app-page {
+  width: 100%;
+  max-width: 1680px;
+  margin: 0 auto;
+  padding: 20px 24px 32px;
+}
+
+.app-page > .v-row {
+  margin: -8px !important;
+}
+
+.app-page > .v-row > .v-col {
+  padding: 8px !important;
+  min-width: 0;
+}
+
+.page-toolbar {
+  min-height: 48px;
+  margin-bottom: 12px !important;
+}
+
+.page-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-toolbar__actions > .v-btn {
+  margin: 0 !important;
+}
+
+.app-page .v-card,
+.v-dialog .v-card,
+.v-menu .v-card {
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+
+.app-page .v-card::before,
+.app-page .v-card::after,
+.v-dialog .v-card::before,
+.v-dialog .v-card::after,
+.v-menu .v-card::before,
+.v-menu .v-card::after {
+  content: none !important;
+}
+
+.app-page .v-card,
+.app-page .v-card[rounded],
+.app-page .v-card.rounded-xl,
+.app-page .v-card.rounded-lg {
+  transform: none !important;
+  background: rgba(var(--v-theme-surface), 0.78) !important;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.08) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06) !important;
+}
+
+.app-page .v-card:hover,
+.app-page .v-card[rounded]:hover,
+.app-page .v-card.rounded-xl:hover,
+.app-page .v-card.rounded-lg:hover {
+  transform: none !important;
+  border-color: rgba(var(--v-theme-primary), 0.18) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 10px 26px rgba(0, 0, 0, 0.08) !important;
+}
+
+.app-page .v-card .v-card,
+.v-dialog .v-card .v-card {
+  background: rgba(var(--v-theme-surface), 0.72) !important;
+  box-shadow: none !important;
+}
+
+.app-page .v-card-title,
+.app-page .v-card-subtitle,
+.v-dialog .v-card-title,
+.v-dialog .v-card-subtitle {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.app-page .v-card-subtitle {
+  text-align: start;
+}
+
+.v-card-actions {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.resource-grid {
+  align-items: stretch;
+}
+
+.resource-col {
+  display: flex;
+}
+
+.resource-card {
+  display: flex !important;
+  flex-direction: column;
+  width: 100%;
+  min-height: 232px;
+}
+
+.resource-card .v-card-title {
+  align-items: flex-start;
+  min-height: 44px;
+  padding: 12px 14px 4px !important;
+  line-height: 1.35;
+}
+
+.resource-card .v-card-subtitle {
+  padding: 0 14px 8px !important;
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+  opacity: 0.72;
+}
+
+.resource-card__body {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  flex: 1 1 auto;
+  padding: 12px 14px !important;
+}
+
+.resource-row {
+  align-items: center;
+  min-height: 28px;
+}
+
+.resource-row .v-col {
+  padding: 0 !important;
+}
+
+.resource-label {
+  color: rgba(var(--v-theme-on-surface), 0.64);
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.resource-value {
+  min-width: 0;
+  text-align: end;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.resource-actions {
+  justify-content: flex-end;
+  min-height: 44px;
+  padding: 6px 8px !important;
+}
+
+.resource-actions .v-btn {
+  width: 36px;
+  height: 36px;
+}
+
+.app-data-table,
+.app-page .v-data-table {
+  border-radius: 8px !important;
+  overflow: hidden;
+  background: rgba(var(--v-theme-surface), 0.8) !important;
+}
+
+.app-page .v-data-table .v-table__wrapper {
+  overflow-x: auto;
+}
+
+.app-page .v-data-table th,
+.app-page .v-data-table td {
+  vertical-align: middle;
+}
+
+.app-page .v-data-table th {
+  white-space: nowrap;
+}
+
+.v-field__input,
+.v-select__selection,
+.v-select__selection-text,
+.v-btn__content {
+  min-width: 0;
+}
+
+.v-btn {
+  min-width: 40px;
+}
+
+.filter-menu-card {
+  width: min(320px, calc(100vw - 32px));
+}
+
+.filter-menu-card .v-container {
+  padding: 12px !important;
+}
+
+.v-dialog > .v-overlay__content {
+  margin: 16px;
+}
+
+.v-dialog .v-card-text {
+  max-height: min(70vh, 720px);
+  overflow: auto;
+}
+
+.v-dialog .v-card-actions {
+  justify-content: flex-end;
+  padding: 10px 12px !important;
+}
+
+@media (max-width: 960px) {
+  .app-page {
+    padding: 16px 16px 28px;
+  }
+}
+
+@media (max-width: 600px) {
+  .app-page {
+    padding: 12px 10px 24px;
+  }
+
+  .app-page > .v-row {
+    margin: -6px !important;
+  }
+
+  .app-page > .v-row > .v-col {
+    padding: 6px !important;
+  }
+
+  .page-toolbar {
+    margin-bottom: 8px !important;
+  }
+
+  .page-toolbar__actions {
+    width: 100%;
+  }
+
+  .page-toolbar__actions > .v-btn {
+    flex: 1 1 auto;
+  }
+
+  .resource-card {
+    min-height: auto;
+  }
+
+  .resource-actions {
+    justify-content: flex-start;
+  }
+
+  .v-dialog > .v-overlay__content {
+    margin: 10px;
+  }
+}
