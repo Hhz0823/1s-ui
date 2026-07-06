@@ -37,6 +37,8 @@ windows/sui-*.exe
 *.py
 *.patch
 *.png
+!docs/screenshots/
+!docs/screenshots/*.png
 *.html
 !frontend/index.html
 tmp_*
