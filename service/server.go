@@ -45,6 +45,8 @@ func (s *ServerService) GetStatus(request string) *map[string]interface{} {
 			status["sys"] = s.GetSystemInfo()
 		case "sbd":
 			status["sbd"] = s.GetSingboxInfo()
+		case "xry":
+			status["xry"] = s.GetXrayInfo()
 		case "db":
 			status["db"] = s.GetDatabaseInfo()
 		}
@@ -150,6 +152,19 @@ func (s *ServerService) GetSingboxInfo() map[string]interface{} {
 			"Uptime":       uptime,
 		},
 	}
+}
+
+func (s *ServerService) GetXrayInfo() map[string]interface{} {
+	if xrayPtr == nil {
+		return map[string]interface{}{
+			"running":    false,
+			"last_error": "",
+			"stats": map[string]interface{}{
+				"Uptime": uint32(0),
+			},
+		}
+	}
+	return xrayPtr.Status()
 }
 
 func (s *ServerService) GetSystemInfo() map[string]interface{} {

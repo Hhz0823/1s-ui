@@ -82,6 +82,7 @@
     info: {
       sys: "Информация о системе",
       sbd: "Информация о Sing-Box",
+      xry: "Информация Xray",
       host: "Хост",
       cpu: "ЦП",
       core: "Ядро",
@@ -89,7 +90,9 @@
       startupTime: "Время запуска",
       threads: "Потоки",
       memory: "Память",
-      running: "Работает"
+      running: "Работает",
+      runningYes: "Работает",
+      runningNo: "Остановлен",
     },
     backup: {
       title: "Резервное копирование и восстановление",
@@ -98,6 +101,7 @@
       exclStats: "Исключить графики",
       exclChanges: "Исключить изменения",
       sbConfig: "Скачать конфигурацию Sing-Box",
+      xrayConfig: "Скачать конфигурацию Xray",
     },
     stats: {
       title: "Использование и количество",
@@ -147,6 +151,7 @@
     close: "Закрыть",
     restartApp: "Перезапустить приложение",
     restartSb: "Перезапустить Singbox",
+    restartXray: "Перезапустить Xray",
     apply: "Применить",
   },
   login: {
@@ -666,4 +671,3 @@
     ms: "мс",
   },
 }
- 

@@ -66,3 +66,38 @@ func GetDBFolderPath() string {
 func GetDBPath() string {
 	return fmt.Sprintf("%s/%s.db", GetDBFolderPath(), GetName())
 }
+
+func GetBinFolderPath() string {
+	binFolderPath := os.Getenv("SUI_BIN_FOLDER")
+	if binFolderPath == "" {
+		dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+		if err != nil {
+			if runtime.GOOS == "windows" {
+				return "C:\\Program Files\\s-ui\\bin"
+			}
+			return "/usr/local/s-ui/bin"
+		}
+		binFolderPath = filepath.Join(dir, "bin")
+	}
+	return binFolderPath
+}
+
+func GetXrayPath() string {
+	xrayPath := os.Getenv("SUI_XRAY_PATH")
+	if xrayPath != "" {
+		return xrayPath
+	}
+	name := "xray"
+	if runtime.GOOS == "windows" {
+		name = "xray.exe"
+	}
+	return filepath.Join(GetBinFolderPath(), name)
+}
+
+func GetXrayConfigPath() string {
+	xrayConfigPath := os.Getenv("SUI_XRAY_CONFIG")
+	if xrayConfigPath != "" {
+		return xrayConfigPath
+	}
+	return filepath.Join(GetBinFolderPath(), "xray.json")
+}

@@ -334,6 +334,11 @@ func (a *ApiService) RestartSb(c *gin.Context) {
 	jsonMsg(c, "restartSb", err)
 }
 
+func (a *ApiService) RestartXray(c *gin.Context) {
+	err := a.ConfigService.RestartXrayCoreIfNeeded()
+	jsonMsg(c, "restartXray", err)
+}
+
 func (a *ApiService) LinkConvert(c *gin.Context) {
 	link := c.Request.FormValue("link")
 	result, _, err := util.GetOutbound(link, 0)
@@ -407,6 +412,18 @@ func (a *ApiService) GetSingboxConfig(c *gin.Context) {
 	c.Writer.Write(*rawConfig)
 }
 
+func (a *ApiService) GetXrayConfig(c *gin.Context) {
+	rawConfig, err := a.ConfigService.GetXrayConfig()
+	if err != nil {
+		c.Status(400)
+		c.Writer.WriteString(err.Error())
+		return
+	}
+	c.Header("Content-Type", "application/json")
+	c.Header("Content-Disposition", "attachment; filename=xray_config_"+time.Now().Format("20060102-150405")+".json")
+	c.Writer.Write(*rawConfig)
+}
+
 func (a *ApiService) GetCheckOutbound(c *gin.Context) {
 	tag := c.Query("tag")
 	link := c.Query("link")
@@ -414,11 +431,10 @@ func (a *ApiService) GetCheckOutbound(c *gin.Context) {
 	jsonObj(c, result, nil)
 }
 
-
 type PinnedSha256Request struct {
-	Cert         string `json:"cert"`
-	CertPath     string `json:"certPath"`
-	ServerName   string `json:"serverName"`
+	Cert       string `json:"cert"`
+	CertPath   string `json:"certPath"`
+	ServerName string `json:"serverName"`
 }
 
 func (a *ApiService) PinnedSha256(c *gin.Context) {

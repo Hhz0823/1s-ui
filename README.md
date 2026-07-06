@@ -5,8 +5,9 @@
 [![Go](https://img.shields.io/badge/Go-1.25+-00ADD8)](go.mod)
 [![Vue](https://img.shields.io/badge/Vue-3-42b883)](frontend/package.json)
 [![Sing-Box](https://img.shields.io/badge/core-sing--box-blue)](https://github.com/SagerNet/sing-box)
+[![Xray-core](https://img.shields.io/badge/core-Xray--core-green)](https://github.com/XTLS/Xray-core)
 
-1S-UI 是一个基于 [Sing-Box](https://github.com/SagerNet/sing-box) 的多协议代理管理面板，面向个人服务器、订阅分发、节点管理和快速生成可用配置的场景。
+1S-UI 是一个以 [Sing-Box](https://github.com/SagerNet/sing-box) 为主、可选接入 [Xray-core](https://github.com/XTLS/Xray-core) 的多协议代理管理面板，面向个人服务器、订阅分发、节点管理和快速生成可用配置的场景。
 
 本项目 fork 自 [alireza0/s-ui](https://github.com/alireza0/s-ui)，在原有 S-UI 面板能力上继续优化了界面布局、快速添加节点、TLS 配置、v2rayN 兼容链接和多平台发布流程。
 
@@ -17,6 +18,7 @@
 ## 亮点
 
 - 多协议入站、出站、端点、服务和路由管理
+- 入站级内核选择，默认 sing-box，可为 VLESS XHTTP/Reality/TLS 场景选择 Xray-core
 - 支持 VLESS、VMess、Trojan、Shadowsocks、Hysteria2、TUIC、Naive、ShadowTLS、AnyTLS、WireGuard 等协议
 - 一键添加节点，自动生成端口、标签、用户、TLS 和协议默认参数
 - TLS 证书、ACME、ECH、Reality、Pinned SHA256 统一管理
@@ -63,13 +65,13 @@ s-ui update
 在安装命令后追加版本号即可：
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/master/install.sh) v1.4.5
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/master/install.sh) v1.4.6
 ```
 
 版本号也可以省略开头的 `v`：
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/master/install.sh) 1.4.5
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/master/install.sh) 1.4.6
 ```
 
 ---
@@ -189,6 +191,12 @@ TLS 类型节点会自动生成自签名证书，并写入客户端侧 `pinned_p
 
 分享链接生成时会尽量保留 sing-box 和 v2rayN 常用字段，例如 Hysteria2 的 `pinSHA256` 和 TLS 的 `pcs`。
 
+## 多内核运行
+
+默认情况下，1S-UI 继续使用内置 sing-box 运行所有入站。创建或编辑入站时可以将核心切换为 Xray-core，目前优先支持 Xray VLESS，并提供 XHTTP、TCP、WebSocket、gRPC、HTTPUpgrade 传输选项。
+
+Linux 一键安装脚本和 Docker 镜像会自动准备 Xray-core。手动部署时请将 Xray 二进制放到程序同级 `bin/xray`，Windows 放到 `bin/xray.exe`；也可以通过 `SUI_XRAY_PATH` 指定路径。Xray 运行配置默认写入 `bin/xray.json`，可通过首页的 Xray 信息卡和备份弹窗里的 Xray 配置下载进行检查。
+
 ---
 
 ## 页面功能
@@ -217,7 +225,9 @@ TLS 类型节点会自动生成自签名证书，并写入客户端侧 `pinned_p
 | `SUI_LOG_LEVEL` | `info` | 日志等级，支持 `debug`、`info`、`warn`、`error` |
 | `SUI_DEBUG` | `false` | 开启调试模式 |
 | `SUI_DB_FOLDER` | 程序同级 `db` | 数据库目录 |
-| `SUI_BIN_FOLDER` | 旧版本迁移使用 | 迁移旧版二进制目录时使用 |
+| `SUI_BIN_FOLDER` | 程序同级 `bin` | 外部运行时和生成文件目录 |
+| `SUI_XRAY_PATH` | `SUI_BIN_FOLDER/xray` | Xray-core 二进制路径 |
+| `SUI_XRAY_CONFIG` | `SUI_BIN_FOLDER/xray.json` | Xray-core 运行配置输出路径 |
 
 Docker 镜像默认通过 `/app/db` 保存数据库，建议将该目录挂载到宿主机。
 
@@ -266,7 +276,7 @@ go test ./...
 ├── app/          # 应用启动逻辑
 ├── cmd/          # CLI 命令和迁移
 ├── config/       # 版本、名称和环境配置
-├── core/         # sing-box 运行和状态管理
+├── core/         # sing-box / Xray-core 运行和状态管理
 ├── database/     # 数据库和模型
 ├── frontend/     # Vue 3 + Vuetify 前端
 ├── service/      # 业务服务层

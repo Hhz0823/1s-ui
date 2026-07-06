@@ -82,6 +82,7 @@
     info: {
       sys: "System Info",
       sbd: "Sing-Box Info",
+      xry: "Xray Info",
       host: "Host",
       cpu: "CPU",
       core: "Core",
@@ -89,7 +90,9 @@
       startupTime: "Startup time",
       threads: "Threads",
       memory: "Memory",
-      running: "Running"
+      running: "Running",
+      runningYes: "Running",
+      runningNo: "Stopped",
     },
     backup: {
       title: "Backup & Restore",
@@ -98,6 +101,7 @@
       exclStats: "Exclude graphs",
       exclChanges: "Exclude changes",
       sbConfig: "Download Sing-Box Config",
+      xrayConfig: "Download Xray Config",
     },
     stats: {
       title: "Usage & Counts",
@@ -147,6 +151,7 @@
     close: "Close",
     restartApp: "Restart App",
     restartSb: "Restart Singbox",
+    restartXray: "Restart Xray",
   },
   login: {
     title: "Login",

@@ -7,6 +7,16 @@
         <v-row>
           <v-col cols="12">
             <v-select
+              v-model="quickAdd.core_type"
+              label="Core"
+              :items="coreOptions"
+              item-title="title"
+              item-value="value"
+              hide-details
+            ></v-select>
+          </v-col>
+          <v-col cols="12">
+            <v-select
               v-model="quickAdd.protocol"
               :label="$t('pages.selectProtocol')"
               :items="protocolOptions"
@@ -116,7 +126,7 @@
   <v-row class="resource-grid">
     <v-col cols="12" sm="6" md="4" lg="3" xl="2" v-for="(item, index) in <any[]>inbounds" :key="item.tag" class="resource-col">
       <v-card rounded="lg" elevation="1" :title="item.tag" class="resource-card">
-        <v-card-subtitle>{{ item.type }}</v-card-subtitle>
+        <v-card-subtitle>{{ item.core_type || 'sing-box' }} / {{ item.type }}</v-card-subtitle>
         <v-card-text class="resource-card__body">
           <v-row class="resource-row" no-gutters>
             <v-col cols="5" class="resource-label">{{ $t('in.addr') }}</v-col>
@@ -203,7 +213,7 @@ import InboundVue from '@/layouts/modals/Inbound.vue'
 import Stats from '@/layouts/modals/Stats.vue'
 import { Config } from '@/types/config'
 import { computed, ref, watch } from 'vue'
-import { createInbound, Inbound } from '@/types/inbounds'
+import { CoreTypes, createInbound, Inbound } from '@/types/inbounds'
 import RandomUtil from '@/plugins/randomUtil'
 import { i18n } from '@/locales'
 import { push } from 'notivue'
@@ -241,6 +251,7 @@ const showModal = (id: number) => {
 }
 const quickAdd = ref({
   visible: false,
+  core_type: CoreTypes.SingBox,
   protocol: 'mixed',
   tag: '',
   port: RandomUtil.randomIntRange(10000, 60000),
@@ -255,11 +266,23 @@ const quickAdd = ref({
   loading: false,
 })
 
+const coreOptions = [
+  { title: 'sing-box', value: CoreTypes.SingBox },
+  { title: 'Xray-core', value: CoreTypes.Xray },
+]
+
 watch(() => quickAdd.value.protocol, (val) => {
   quickAdd.value.hasPassword = val === 'shadowsocks'
   quickAdd.value.hasMethod = val === 'shadowsocks'
   quickAdd.value.hasObfs = val === 'hysteria2'
   quickAdd.value.hasHandshake = val === 'shadowtls'
+  regenerateQuickAdd()
+})
+
+watch(() => quickAdd.value.core_type, (val) => {
+  if (val === CoreTypes.Xray) {
+    quickAdd.value.protocol = 'vless'
+  }
   regenerateQuickAdd()
 })
 
@@ -293,7 +316,7 @@ const clone = async (id: number) => {
 
 
 
-const protocolOptions = [
+const singBoxProtocolOptions = [
   { title: 'Mixed', value: 'mixed' },
   { title: 'SOCKS', value: 'socks' },
   { title: 'HTTP', value: 'http' },
@@ -308,6 +331,13 @@ const protocolOptions = [
   { title: 'AnyTLS', value: 'anytls' },
   { title: 'Direct', value: 'direct' },
 ]
+
+const protocolOptions = computed(() => {
+  if (quickAdd.value.core_type === CoreTypes.Xray) {
+    return [{ title: 'VLESS', value: 'vless' }]
+  }
+  return singBoxProtocolOptions
+})
 
 const shadowsocksMethods = [
   'aes-128-gcm',
@@ -437,6 +467,7 @@ const createQuickNode = async () => {
   }
   const inbound = createInbound(proto, {
     id: 0,
+    core_type: quickAdd.value.core_type,
     tag: quickAdd.value.tag,
     listen: '::',
     listen_port: port,
@@ -457,7 +488,9 @@ const createQuickNode = async () => {
       break
     case 'vless':
       ;(inbound as any).tls_id = tlsId
-      ;(inbound as any).transport = { type: 'http' }
+      ;(inbound as any).transport = quickAdd.value.core_type === CoreTypes.Xray
+        ? { type: 'xhttp', path: '/xhttp', host: location.hostname, mode: 'auto' }
+        : { type: 'http' }
       inbound.addrs = []
       inbound.out_json = {}
       break
@@ -520,7 +553,7 @@ const createQuickNode = async () => {
         protoConfig.vmess = { name: clientName, uuid: uuid, alterId: 0 }
         break
       case 'vless':
-        protoConfig.vless = { name: clientName, uuid: uuid, flow: 'xtls-rprx-vision' }
+        protoConfig.vless = { name: clientName, uuid: uuid, flow: quickAdd.value.core_type === CoreTypes.Xray ? '' : 'xtls-rprx-vision' }
         break
       case 'trojan':
         protoConfig.trojan = { name: clientName, password: password }

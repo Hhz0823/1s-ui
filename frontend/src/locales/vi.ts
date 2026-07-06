@@ -82,6 +82,7 @@
     info: {
       sys: "Thông tin hệ thống",
       sbd: "Thông tin Sing-Box",
+      xry: "Thông tin Xray",
       host: "Máy chủ",
       cpu: "CPU",
       core: "Nhân",
@@ -89,7 +90,9 @@
       startupTime: "Thời gian khởi động",
       threads: "Luồng",
       memory: "Bộ nhớ",
-      running: "Đang chạy"
+      running: "Đang chạy",
+      runningYes: "Đang chạy",
+      runningNo: "Đã dừng",
     },
     backup: {
       title: "Sao lưu và khôi phục",
@@ -98,6 +101,7 @@
       exclStats: "Loại trừ các biểu đồ",
       exclChanges: "Loại trừ các thay đổi",
       sbConfig: "Tải xuống cấu hình Sing-Box",
+      xrayConfig: "Tải xuống cấu hình Xray",
     },
     stats: {
       title: "Sử dụng và số lượng",
@@ -147,6 +151,7 @@
     close: "Đóng",
     restartApp: "Khởi động lại ứng dụng",
     restartSb: "Khởi động lại Singbox",
+    restartXray: "Khởi động lại Xray",
   },
   login: {
     title: "Đăng nhập",

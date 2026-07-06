@@ -68,6 +68,14 @@ func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname stri
 		}
 	}
 
+	if i.RuntimeCore() == model.CoreTypeXray {
+		switch i.Type {
+		case "vless":
+			return xrayVlessLink(userConfig["vless"], *inbound, Addrs)
+		}
+		return []string{}
+	}
+
 	switch i.Type {
 	case "socks":
 		return socksLink(userConfig["socks"], Addrs)
@@ -400,6 +408,37 @@ func vlessLink(
 	return links
 }
 
+func xrayVlessLink(
+	userConfig map[string]interface{},
+	inbound map[string]interface{},
+	addrs []map[string]interface{}) []string {
+
+	uuid, _ := userConfig["uuid"].(string)
+	baseParams := getXrayTransportParams(inbound["transport"])
+	var links []string
+
+	for _, addr := range addrs {
+		params := make([]LinkParam, len(baseParams))
+		copy(params, baseParams)
+		if tls, ok := addr["tls"].(map[string]interface{}); ok {
+			if enabled, _ := tls["enabled"].(bool); enabled {
+				getTlsParams(&params, tls, "allowInsecure")
+				if isTcpTransport(params) {
+					if flow, ok := userConfig["flow"].(string); ok {
+						params = append(params, LinkParam{"flow", flow})
+					}
+				}
+			}
+		}
+		port, _ := addr["server_port"].(float64)
+		uri := fmt.Sprintf("vless://%s@%s:%.0f", uuid, addr["server"].(string), port)
+		uri = addParams(uri, params, addr["remark"].(string))
+		links = append(links, uri)
+	}
+
+	return links
+}
+
 func trojanLink(
 	userConfig map[string]interface{},
 	inbound map[string]interface{},
@@ -582,6 +621,53 @@ func getTransportParams(t interface{}) []LinkParam {
 		}
 	}
 	return params
+}
+
+func getXrayTransportParams(t interface{}) []LinkParam {
+	var params []LinkParam
+	transport, _ := t.(map[string]interface{})
+	transportType := "xhttp"
+	if tt, ok := transport["type"].(string); ok && tt != "" {
+		transportType = tt
+	}
+	params = append(params, LinkParam{"type", transportType})
+	if transportType == "tcp" || transportType == "raw" {
+		return params
+	}
+
+	switch transportType {
+	case "xhttp":
+		if host, ok := transport["host"].(string); ok && host != "" {
+			params = append(params, LinkParam{"host", host})
+		}
+		if path, ok := transport["path"].(string); ok && path != "" {
+			params = append(params, LinkParam{"path", path})
+		}
+		if mode, ok := transport["mode"].(string); ok && mode != "" {
+			params = append(params, LinkParam{"mode", mode})
+		}
+	case "ws", "httpupgrade":
+		if host, ok := transport["host"].(string); ok && host != "" {
+			params = append(params, LinkParam{"host", host})
+		}
+		if path, ok := transport["path"].(string); ok && path != "" {
+			params = append(params, LinkParam{"path", path})
+		}
+	case "grpc":
+		if serviceName, ok := transport["service_name"].(string); ok {
+			params = append(params, LinkParam{"serviceName", serviceName})
+		}
+	}
+	return params
+}
+
+func isTcpTransport(params []LinkParam) bool {
+	for _, p := range params {
+		if p.Key == "type" {
+			return p.Value == "tcp" || p.Value == "raw"
+		}
+	}
+	return true
 }
 
 func getTlsParams(params *[]LinkParam, tls map[string]interface{}, insecureKey string) {

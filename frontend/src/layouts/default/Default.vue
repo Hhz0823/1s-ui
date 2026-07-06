@@ -1,5 +1,5 @@
 ﻿<template>
-  <v-app class="app-root">
+  <v-app class="app-root" :class="{ 'app-root--side-desktop': menuPosition !== 'top' && !isMobile }">
     <div v-if="bgImage" class="app-bg-image" :style="{ backgroundImage: `url(${bgImage})`, filter: `blur(${bgBlur}px) saturate(1.3)`, opacity: Number(bgOpacity) / 100 }"></div>
     <drawer v-if="menuPosition !== 'top'" :isMobile="isMobile" :displayDrawer="displayDrawer" @toggleDrawer="toggleDrawer" />
     <default-bar :isMobile="isMobile" :menuPosition="menuPosition" :menuItems="menuItems" @toggleDrawer="toggleDrawer" />
@@ -62,5 +62,23 @@ const menuItems = [
 
 .v-switch.v-input {
   padding-inline-start: 0.6rem;
+}
+
+.app-root--side-desktop .app-bar-title {
+  margin-inline-start: 184px;
+}
+
+.app-root--side-desktop .app-page {
+  padding-inline-start: 208px;
+}
+
+@media (max-width: 960px) {
+  .app-root--side-desktop .app-bar-title {
+    margin-inline-start: 0;
+  }
+
+  .app-root--side-desktop .app-page {
+    padding-inline-start: 24px;
+  }
 }
 </style>

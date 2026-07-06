@@ -129,8 +129,8 @@
                 <v-row>
                   <v-col cols="4">{{ $t('main.info.running') }}</v-col>
                   <v-col cols="8">
-                    <v-chip density="compact" color="success" variant="flat" v-if="tilesData.sbd?.running">{{ $t('yes') }}</v-chip> 
-                    <v-chip density="compact" color="error" variant="flat" v-else>{{ $t('no') }}</v-chip>
+                    <v-chip density="compact" color="success" variant="flat" v-if="tilesData.sbd?.running">{{ $t('main.info.runningYes') }}</v-chip>
+                    <v-chip density="compact" color="error" variant="flat" v-else>{{ $t('main.info.runningNo') }}</v-chip>
                     <v-chip density="compact" color="transparent" v-if="tilesData.sbd?.running && !loading" style="cursor: pointer;" @click="restartSingbox()">
                       <v-tooltip activator="parent" location="top">
                         {{ $t('actions.restartSb') }}
@@ -180,6 +180,50 @@
                   </v-col>
                 </v-row>
               </template>
+              <template v-if="i == 'i-xry'">
+                <v-row>
+                  <v-col cols="4">{{ $t('main.info.running') }}</v-col>
+                  <v-col cols="8">
+                    <v-chip density="compact" color="success" variant="flat" v-if="tilesData.xry?.running">{{ $t('main.info.runningYes') }}</v-chip>
+                    <v-chip density="compact" color="error" variant="flat" v-else>{{ $t('main.info.runningNo') }}</v-chip>
+                    <v-chip density="compact" color="transparent" v-if="!loading" style="cursor: pointer;" @click="restartXray()">
+                      <v-tooltip activator="parent" location="top">
+                        {{ $t('actions.restartXray') }}
+                      </v-tooltip>
+                      <v-icon icon="mdi-restart" color="warning" />
+                    </v-chip>
+                  </v-col>
+                  <v-col cols="4">{{ $t('main.info.uptime') }}</v-col>
+                  <v-col cols="8">{{ HumanReadable.formatSecond(tilesData.xry?.stats?.Uptime) }}</v-col>
+                  <v-col cols="4">Bin</v-col>
+                  <v-col cols="8">
+                    <v-chip density="compact" color="primary" variant="flat" v-if="tilesData.xry?.path">
+                      <v-tooltip activator="parent" location="top" style="direction: ltr;">
+                        {{ tilesData.xry?.path }}
+                      </v-tooltip>
+                      {{ shortPath(tilesData.xry?.path) }}
+                    </v-chip>
+                  </v-col>
+                  <v-col cols="4">Config</v-col>
+                  <v-col cols="8">
+                    <v-chip density="compact" color="primary" variant="flat" v-if="tilesData.xry?.config_path">
+                      <v-tooltip activator="parent" location="top" style="direction: ltr;">
+                        {{ tilesData.xry?.config_path }}
+                      </v-tooltip>
+                      {{ shortPath(tilesData.xry?.config_path) }}
+                    </v-chip>
+                  </v-col>
+                  <v-col cols="4" v-if="tilesData.xry?.last_error">Error</v-col>
+                  <v-col cols="8" v-if="tilesData.xry?.last_error">
+                    <v-chip density="compact" color="error" variant="flat">
+                      <v-tooltip activator="parent" location="top" style="direction: ltr;">
+                        {{ tilesData.xry?.last_error }}
+                      </v-tooltip>
+                      {{ shortText(tilesData.xry?.last_error) }}
+                    </v-chip>
+                  </v-col>
+                </v-row>
+              </template>
             </v-card-text>
           </v-card>
         </v-col>
@@ -221,6 +265,7 @@ const menuItems = [
   { title: i18n.global.t('main.infos'), value: [
     { title: i18n.global.t('main.info.sys'), value: "i-sys" },
     { title: i18n.global.t('main.info.sbd'), value: "i-sbd" },
+    { title: i18n.global.t('main.info.xry'), value: "i-xry" },
     ]
   },
 ]
@@ -291,6 +336,19 @@ const restartSingbox = async () => {
   loading.value = true
   await HttpUtils.post('api/restartSb',{})
   loading.value = false
+}
+
+const restartXray = async () => {
+  loading.value = true
+  await HttpUtils.post('api/restartXray',{})
+  await reloadData()
+  loading.value = false
+}
+
+const shortPath = (path?: string) => path ? path.split(/[\\/]/).pop() || path : '-'
+const shortText = (text?: string) => {
+  if (!text) return '-'
+  return text.length > 28 ? text.substring(0, 28) + '...' : text
 }
 </script>
 

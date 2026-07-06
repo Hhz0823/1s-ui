@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/tls"
 	"embed"
+	"fmt"
 	"html/template"
 	"io"
 	"io/fs"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -56,9 +58,14 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 
 	engine := gin.Default()
 
+	webFS, htmlPattern, assetsFS, err := getWebFiles()
+	if err != nil {
+		return nil, err
+	}
+
 	// Load the HTML template
 	t := template.New("").Funcs(engine.FuncMap)
-	template, err := t.ParseFS(content, "html/index.html")
+	template, err := t.ParseFS(webFS, htmlPattern)
 	if err != nil {
 		return nil, err
 	}
@@ -97,11 +104,6 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	})
 
 	// Serve the assets folder
-	assetsFS, err := fs.Sub(content, "html/assets")
-	if err != nil {
-		panic(err)
-	}
-
 	engine.StaticFS(assetsBasePath, http.FS(assetsFS))
 
 	group_apiv2 := engine.Group(base_url + "apiv2")
@@ -133,6 +135,20 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	})
 
 	return engine, nil
+}
+
+func getWebFiles() (fs.FS, string, fs.FS, error) {
+	if _, err := fs.Stat(content, "html/index.html"); err == nil {
+		assetsFS, err := fs.Sub(content, "html/assets")
+		return content, "html/index.html", assetsFS, err
+	}
+
+	if _, err := os.Stat("frontend/dist/index.html"); err == nil {
+		logger.Info("embedded web UI not found, using frontend/dist")
+		return os.DirFS("frontend/dist"), "index.html", os.DirFS("frontend/dist/assets"), nil
+	}
+
+	return nil, "", nil, fmt.Errorf("web UI assets not found, run `cd frontend && npm run build` or `./build.sh` first")
 }
 
 func (s *Server) Start() (err error) {

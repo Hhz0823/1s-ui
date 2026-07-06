@@ -30,6 +30,28 @@ RUN CRONET_ARCH="$TARGETARCH" && \
     wget -q -O ./libcronet.so "$CRONET_URL" && \
     chmod 755 ./libcronet.so
 
+RUN XRAY_ASSET="" && \
+    case "$TARGETARCH/$TARGETVARIANT" in \
+      amd64/*) XRAY_ASSET="Xray-linux-64.zip" ;; \
+      386/*) XRAY_ASSET="Xray-linux-32.zip" ;; \
+      arm64/*) XRAY_ASSET="Xray-linux-arm64-v8a.zip" ;; \
+      arm/v5) XRAY_ASSET="Xray-linux-arm32-v5.zip" ;; \
+      arm/v6) XRAY_ASSET="Xray-linux-arm32-v6.zip" ;; \
+      arm/*) XRAY_ASSET="Xray-linux-arm32-v7a.zip" ;; \
+      s390x/*) XRAY_ASSET="Xray-linux-s390x.zip" ;; \
+    esac && \
+    if [ -n "$XRAY_ASSET" ]; then \
+      mkdir -p /app/bin /tmp/xray && \
+      wget -q -O /tmp/xray.zip "https://github.com/XTLS/Xray-core/releases/latest/download/${XRAY_ASSET}" && \
+      unzip -q /tmp/xray.zip -d /tmp/xray && \
+      cp /tmp/xray/xray /app/bin/xray && \
+      chmod 755 /app/bin/xray && \
+      cp /tmp/xray/geoip.dat /tmp/xray/geosite.dat /app/bin/ && \
+      rm -rf /tmp/xray /tmp/xray.zip; \
+    else \
+      echo "No Xray-core asset mapping for $TARGETARCH/$TARGETVARIANT"; \
+    fi
+
 COPY . .
 COPY --from=front-builder /app/dist/ /app/web/html/
 
@@ -43,6 +65,7 @@ ENV TZ=Asia/Shanghai
 WORKDIR /app
 RUN set -ex && apk add --no-cache --upgrade bash tzdata ca-certificates nftables
 COPY --from=backend-builder /app/sui /app/libcronet.so /app/
+COPY --from=backend-builder /app/bin/ /app/bin/
 COPY entrypoint.sh /app/
 RUN chmod +x /app/entrypoint.sh
 ENTRYPOINT [ "./entrypoint.sh" ]

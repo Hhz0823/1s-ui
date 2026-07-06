@@ -41,21 +41,77 @@ echo "架构：$(arch)"
 install_base() {
     case "${release}" in
     centos | almalinux | rocky | oracle)
-        yum -y update && yum install -y -q wget curl tar tzdata
+        yum -y update && yum install -y -q wget curl tar unzip tzdata
         ;;
     fedora)
-        dnf -y update && dnf install -y -q wget curl tar tzdata
+        dnf -y update && dnf install -y -q wget curl tar unzip tzdata
         ;;
     arch | manjaro | parch)
-        pacman -Syu && pacman -Syu --noconfirm wget curl tar tzdata
+        pacman -Syu && pacman -Syu --noconfirm wget curl tar unzip tzdata
         ;;
     opensuse-tumbleweed)
-        zypper refresh && zypper -q install -y wget curl tar timezone
+        zypper refresh && zypper -q install -y wget curl tar unzip timezone
         ;;
     *)
-        apt-get update && apt-get install -y -q wget curl tar tzdata
+        apt-get update && apt-get install -y -q wget curl tar unzip tzdata
         ;;
     esac
+}
+
+xray_asset() {
+    case "$(arch)" in
+    amd64) echo 'Xray-linux-64.zip' ;;
+    386) echo 'Xray-linux-32.zip' ;;
+    arm64) echo 'Xray-linux-arm64-v8a.zip' ;;
+    armv7) echo 'Xray-linux-arm32-v7a.zip' ;;
+    armv6) echo 'Xray-linux-arm32-v6.zip' ;;
+    armv5) echo 'Xray-linux-arm32-v5.zip' ;;
+    s390x) echo 'Xray-linux-s390x.zip' ;;
+    *) echo '' ;;
+    esac
+}
+
+install_xray() {
+    local asset
+    asset="$(xray_asset)"
+    if [[ -z "$asset" ]]; then
+        echo -e "${yellow}当前架构暂未配置 Xray-core 自动下载，跳过 Xray 准备${plain}"
+        return 0
+    fi
+
+    local xray_version
+    xray_version=$(curl -Ls "https://api.github.com/repos/XTLS/Xray-core/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    if [[ ! -n "$xray_version" ]]; then
+        echo -e "${yellow}获取 Xray-core 最新版本失败，跳过 Xray 准备${plain}"
+        return 1
+    fi
+
+    echo -e "${yellow}正在安装 Xray-core ${xray_version}...${plain}"
+    local tmp_dir="/tmp/s-ui-xray"
+    rm -rf "$tmp_dir"
+    mkdir -p "$tmp_dir" /usr/local/s-ui/bin
+
+    local zip_path="/tmp/${asset}"
+    local url="https://github.com/XTLS/Xray-core/releases/download/${xray_version}/${asset}"
+    wget -N --no-check-certificate -O "$zip_path" "$url"
+    if [[ $? -ne 0 ]]; then
+        echo -e "${yellow}下载 Xray-core 失败，可稍后手动放置到 /usr/local/s-ui/bin/xray${plain}"
+        rm -rf "$tmp_dir" "$zip_path"
+        return 1
+    fi
+
+    unzip -qo "$zip_path" -d "$tmp_dir"
+    if [[ ! -f "$tmp_dir/xray" ]]; then
+        echo -e "${yellow}Xray-core 压缩包中未找到 xray 二进制，跳过${plain}"
+        rm -rf "$tmp_dir" "$zip_path"
+        return 1
+    fi
+
+    install -m 755 "$tmp_dir/xray" /usr/local/s-ui/bin/xray
+    [[ -f "$tmp_dir/geoip.dat" ]] && install -m 644 "$tmp_dir/geoip.dat" /usr/local/s-ui/bin/geoip.dat
+    [[ -f "$tmp_dir/geosite.dat" ]] && install -m 644 "$tmp_dir/geosite.dat" /usr/local/s-ui/bin/geosite.dat
+    rm -rf "$tmp_dir" "$zip_path"
+    echo -e "${green}Xray-core 已安装到 /usr/local/s-ui/bin/xray${plain}"
 }
 
 config_after_install() {
@@ -173,6 +229,7 @@ install_s-ui() {
 
     config_after_install
     prepare_services
+    install_xray || echo -e "${yellow}Xray-core 未自动安装；Sing-Box 功能不受影响${plain}"
 
     systemctl enable s-ui --now
 

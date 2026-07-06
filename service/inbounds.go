@@ -55,10 +55,11 @@ func (s *InboundService) GetAll() (*[]map[string]interface{}, error) {
 		var shadowtls_version uint
 		ss_managed := false
 		inbData := map[string]interface{}{
-			"id":     inbound.Id,
-			"type":   inbound.Type,
-			"tag":    inbound.Tag,
-			"tls_id": inbound.TlsId,
+			"id":        inbound.Id,
+			"type":      inbound.Type,
+			"tag":       inbound.Tag,
+			"core_type": inbound.RuntimeCore(),
+			"tls_id":    inbound.TlsId,
 		}
 		if inbound.Options != nil {
 			var restFields map[string]json.RawMessage
@@ -117,38 +118,44 @@ func (s *InboundService) Save(tx *gorm.DB, act string, data json.RawMessage, ini
 			}
 		}
 		var oldTag string
+		oldCoreType := model.CoreTypeSingBox
 		if act == "edit" {
-			err = tx.Model(model.Inbound{}).Select("tag").Where("id = ?", inbound.Id).Find(&oldTag).Error
+			var oldInbound model.Inbound
+			err = tx.Model(model.Inbound{}).Select("tag", "core_type").Where("id = ?", inbound.Id).Find(&oldInbound).Error
 			if err != nil {
 				return err
 			}
+			oldTag = oldInbound.Tag
+			oldCoreType = oldInbound.RuntimeCore()
 		}
 
 		if corePtr.IsRunning() {
-			if act == "edit" {
+			if act == "edit" && oldCoreType == model.CoreTypeSingBox {
 				err = corePtr.RemoveInbound(oldTag)
 				if err != nil && err != os.ErrInvalid {
 					return err
 				}
 			}
 
-			inboundConfig, err := inbound.MarshalJSON()
-			if err != nil {
-				return err
-			}
+			if inbound.RuntimeCore() == model.CoreTypeSingBox {
+				inboundConfig, err := inbound.MarshalJSON()
+				if err != nil {
+					return err
+				}
 
-			if act == "edit" {
-				inboundConfig, err = s.addUsers(tx, inboundConfig, inbound.Id, inbound.Type)
-			} else {
-				inboundConfig, err = s.initUsers(tx, inboundConfig, initUserIds, inbound.Type)
-			}
-			if err != nil {
-				return err
-			}
+				if act == "edit" {
+					inboundConfig, err = s.addUsers(tx, inboundConfig, inbound.Id, inbound.Type)
+				} else {
+					inboundConfig, err = s.initUsers(tx, inboundConfig, initUserIds, inbound.Type)
+				}
+				if err != nil {
+					return err
+				}
 
-			err = corePtr.AddInbound(inboundConfig)
-			if err != nil {
-				return err
+				err = corePtr.AddInbound(inboundConfig)
+				if err != nil {
+					return err
+				}
 			}
 		}
 
@@ -177,9 +184,16 @@ func (s *InboundService) Save(tx *gorm.DB, act string, data json.RawMessage, ini
 			return err
 		}
 		if corePtr.IsRunning() {
-			err = corePtr.RemoveInbound(tag)
-			if err != nil && err != os.ErrInvalid {
+			var oldInbound model.Inbound
+			err = tx.Model(model.Inbound{}).Select("id", "core_type").Where("tag = ?", tag).Scan(&oldInbound).Error
+			if err != nil {
 				return err
+			}
+			if oldInbound.RuntimeCore() == model.CoreTypeSingBox {
+				err = corePtr.RemoveInbound(tag)
+				if err != nil && err != os.ErrInvalid {
+					return err
+				}
 			}
 		}
 		var id uint
@@ -224,7 +238,9 @@ func (s *InboundService) UpdateOutJsons(tx *gorm.DB, inboundIds []uint, hostname
 func (s *InboundService) GetAllConfig(db *gorm.DB) ([]json.RawMessage, error) {
 	var inboundsJson []json.RawMessage
 	var inbounds []*model.Inbound
-	err := db.Model(model.Inbound{}).Preload("Tls").Find(&inbounds).Error
+	err := db.Model(model.Inbound{}).Preload("Tls").
+		Where("core_type = ? OR core_type = '' OR core_type IS NULL", model.CoreTypeSingBox).
+		Find(&inbounds).Error
 	if err != nil {
 		return nil, err
 	}
@@ -360,6 +376,9 @@ func (s *InboundService) RestartInbounds(tx *gorm.DB, ids []uint) error {
 		return err
 	}
 	for _, inbound := range inbounds {
+		if inbound.RuntimeCore() != model.CoreTypeSingBox {
+			continue
+		}
 		err = corePtr.RemoveInbound(inbound.Tag)
 		if err != nil && err != os.ErrInvalid {
 			return err

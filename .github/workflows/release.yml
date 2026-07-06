@@ -1,12 +1,15 @@
 name: 发布 S-UI
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       tag:
         description: "发布标签"
         required: true
-        default: "v1.4.5"
+        default: "v1.4.6"
         type: string
 
 permissions:
@@ -175,8 +178,11 @@ jobs:
     steps:
       - name: 规范化发布标签
         id: vars
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          TAG="${{ inputs.tag }}"
+          TAG="${INPUT_TAG:-$REF_NAME}"
           case "$TAG" in
             v*) echo "tag=$TAG" >> "$GITHUB_OUTPUT" ;;
             *) echo "tag=v$TAG" >> "$GITHUB_OUTPUT" ;;

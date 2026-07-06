@@ -16,6 +16,7 @@ import (
 var (
 	LastUpdate          int64
 	corePtr             *core.Core
+	xrayPtr             *core.XrayRuntime
 	startCoreMu         sync.Mutex
 	startCoreInProgress bool
 	lastStartFailTime   time.Time
@@ -44,8 +45,9 @@ type SingBoxConfig struct {
 	Experimental json.RawMessage   `json:"experimental"`
 }
 
-func NewConfigService(core *core.Core) *ConfigService {
-	corePtr = core
+func NewConfigService(singCore *core.Core) *ConfigService {
+	corePtr = singCore
+	xrayPtr = core.NewXrayRuntime()
 	return &ConfigService{}
 }
 
@@ -87,9 +89,6 @@ func (s *ConfigService) GetConfig(data string) (*[]byte, error) {
 }
 
 func (s *ConfigService) StartCore() error {
-	if corePtr.IsRunning() {
-		return nil
-	}
 	startCoreMu.Lock()
 	if startCoreInProgress {
 		startCoreMu.Unlock()
@@ -108,21 +107,24 @@ func (s *ConfigService) StartCore() error {
 		startCoreMu.Unlock()
 	}()
 
-	logger.Info("starting core")
-	rawConfig, err := s.GetConfig("")
-	if err != nil {
-		return err
+	if !corePtr.IsRunning() {
+		logger.Info("starting core")
+		rawConfig, err := s.GetConfig("")
+		if err != nil {
+			return err
+		}
+		err = corePtr.Start(*rawConfig)
+		if err != nil {
+			startCoreMu.Lock()
+			lastStartFailTime = time.Now()
+			startCoreMu.Unlock()
+			logger.Error("start sing-box err:", err.Error())
+			return err
+		}
+		logger.Info("sing-box started")
 	}
-	err = corePtr.Start(*rawConfig)
-	if err != nil {
-		startCoreMu.Lock()
-		lastStartFailTime = time.Now()
-		startCoreMu.Unlock()
-		logger.Error("start sing-box err:", err.Error())
-		return err
-	}
-	logger.Info("sing-box started")
-	return nil
+
+	return s.ensureXrayCore(false)
 }
 
 func (s *ConfigService) RestartCore() error {
@@ -163,15 +165,82 @@ func (s *ConfigService) restartCoreWithConfig(config json.RawMessage) error {
 		return err
 	}
 	logger.Info("sing-box restarted with new config")
-	return nil
+	return s.ensureXrayCore(false)
 }
 
 func (s *ConfigService) StopCore() error {
+	var result error
+	if xrayPtr != nil {
+		if err := xrayPtr.Stop(); err != nil {
+			logger.Warning("stop xray err:", err)
+			result = err
+		}
+	}
 	err := corePtr.Stop()
+	if err != nil {
+		result = err
+	}
+	logger.Info("sing-box stopped")
+	return result
+}
+
+func (s *ConfigService) RestartXrayCoreIfNeeded() error {
+	startCoreMu.Lock()
+	if startCoreInProgress {
+		startCoreMu.Unlock()
+		return nil
+	}
+	startCoreInProgress = true
+	startCoreMu.Unlock()
+	defer func() {
+		startCoreMu.Lock()
+		startCoreInProgress = false
+		startCoreMu.Unlock()
+	}()
+	return s.ensureXrayCore(true)
+}
+
+func (s *ConfigService) StartXrayCoreIfNeeded() error {
+	startCoreMu.Lock()
+	if startCoreInProgress {
+		startCoreMu.Unlock()
+		return nil
+	}
+	startCoreInProgress = true
+	startCoreMu.Unlock()
+	defer func() {
+		startCoreMu.Lock()
+		startCoreInProgress = false
+		startCoreMu.Unlock()
+	}()
+	return s.ensureXrayCore(false)
+}
+
+func (s *ConfigService) ensureXrayCore(restart bool) error {
+	if xrayPtr == nil {
+		xrayPtr = core.NewXrayRuntime()
+	}
+	hasXray, err := s.HasXrayInbounds()
 	if err != nil {
 		return err
 	}
-	logger.Info("sing-box stopped")
+	if !hasXray {
+		if xrayPtr.IsRunning() {
+			return xrayPtr.Stop()
+		}
+		return nil
+	}
+
+	rawConfig, err := s.GetXrayConfig()
+	if err != nil {
+		return err
+	}
+	if restart {
+		return xrayPtr.Restart(*rawConfig)
+	}
+	if !xrayPtr.IsRunning() {
+		return xrayPtr.Start(*rawConfig)
+	}
 	return nil
 }
 
@@ -188,6 +257,7 @@ func (s *ConfigService) CheckOutbound(tag string, link string) core.CheckOutboun
 func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initUsers string, loginUser string, hostname string) ([]string, error) {
 	var err error
 	var objs []string = []string{obj}
+	restartXray := false
 
 	db := database.GetDB()
 	tx := db.Begin()
@@ -197,6 +267,18 @@ func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initU
 			// Try to start core if it is not running
 			if !corePtr.IsRunning() {
 				s.StartCore()
+			} else if restartXray {
+				go func() {
+					if err := s.RestartXrayCoreIfNeeded(); err != nil {
+						logger.Warning("restart xray err:", err)
+					}
+				}()
+			} else {
+				go func() {
+					if err := s.StartXrayCoreIfNeeded(); err != nil {
+						logger.Warning("start xray err:", err)
+					}
+				}()
 			}
 		} else {
 			tx.Rollback()
@@ -205,6 +287,7 @@ func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initU
 
 	switch obj {
 	case "clients":
+		restartXray = true
 		var inboundIds []uint
 		inboundIds, err = s.ClientService.Save(tx, act, data, hostname)
 		if err == nil && len(inboundIds) > 0 {
@@ -215,9 +298,11 @@ func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initU
 			}
 		}
 	case "tls":
+		restartXray = true
 		err = s.TlsService.Save(tx, act, data, hostname)
 		objs = append(objs, "clients", "inbounds")
 	case "inbounds":
+		restartXray = true
 		err = s.InboundService.Save(tx, act, data, initUsers, hostname)
 		objs = append(objs, "clients")
 	case "outbounds":
@@ -235,6 +320,7 @@ func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initU
 		copy(configData, data)
 		go func() { _ = s.restartCoreWithConfig(configData) }()
 	case "settings":
+		restartXray = true
 		err = s.SettingService.Save(tx, data)
 	default:
 		return nil, common.NewError("unknown object: ", obj)

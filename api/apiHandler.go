@@ -46,6 +46,8 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.RestartApp(c)
 	case "restartSb":
 		a.ApiService.RestartSb(c)
+	case "restartXray":
+		a.ApiService.RestartXray(c)
 	case "linkConvert":
 		a.ApiService.LinkConvert(c)
 	case "subConvert":
@@ -103,6 +105,8 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 		a.ApiService.GetTokens(c)
 	case "singbox-config":
 		a.ApiService.GetSingboxConfig(c)
+	case "xray-config":
+		a.ApiService.GetXrayConfig(c)
 	case "checkOutbound":
 		a.ApiService.GetCheckOutbound(c)
 	default:

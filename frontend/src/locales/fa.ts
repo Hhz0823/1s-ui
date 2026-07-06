@@ -82,6 +82,7 @@
     info: {
       sys: "داده‌های سیستم",
       sbd: "داده‌های سینگ‌باکس",
+      xry: "اطلاعات Xray",
       host: "نام",
       cpu: "پردازنده",
       core: "هسته",
@@ -89,7 +90,9 @@
       startupTime: "زمان راه‌اندازی",
       threads: "نخ‌ها",
       memory: "حافظه",
-      running: "اجرا"
+      running: "اجرا",
+      runningYes: "در حال اجرا",
+      runningNo: "متوقف",
     },
     backup: {
       title: "پشتیبان‌گیری و بازیابی",
@@ -98,6 +101,7 @@
       exclStats: "بدون گراف‌ها",
       exclChanges: "بدون تغییرات",
       sbConfig: "دریافت پیکربندی سینگ‌باکس",
+      xrayConfig: "دریافت پیکربندی Xray",
     },
     stats: {
       title: "آمار و تعداد",
@@ -147,6 +151,7 @@
     close: "بستن",
     restartApp: "ریستارت پنل",
     restartSb: "ریستارت سینگ‌باکس",
+    restartXray: "ریستارت Xray",
   },
   login: {
     title: "ورود",

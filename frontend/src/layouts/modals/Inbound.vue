@@ -16,9 +16,18 @@
           <v-row>
             <v-col cols="12" sm="6" md="4">
               <v-select
+                hide-details
+                label="Core"
+                :items="coreItems"
+                v-model="inbound.core_type"
+                @update:modelValue="changeCore">
+              </v-select>
+            </v-col>
+            <v-col cols="12" sm="6" md="4">
+              <v-select
               hide-details
               :label="$t('type')"
-              :items="Object.keys(inTypes).map((key,index) => ({title: key, value: Object.values(inTypes)[index]}))"
+              :items="inboundTypeItems"
               v-model="inbound.type"
               @update:modelValue="changeType">
               </v-select>
@@ -50,15 +59,16 @@
               <Tun v-if="inbound.type == inTypes.Tun" :data="inbound" />
               <AnyTls v-if="inbound.type == inTypes.AnyTls" :data="inbound" direction="in" />
               <TProxy v-if="inbound.type == inTypes.TProxy" :inbound="inbound" />
-              <Transport v-if="Object.hasOwn(inbound,'transport')" :data="inbound" />
+              <XrayTransport v-if="isXray && Object.hasOwn(inbound,'transport')" :data="inbound" />
+              <Transport v-else-if="Object.hasOwn(inbound,'transport')" :data="inbound" />
               <Users v-if="hasUser" :clients="clients" :data="initUsers" />
               <InTls v-if="HasTls.includes(inbound.type)"  :inbound="inbound" :tlsConfigs="tlsConfigs" :tls_id="inbound.tls_id" />
-              <Multiplex v-if="MuxAvailable.includes(inbound.type)" direction="in" :data="inbound" />
+              <Multiplex v-if="!isXray && MuxAvailable.includes(inbound.type)" direction="in" :data="inbound" />
             </v-window-item>
             <v-window-item value="c">
-              <OutJsonVue :inData="inbound" :type="inbound.type" />
-              <Multiplex v-if="Object.hasOwn(inbound,'multiplex')" direction="out" :data="inbound.out_json" />
-              <Dial v-if="inbound.out_json" :dial="inbound.out_json" mode="client" />
+              <OutJsonVue v-if="!isXray" :inData="inbound" :type="inbound.type" />
+              <Multiplex v-if="!isXray && Object.hasOwn(inbound,'multiplex')" direction="out" :data="inbound.out_json" />
+              <Dial v-if="!isXray && inbound.out_json" :dial="inbound.out_json" mode="client" />
               <v-card>
                 <v-card-text>
                   <v-card-subtitle>{{ $t('in.multiDomain') }}
@@ -98,7 +108,7 @@
 </template>
 
 <script lang="ts">
-import { InTypes, createInbound, Addr, ShadowTLS } from '@/types/inbounds'
+import { CoreTypes, InTypes, createInbound, Addr, ShadowTLS } from '@/types/inbounds'
 import RandomUtil from '@/plugins/randomUtil'
 import Dial from '@/components/Dial.vue'
 import Listen from '@/components/Listen.vue'
@@ -116,6 +126,7 @@ import InTls from '@/components/tls/InTLS.vue'
 import TProxy from '@/components/protocols/TProxy.vue'
 import Multiplex from '@/components/Multiplex.vue'
 import Transport from '@/components/Transport.vue'
+import XrayTransport from '@/components/XrayTransport.vue'
 import AddrVue from '@/components/Addr.vue'
 import OutJsonVue from '@/components/OutJson.vue'
 import Data from '@/store/modules/data'
@@ -128,6 +139,11 @@ export default {
       title: "add",
       loading: false,
       side: "s",
+      coreTypes: CoreTypes,
+      coreItems: [
+        { title: 'sing-box', value: CoreTypes.SingBox },
+        { title: 'Xray-core', value: CoreTypes.Xray },
+      ],
       inTypes: InTypes,
       inboundWithUsers: ['mixed', 'socks', 'http', 'shadowsocks', 'vmess', 'trojan', 'naive', 'hysteria', 'shadowtls', 'tuic', 'hysteria2', 'vless', 'anytls'],
       initUsers: {
@@ -186,7 +202,7 @@ export default {
       }
       else {
         const port = RandomUtil.randomIntRange(10000, 60000)
-        this.inbound = createInbound("direct",{ id: 0, tag: "direct-"+port ,listen: "::", listen_port: port })
+        this.inbound = createInbound("direct",{ id: 0, core_type: CoreTypes.SingBox, tag: "direct-"+port ,listen: "::", listen_port: port })
         if (this.HasInData.includes(this.inbound.type)){
           this.inbound.addrs = []
           this.inbound.out_json = {}
@@ -203,12 +219,19 @@ export default {
         values: [],
       }
     },
+    changeCore() {
+      if (!this.inbound.listen_port) this.inbound.listen_port = RandomUtil.randomIntRange(10000, 60000)
+      if (this.isXray && this.inbound.type != InTypes.VLESS) {
+        this.inbound.type = InTypes.VLESS
+      }
+      this.changeType()
+    },
     changeType() {
       if (!this.inbound.listen_port) this.inbound.listen_port = RandomUtil.randomIntRange(10000, 60000)
       // Tag change only in add inbound
       const tag = this.$props.id > 0 ? this.inbound.tag : this.inbound.type + "-" + this.inbound.listen_port
       // Use previous data
-      const prevConfig = { id: this.inbound.id, tag: tag, listen: this.inbound.listen?? "::", listen_port: this.inbound.listen_port }
+      const prevConfig = { id: this.inbound.id, core_type: this.inbound.core_type, tag: tag, listen: this.inbound.listen?? "::", listen_port: this.inbound.listen_port }
       this.inbound = createInbound(this.inbound.type, this.inbound.type != this.inTypes.Tun ? prevConfig : { tag: tag })
       if (this.HasInData.includes(this.inbound.type)){
         this.inbound.addrs = []
@@ -260,6 +283,15 @@ export default {
       if (this.OnlyTLS.includes(this.inbound.type) && this.inbound.tls_id == 0) return false
       return true
     },
+    isXray() {
+      return this.inbound.core_type == CoreTypes.Xray
+    },
+    inboundTypeItems() {
+      if (this.isXray) {
+        return [{ title: 'VLESS', value: InTypes.VLESS }]
+      }
+      return Object.keys(this.inTypes).map((key,index) => ({title: key, value: Object.values(this.inTypes)[index]}))
+    },
     clients() {
       return Data().clients?? []
     },
@@ -281,7 +313,7 @@ export default {
   components: {
     Listen, InTls, Hysteria2, Naive, Direct, Shadowsocks,
     Users, Hysteria, ShadowTls, TProxy, Multiplex, Tuic, Tun,
-    AnyTls, Transport, AddrVue, OutJsonVue, Dial
+    AnyTls, Transport, XrayTransport, AddrVue, OutJsonVue, Dial
   }
 }
 </script>

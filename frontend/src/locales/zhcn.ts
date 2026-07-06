@@ -82,6 +82,7 @@
     info: {
       sys: "系统信息",
       sbd: "运行信息",
+      xry: "Xray 信息",
       host: "主机",
       cpu: "CPU",
       core: "核心",
@@ -89,7 +90,9 @@
       startupTime: "启动时间",
       threads: "线程",
       memory: "内存",
-      running: "运行状态"
+      running: "运行状态",
+      runningYes: "运行中",
+      runningNo: "未运行",
     },
     backup: {
       title: "备份与恢复",
@@ -98,6 +101,7 @@
       exclStats: "排除图表数据",
       exclChanges: "排除变更数据",
       sbConfig: "下载 Sing-Box 配置",
+      xrayConfig: "下载 Xray 配置",
     },
     stats: {
       title: "使用量与统计",
@@ -147,6 +151,7 @@
     close: "关闭",
     restartApp: "重启面板",
     restartSb: "重启 Singbox",
+    restartXray: "重启 Xray",
   },
   login: {
     title: "登录",

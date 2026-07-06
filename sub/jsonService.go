@@ -125,6 +125,9 @@ func (j *JsonService) getOutbounds(clientConfig json.RawMessage, inbounds []*mod
 		return nil, nil, err
 	}
 	for _, inData := range inbounds {
+		if inData.RuntimeCore() == model.CoreTypeXray {
+			continue
+		}
 		if len(inData.OutJson) < 5 {
 			continue
 		}

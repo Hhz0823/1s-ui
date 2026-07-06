@@ -5,9 +5,10 @@ import (
 )
 
 type Inbound struct {
-	Id   uint   `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`
-	Type string `json:"type" form:"type"`
-	Tag  string `json:"tag" form:"tag" gorm:"unique"`
+	Id       uint   `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`
+	Type     string `json:"type" form:"type"`
+	Tag      string `json:"tag" form:"tag" gorm:"unique"`
+	CoreType string `json:"core_type" form:"core_type" gorm:"default:sing-box;index"`
 
 	// Foreign key to tls table
 	TlsId uint `json:"tls_id" form:"tls_id"`
@@ -16,6 +17,18 @@ type Inbound struct {
 	Addrs   json.RawMessage `json:"addrs" form:"addrs"`
 	OutJson json.RawMessage `json:"out_json" form:"out_json"`
 	Options json.RawMessage `json:"-" form:"-"`
+}
+
+const (
+	CoreTypeSingBox = "sing-box"
+	CoreTypeXray    = "xray"
+)
+
+func (i Inbound) RuntimeCore() string {
+	if i.CoreType == "" {
+		return CoreTypeSingBox
+	}
+	return i.CoreType
 }
 
 func (i *Inbound) UnmarshalJSON(data []byte) error {
@@ -34,6 +47,11 @@ func (i *Inbound) UnmarshalJSON(data []byte) error {
 	delete(raw, "type")
 	i.Tag, _ = raw["tag"].(string)
 	delete(raw, "tag")
+	i.CoreType, _ = raw["core_type"].(string)
+	if i.CoreType == "" {
+		i.CoreType = CoreTypeSingBox
+	}
+	delete(raw, "core_type")
 
 	// TlsId
 	if val, exists := raw["tls_id"].(float64); exists {
@@ -85,6 +103,7 @@ func (i Inbound) MarshalFull() (*map[string]interface{}, error) {
 	combined["id"] = i.Id
 	combined["type"] = i.Type
 	combined["tag"] = i.Tag
+	combined["core_type"] = i.RuntimeCore()
 	combined["tls_id"] = i.TlsId
 	combined["addrs"] = i.Addrs
 	combined["out_json"] = i.OutJson

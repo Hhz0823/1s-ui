@@ -4,6 +4,13 @@ import { Dial } from "./dial"
 import { Transport } from "./transport"
 import RandomUtil from "@/plugins/randomUtil"
 
+export const CoreTypes = {
+  SingBox: 'sing-box',
+  Xray: 'xray',
+}
+
+export type CoreType = typeof CoreTypes[keyof typeof CoreTypes]
+
 export const InTypes = {
   Direct: 'direct',
   Mixed: 'mixed',
@@ -50,11 +57,20 @@ export interface Listen {
 
 interface InboundBasics extends Listen {
   id: number
+  core_type: CoreType
   type: InType
   tag: string
   tls_id: number
   addrs?: Addr[]
   out_json?: any
+}
+
+export interface XrayTransport {
+  type: 'tcp' | 'raw' | 'ws' | 'grpc' | 'httpupgrade' | 'xhttp'
+  host?: string
+  path?: string
+  mode?: 'auto' | 'packet-up' | 'stream-up' | 'stream-one'
+  service_name?: string
 }
 
 interface ShadowTLSHandShake extends Dial {
@@ -116,7 +132,7 @@ export interface ShadowTLS extends InboundBasics {
 }
 export interface VLESS extends InboundBasics {
   multiplex?: iMultiplex
-  transport?: Transport
+  transport?: Transport | XrayTransport
   tls: iTls
 }
 
@@ -237,6 +253,13 @@ const defaultValues: Record<InType, Inbound> = {
 
 export function createInbound<T extends Inbound>(type: InType,json?: Partial<T>): Inbound {
   const defaultObject: Inbound = { ...defaultValues[type] ?? {}, ...(json ?? {}) }
+  defaultObject.core_type = defaultObject.core_type || CoreTypes.SingBox
+  if (defaultObject.core_type == CoreTypes.Xray && type == InTypes.VLESS) {
+    const inbound = <any>defaultObject
+    inbound.transport = inbound.transport && Object.keys(inbound.transport).length > 0
+      ? inbound.transport
+      : { type: 'xhttp', path: '/xhttp', mode: 'auto' }
+  }
   if (type == InTypes.Shadowsocks && !(<Shadowsocks>defaultObject).password) {
     const method = (<Shadowsocks>defaultObject).method
     if (method == "2022-blake3-aes-128-gcm") {

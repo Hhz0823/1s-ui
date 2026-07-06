@@ -34,6 +34,9 @@
           <v-col cols="auto" align-self="center">
             <v-btn color="primary" @click="config()" hide-details>{{ $t('main.backup.sbConfig') }}</v-btn>
           </v-col>
+          <v-col cols="auto" align-self="center">
+            <v-btn color="primary" variant="tonal" @click="xrayConfig()" hide-details>{{ $t('main.backup.xrayConfig') }}</v-btn>
+          </v-col>
         </v-row>
       </v-card-text>
     </v-card>
@@ -56,6 +59,9 @@ export default {
     },
     config() {
       window.location.href = 'api/singbox-config'
+    },
+    xrayConfig() {
+      window.location.href = 'api/xray-config'
     },
     restore() {
       const fileInput = document.createElement('input')
