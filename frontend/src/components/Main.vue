@@ -186,8 +186,15 @@
                   <v-col cols="4">{{ $t('main.info.running') }}</v-col>
                   <v-col cols="8">
                     <v-chip density="compact" color="success" variant="flat" v-if="tilesData.xry?.running">{{ $t('main.info.runningYes') }}</v-chip>
+                    <v-chip density="compact" color="warning" variant="flat" v-else-if="tilesData.xry?.has_inbounds === false">未配置</v-chip>
                     <v-chip density="compact" color="error" variant="flat" v-else>{{ $t('main.info.runningNo') }}</v-chip>
-                    <v-chip density="compact" color="transparent" v-if="!loading" style="cursor: pointer;" @click="restartXray()">
+                    <v-chip density="compact" color="transparent" v-if="tilesData.xry?.has_inbounds === false" style="cursor: pointer;" @click="goXrayInbound()">
+                      <v-tooltip activator="parent" location="top">
+                        添加 Xray 入站
+                      </v-tooltip>
+                      <v-icon icon="mdi-plus-circle" color="primary" />
+                    </v-chip>
+                    <v-chip density="compact" color="transparent" v-else-if="!loading" style="cursor: pointer;" @click="restartXray()">
                       <v-tooltip activator="parent" location="top">
                         {{ $t('actions.restartXray') }}
                       </v-tooltip>
@@ -244,6 +251,7 @@ import { i18n, locale } from '@/locales'
 import LogVue from '@/layouts/modals/Logs.vue'
 import Backup from '@/layouts/modals/Backup.vue'
 import UsageStats from '@/layouts/modals/UsageStats.vue'
+import router from '@/router'
 
 const isOpenWrtLite = import.meta.env.VITE_OPENWRT_LITE === 'true'
 const loading = ref(false)
@@ -347,10 +355,18 @@ const restartSingbox = async () => {
 }
 
 const restartXray = async () => {
+  if (tilesData.value.xry?.has_inbounds === false) {
+    await goXrayInbound()
+    return
+  }
   loading.value = true
   await HttpUtils.post('api/restartXray',{})
   await reloadData()
   loading.value = false
+}
+
+const goXrayInbound = async () => {
+  await router.push('/inbounds')
 }
 
 const shortPath = (path?: string) => path ? path.split(/[\\/]/).pop() || path : '-'

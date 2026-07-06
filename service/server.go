@@ -168,8 +168,8 @@ func (s *ServerService) GetXrayInfo() map[string]interface{} {
 	hasXray, err := (&ConfigService{}).HasXrayInbounds()
 	if err == nil {
 		status["has_inbounds"] = hasXray
-		if !hasXray && status["running"] == false && status["last_error"] == "" {
-			status["last_error"] = "no Xray-core inbound configured"
+		if !hasXray && status["running"] == false {
+			status["notice"] = "no Xray-core inbound configured"
 		}
 	}
 	return status
