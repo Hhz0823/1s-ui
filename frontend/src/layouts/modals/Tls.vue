@@ -15,7 +15,56 @@
                 v-model="tls.name">
               </v-text-field>
             </v-col>
-            <v-col align="end">
+            <v-col cols="12" sm="6" md="8" class="d-flex justify-end align-center ga-2">
+              <v-menu v-model="menu" :close-on-content-click="false" location="bottom end">
+                <template v-slot:activator="{ props }">
+                  <v-btn
+                    v-bind="props"
+                    variant="tonal"
+                    prepend-icon="mdi-tune-variant"
+                  >
+                    {{ $t('tls.options') }}
+                  </v-btn>
+                </template>
+                <v-card min-width="240">
+                  <v-list>
+                    <template v-if="tlsType == 0">
+                      <v-list-item>
+                        <v-switch v-model="optionSNI" color="primary" label="SNI" hide-details></v-switch>
+                      </v-list-item>
+                      <v-list-item>
+                        <v-switch v-model="optionALPN" color="primary" label="ALPN" hide-details></v-switch>
+                      </v-list-item>
+                      <v-list-item>
+                        <v-switch v-model="optionMinV" color="primary" :label="$t('tls.minVer')" hide-details></v-switch>
+                      </v-list-item>
+                      <v-list-item>
+                        <v-switch v-model="optionMaxV" color="primary" :label="$t('tls.maxVer')" hide-details></v-switch>
+                      </v-list-item>
+                      <v-list-item>
+                        <v-switch v-model="optionCS" color="primary" :label="$t('tls.cs')" hide-details></v-switch>
+                      </v-list-item>
+                      <v-list-item>
+                        <v-switch v-model="optionFP" color="primary" label="UTLS" hide-details></v-switch>
+                      </v-list-item>
+                      <v-list-item>
+                        <v-switch v-model="optionStore" color="primary" :label="$t('tls.store')" hide-details></v-switch>
+                      </v-list-item>
+                      <v-list-item>
+                        <v-switch v-model="optionKtls" color="primary" :label="$t('tls.ktls')" hide-details></v-switch>
+                      </v-list-item>
+                      <v-list-item>
+                        <v-switch v-model="optionPinned" color="primary" label="Pinned SHA256" hide-details></v-switch>
+                      </v-list-item>
+                    </template>
+                    <template v-else>
+                      <v-list-item>
+                        <v-switch v-model="optionTime" color="primary" label="Max Time Difference" hide-details></v-switch>
+                      </v-list-item>
+                    </template>
+                  </v-list>
+                </v-card>
+              </v-menu>
               <v-btn-toggle v-model="tlsType"
               class="rounded-xl"
               density="compact"
@@ -243,52 +292,6 @@
               </v-select>
             </v-col>
           </v-row>
-          <v-card-actions>
-            <v-spacer></v-spacer>
-            <v-menu v-model="menu" :close-on-content-click="false" location="start">
-              <template v-slot:activator="{ props }">
-                <v-btn v-bind="props" hide-details variant="tonal">{{ $t('tls.options') }}</v-btn>
-              </template>
-              <v-card>
-                <v-list>
-                  <template v-if="tlsType == 0">
-                    <v-list-item>
-                      <v-switch v-model="optionSNI" color="primary" label="SNI" hide-details></v-switch>
-                    </v-list-item>
-                    <v-list-item>
-                      <v-switch v-model="optionALPN" color="primary" label="ALPN" hide-details></v-switch>
-                    </v-list-item>
-                    <v-list-item>
-                      <v-switch v-model="optionMinV" color="primary" :label="$t('tls.minVer')" hide-details></v-switch>
-                    </v-list-item>
-                    <v-list-item>
-                      <v-switch v-model="optionMaxV" color="primary" :label="$t('tls.maxVer')" hide-details></v-switch>
-                    </v-list-item>
-                    <v-list-item>
-                      <v-switch v-model="optionCS" color="primary" :label="$t('tls.cs')" hide-details></v-switch>
-                    </v-list-item>
-                    <v-list-item>
-                      <v-switch v-model="optionFP" color="primary" label="UTLS" hide-details></v-switch>
-                    </v-list-item>
-                    <v-list-item>
-                      <v-switch v-model="optionStore" color="primary" :label="$t('tls.store')" hide-details></v-switch>
-                    </v-list-item>
-                    <v-list-item>
-                      <v-switch v-model="optionKtls" color="primary" :label="$t('tls.ktls')" hide-details></v-switch>
-                    </v-list-item>
-                    <v-list-item>
-                      <v-switch v-model="optionPinned" color="primary" label="Pinned SHA256" hide-details></v-switch>
-                    </v-list-item>
-                  </template>
-                  <template v-else>
-                    <v-list-item>
-                      <v-switch v-model="optionTime" color="primary" label="Max Time Difference" hide-details></v-switch>
-                    </v-list-item>
-                  </template>
-                </v-list>
-              </v-card>
-            </v-menu>
-          </v-card-actions>
         </v-card>
         <AcmeVue :tls="inTls" />
         <EchVue :iTls="inTls" :oTls="outTls" />
@@ -448,37 +451,49 @@ export default {
         this.tls.client = <oTls>{}
       }
     },
+    pinnedSha256Payload(): Record<string, string> | null {
+      const cert = this.inTls.certificate
+        ?.map((line: string) => line.trim())
+        .filter((line: string) => line.length > 0)
+        .join('\n')
+      if (cert) return { cert }
+      const certPath = this.inTls.certificate_path?.trim()
+      if (certPath) return { certPath }
+      const addr = (this.pinnedServerAddr || this.inTls.server_name || '').trim()
+      if (!addr) return null
+      return { serverName: addr.includes(':') ? addr : addr + ':443' }
+    },
+    async fetchPinnedSha256(payload: Record<string, string>): Promise<string[]> {
+      const resp = await fetch('api/pinnedSha256', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        credentials: 'include',
+      })
+      const msg = await resp.json()
+      if (msg.success && msg.obj && msg.obj.length > 0) return msg.obj
+      throw new Error(msg.msg || 'Failed to get certificate')
+    },
+    mergePinnedSha256(fingerprints: string[]) {
+      const existing = this.tls.client.pinned_peer_certificate_sha256 || []
+      this.tls.client.pinned_peer_certificate_sha256 = [...new Set([...existing, ...fingerprints])]
+    },
     async genPinnedSha256() {
-      const addr = this.pinnedServerAddr || this.inTls.server_name
-      if (!addr) {
-        push.error('Please enter a server address or set SNI first')
+      const payload = this.pinnedSha256Payload()
+      if (!payload) {
+        push.error({ message: 'Please generate a certificate or enter a server address' })
         return
-      }
-      let serverName = addr.trim()
-      if (!serverName.includes(':')) {
-        serverName = serverName + ':443'
       }
       this.pinnedLoading = true
       try {
-        const resp = await fetch('api/pinnedSha256', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ serverName: serverName }),
-          credentials: 'include',
-        })
-        const msg = await resp.json()
-        if (msg.success && msg.obj && msg.obj.length > 0) {
-          const existing = this.tls.client.pinned_peer_certificate_sha256 || []
-          const merged = [...new Set([...existing, ...msg.obj])]
-          this.tls.client.pinned_peer_certificate_sha256 = merged
-          push.success({ message: 'Generated ' + msg.obj.length + ' fingerprint(s)' })
-        } else {
-          push.error({ message: msg.msg || 'Failed to get certificate' })
-        }
-      } catch (e) {
-        push.error({ message: 'Network error' })
+        const fingerprints = await this.fetchPinnedSha256(payload)
+        this.mergePinnedSha256(fingerprints)
+        push.success({ message: 'Generated ' + fingerprints.length + ' fingerprint(s)' })
+      } catch (e: any) {
+        push.error({ message: e?.message || 'Network error' })
+      } finally {
+        this.pinnedLoading = false
       }
-      this.pinnedLoading = false
     },
     closeModal() {
       this.updateData(0) // reset
@@ -491,9 +506,14 @@ export default {
     },
     async genSelfSigned(){
       this.loading = true
-      const msg = await HttpUtils.get('api/keypairs', { k: "tls", o: this.inTls.server_name?? "''" })
-      this.loading = false
-      if (msg.success) {
+      try {
+        const msg = await HttpUtils.get('api/keypairs', { k: "tls", o: this.inTls.server_name?? "''" })
+        if (!msg.success) {
+          push.error({
+            message: i18n.global.t('error') + ": " + msg.obj
+          })
+          return
+        }
         this.inTls.key_path=undefined
         this.inTls.certificate_path=undefined
         this.usePath = 1
@@ -526,12 +546,22 @@ export default {
           })
           this.inTls.key = privateKey?? undefined
           this.inTls.certificate = publicKey?? undefined
+          if (publicKey.length > 0) {
+            try {
+              const fingerprints = await this.fetchPinnedSha256({ cert: publicKey.join('\n') })
+              this.mergePinnedSha256(fingerprints)
+            } catch (e: any) {
+              push.error({ message: e?.message || 'Failed to generate pinned SHA256' })
+            }
+          }
 
         } else {
           push.error({
             message: i18n.global.t('error') + ": " + msg.obj
           })
         }
+      } finally {
+        this.loading = false
       }
     },
     async genRealityKey(){

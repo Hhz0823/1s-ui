@@ -424,24 +424,11 @@ const genSelfSignedTls = async (serverName: string): Promise<number> => {
       name: tlsName,
       server: {
         enabled: true,
-        server_name: cleanServerName,
-        alpn: ['h3', 'h2', 'http/1.1'],
-        min_version: '1.2',
-        max_version: '1.3',
         key: privateKey,
         certificate: publicKey,
       },
       client: {
-        enabled: true,
-        server_name: cleanServerName,
         pinned_peer_certificate_sha256: pinnedSha256,
-        alpn: ['h3', 'h2', 'http/1.1'],
-        min_version: '1.2',
-        max_version: '1.3',
-        utls: {
-          enabled: true,
-          fingerprint: 'chrome',
-        },
       }
     }
     const success = await Data().save('tls', 'new', tlsConfig)
