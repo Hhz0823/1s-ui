@@ -7,7 +7,7 @@ PKG_RELEASE="${PKG_RELEASE:-1}"
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/dist/openwrt-lite}"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/dist/build/openwrt-lite}"
 SKIP_FRONTEND="${SKIP_FRONTEND:-0}"
-TAGS="${SUI_LITE_TAGS:-openwrt_lite,with_quic,with_grpc,with_utls,with_acme,badlinkname,tfogo_checklinkname0}"
+TAGS="${SUI_LITE_TAGS:-openwrt_lite,with_quic,with_utls,badlinkname,tfogo_checklinkname0}"
 LDFLAGS="${SUI_LITE_LDFLAGS:-}"
 if [[ -z "$LDFLAGS" ]]; then
 	LDFLAGS="-w -s -checklinkname=0 -linkmode external -extldflags '-static'"
@@ -171,9 +171,21 @@ build_binary() {
 	echo "==> Building $OPENWRT_ARCH ($GOOS/$GOARCH${GOARM:+/arm$GOARM}${GOMIPS:+/$GOMIPS})"
 	(
 		cd "$ROOT_DIR"
-		go build -trimpath -tags "$TAGS" -ldflags "$LDFLAGS" -o "$bin_path" main.go
+		go build -trimpath -buildvcs=false -tags "$TAGS" -ldflags "$LDFLAGS" -o "$bin_path" main.go
 	)
 	strip "$bin_path" 2>/dev/null || true
+}
+
+gzip_tar_dir() {
+	local src_dir="$1"
+	local out="$2"
+	shift 2
+	local tar_path="${out%.gz}"
+	rm -f "$tar_path" "$out"
+	(cd "$src_dir" && tar "$@" -cf "$tar_path" .)
+	if ! gzip -9n "$tar_path" 2>/dev/null; then
+		gzip -9 "$tar_path"
+	fi
 }
 
 write_control_files() {
@@ -233,8 +245,8 @@ make_ipk() {
 	write_control_files "$control_dir" "$installed_size"
 
 	printf '2.0\n' > "$archive_dir/debian-binary"
-	(cd "$control_dir" && tar "${tar_args[@]}" -czf "$archive_dir/control.tar.gz" .)
-	(cd "$rootfs" && tar "${tar_args[@]}" -czf "$archive_dir/data.tar.gz" .)
+	gzip_tar_dir "$control_dir" "$archive_dir/control.tar.gz" "${tar_args[@]}"
+	gzip_tar_dir "$rootfs" "$archive_dir/data.tar.gz" "${tar_args[@]}"
 	(
 		cd "$archive_dir"
 		rm -f "$ipk"

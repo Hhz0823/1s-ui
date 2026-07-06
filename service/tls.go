@@ -36,6 +36,9 @@ func (s *TlsService) Save(tx *gorm.DB, action string, data json.RawMessage, host
 		if err != nil {
 			return err
 		}
+		if err = validateTlsLiteFeature(&tls); err != nil {
+			return err
+		}
 		err = tx.Save(&tls).Error
 		if err != nil {
 			return err

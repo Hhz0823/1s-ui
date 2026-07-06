@@ -15,3 +15,7 @@ func validateOutboundLiteFeature(outbound *model.Outbound) error {
 func validateEndpointLiteFeature(endpoint *model.Endpoint) error {
 	return nil
 }
+
+func validateTlsLiteFeature(tls *model.Tls) error {
+	return nil
+}

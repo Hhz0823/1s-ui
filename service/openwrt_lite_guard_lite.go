@@ -3,6 +3,8 @@
 package service
 
 import (
+	"encoding/json"
+
 	"github.com/Hhz0823/1s-ui/database/model"
 	"github.com/Hhz0823/1s-ui/util/common"
 )
@@ -24,6 +26,19 @@ func validateOutboundLiteFeature(outbound *model.Outbound) error {
 func validateEndpointLiteFeature(endpoint *model.Endpoint) error {
 	if endpoint.Type == "tailscale" {
 		return common.NewError("Tailscale endpoint is disabled in OpenWrt Lite build")
+	}
+	return nil
+}
+
+func validateTlsLiteFeature(tls *model.Tls) error {
+	var server map[string]interface{}
+	if len(tls.Server) > 0 {
+		if err := json.Unmarshal(tls.Server, &server); err != nil {
+			return err
+		}
+	}
+	if acme, ok := server["acme"]; ok && acme != nil {
+		return common.NewError("ACME is disabled in OpenWrt Lite build")
 	}
 	return nil
 }

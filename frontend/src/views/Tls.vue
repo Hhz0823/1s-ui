@@ -31,7 +31,7 @@
               <template v-else>-</template>
             </v-col>
           </v-row>
-          <v-row>
+          <v-row v-if="!isOpenWrtLite">
             <v-col>ACME</v-col>
             <v-col>
               {{ $t(item.server?.acme == undefined ? 'no' : 'yes') }}
@@ -91,6 +91,8 @@ import GlassCard from '@/components/glass/GlassCard.vue'
 import { computed, ref } from 'vue'
 import { Inbound } from '@/types/inbounds'
 import { tls } from '@/types/tls'
+
+const isOpenWrtLite = import.meta.env.VITE_OPENWRT_LITE === 'true'
 
 const tlsConfigs = computed((): any[] => {
   return Data().tlsConfigs

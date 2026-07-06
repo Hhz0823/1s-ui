@@ -293,7 +293,7 @@
             </v-col>
           </v-row>
         </v-card>
-        <AcmeVue :tls="inTls" />
+        <AcmeVue v-if="!isOpenWrtLite" :tls="inTls" />
         <EchVue :iTls="inTls" :oTls="outTls" />
         <template v-if="outTls.pinned_peer_certificate_sha256 != undefined">
           <v-card class="rounded-lg" style="margin-top: 12px;">
@@ -377,6 +377,7 @@ export default {
       menu: false,
       tlsType: 0,
       usePath: 0,
+      isOpenWrtLite: import.meta.env.VITE_OPENWRT_LITE === 'true',
       alpn: [
         { title: "H3", value: 'h3' },
         { title: "H2", value: 'h2' },
@@ -500,6 +501,7 @@ export default {
       this.$emit('close')
     },
     saveChanges() {
+      if (this.isOpenWrtLite) delete this.tls.server.acme
       this.loading = true
       this.$emit('save', this.tls)
       this.loading = false

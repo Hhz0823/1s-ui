@@ -4,7 +4,8 @@ OpenWrt Lite is a small package variant of 1S-UI for routers and low-memory devi
 
 - Core: embedded sing-box only
 - Disabled: Xray runtime, Xray config generation, Xray inbound creation
-- Omitted heavy build tags: naive outbound, gVisor, Tailscale
+- Default sing-box build tags: `with_quic`, `with_utls`
+- Omitted heavy build tags: standard gRPC, ACME, naive outbound, gVisor, Tailscale
 - Package format: `.ipk` with a procd init script
 
 ## Build
@@ -23,6 +24,12 @@ scripts/build-openwrt-lite.sh all
 
 The panel uses SQLite through CGO, so cross builds need a musl C toolchain in `CC`.
 The GitHub Actions workflow `.github/workflows/openwrt-lite.yml` sets this automatically with Bootlin musl toolchains.
+
+The default Lite profile keeps common proxy features that need QUIC or uTLS, such as Hysteria/TUIC-style transports and TLS fingerprint support, while removing ACME and the heavier standard gRPC implementation. The gRPC transport still uses sing-box's lite gRPC implementation. To build a custom package with extra sing-box features, override `SUI_LITE_TAGS`:
+
+```sh
+SUI_LITE_TAGS='openwrt_lite,with_quic,with_grpc,with_utls,with_acme,badlinkname,tfogo_checklinkname0' scripts/build-openwrt-lite.sh x86_64
+```
 
 ## Install
 
