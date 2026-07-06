@@ -335,7 +335,7 @@ func (a *ApiService) RestartSb(c *gin.Context) {
 }
 
 func (a *ApiService) RestartXray(c *gin.Context) {
-	err := a.ConfigService.RestartXrayCoreIfNeeded()
+	err := a.ConfigService.RestartXrayCore()
 	jsonMsg(c, "restartXray", err)
 }
 

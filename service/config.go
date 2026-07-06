@@ -124,7 +124,7 @@ func (s *ConfigService) StartCore() error {
 		logger.Info("sing-box started")
 	}
 
-	return s.ensureXrayCore(false)
+	return s.ensureXrayCore(false, false)
 }
 
 func (s *ConfigService) RestartCore() error {
@@ -165,7 +165,7 @@ func (s *ConfigService) restartCoreWithConfig(config json.RawMessage) error {
 		return err
 	}
 	logger.Info("sing-box restarted with new config")
-	return s.ensureXrayCore(false)
+	return s.ensureXrayCore(false, false)
 }
 
 func (s *ConfigService) StopCore() error {
@@ -185,6 +185,14 @@ func (s *ConfigService) StopCore() error {
 }
 
 func (s *ConfigService) RestartXrayCoreIfNeeded() error {
+	return s.restartXrayCore(false)
+}
+
+func (s *ConfigService) RestartXrayCore() error {
+	return s.restartXrayCore(true)
+}
+
+func (s *ConfigService) restartXrayCore(manual bool) error {
 	startCoreMu.Lock()
 	if startCoreInProgress {
 		startCoreMu.Unlock()
@@ -197,7 +205,7 @@ func (s *ConfigService) RestartXrayCoreIfNeeded() error {
 		startCoreInProgress = false
 		startCoreMu.Unlock()
 	}()
-	return s.ensureXrayCore(true)
+	return s.ensureXrayCore(true, manual)
 }
 
 func (s *ConfigService) StartXrayCoreIfNeeded() error {
@@ -213,10 +221,10 @@ func (s *ConfigService) StartXrayCoreIfNeeded() error {
 		startCoreInProgress = false
 		startCoreMu.Unlock()
 	}()
-	return s.ensureXrayCore(false)
+	return s.ensureXrayCore(false, false)
 }
 
-func (s *ConfigService) ensureXrayCore(restart bool) error {
+func (s *ConfigService) ensureXrayCore(restart bool, manual bool) error {
 	if xrayPtr == nil {
 		xrayPtr = core.NewXrayRuntime()
 	}
@@ -227,6 +235,9 @@ func (s *ConfigService) ensureXrayCore(restart bool) error {
 	if !hasXray {
 		if xrayPtr.IsRunning() {
 			return xrayPtr.Stop()
+		}
+		if manual {
+			return common.NewError("no Xray-core inbound configured; create an inbound with Core = Xray-core first")
 		}
 		return nil
 	}

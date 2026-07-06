@@ -164,7 +164,15 @@ func (s *ServerService) GetXrayInfo() map[string]interface{} {
 			},
 		}
 	}
-	return xrayPtr.Status()
+	status := xrayPtr.Status()
+	hasXray, err := (&ConfigService{}).HasXrayInbounds()
+	if err == nil {
+		status["has_inbounds"] = hasXray
+		if !hasXray && status["running"] == false && status["last_error"] == "" {
+			status["last_error"] = "no Xray-core inbound configured"
+		}
+	}
+	return status
 }
 
 func (s *ServerService) GetSystemInfo() map[string]interface{} {

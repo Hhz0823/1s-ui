@@ -30,6 +30,7 @@ func (r *XrayRuntime) Status() map[string]interface{} {
 		"path":        "",
 		"config_path": "",
 		"last_error":  "Xray-core is disabled in OpenWrt Lite build",
+		"last_output": "",
 		"stats": map[string]interface{}{
 			"Uptime": uint32(0),
 		},
