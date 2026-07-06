@@ -9,56 +9,57 @@
           <v-img src="@/assets/logo.svg" :width="reloadItems.length>0 ? 100 : 200"></v-img>
         </v-col>
       </v-row>
-      <v-row class="d-flex align-center justify-center">
-        <v-col cols="auto">
-          <v-dialog v-model="menu" :close-on-content-click="false" transition="scale-transition" max-width="800">
-            <template v-slot:activator="{ props }">
-              <v-btn v-bind="props" hide-details variant="tonal" elevation="3">{{ $t('main.tiles') }} <v-icon icon="mdi-star-plus" /></v-btn>
-            </template>
-            <v-card rounded="xl">
-              <v-card-title>
-                <v-row>
-                  <v-col>
-                    {{ $t('main.tiles') }}
+      <v-row class="home-actions-row">
+        <v-col cols="12">
+          <div class="home-actions">
+            <v-dialog v-model="menu" :close-on-content-click="false" transition="scale-transition" max-width="800">
+              <template v-slot:activator="{ props }">
+                <v-btn v-bind="props" class="home-action-btn" hide-details variant="tonal" elevation="3">
+                  {{ $t('main.tiles') }} <v-icon icon="mdi-star-plus" />
+                </v-btn>
+              </template>
+              <v-card rounded="xl">
+                <v-card-title>
+                  <v-row>
+                    <v-col>
+                      {{ $t('main.tiles') }}
+                    </v-col>
+                    <v-spacer></v-spacer>
+                    <v-col cols="auto"><v-icon icon="mdi-close" @click="menu = false"></v-icon></v-col>
+                  </v-row>
+                </v-card-title>
+                <v-divider></v-divider>
+                <v-row v-for="items in menuItems" density="compact">
+                  <v-col cols="12">
+                    <v-card :subtitle="items.title" variant="flat">
+                      <v-card-text>
+                        <v-row density="compact">
+                          <v-col cols="12" md="6" lg="3" v-for="item in items.value">
+                            <v-switch
+                            density="compact"
+                            v-model="reloadItems"
+                            :value="item.value"
+                            color="primary"
+                            :label="item.title"
+                            hide-details></v-switch>
+                          </v-col>
+                        </v-row>
+                      </v-card-text>
+                    </v-card>
                   </v-col>
-                  <v-spacer></v-spacer>
-                  <v-col cols="auto"><v-icon icon="mdi-close" @click="menu = false"></v-icon></v-col>
                 </v-row>
-              </v-card-title>
-              <v-divider></v-divider>
-              <v-row v-for="items in menuItems" density="compact">
-                <v-col cols="12">
-                  <v-card :subtitle="items.title" variant="flat">
-                    <v-card-text>
-                      <v-row density="compact">
-                        <v-col cols="12" md="6" lg="3" v-for="item in items.value">
-                          <v-switch
-                          density="compact"
-                          v-model="reloadItems"
-                          :value="item.value"
-                          color="primary"
-                          :label="item.title"
-                          hide-details></v-switch>
-                        </v-col>
-                      </v-row>
-                    </v-card-text>
-                  </v-card>
-                </v-col>
-              </v-row>
-            </v-card>
-          </v-dialog>
-          <v-btn variant="tonal" hide-details 
-            style="margin-inline-start: 10px;" elevation="3"
-            @click="backupModal.visible = true">{{ $t('main.backup.title') }}<v-icon icon="mdi-backup-restore" />
-          </v-btn>
-          <v-btn variant="tonal" hide-details
-            style="margin-inline-start: 10px;" elevation="3"
-            @click="logModal.visible = true">{{ $t('basic.log.title') }} <v-icon icon="mdi-list-box-outline" />
-          </v-btn>
-          <v-btn variant="tonal" hide-details
-            style="margin-inline-start: 10px;" elevation="3"
-            @click="usageStatsModal.visible = true">{{ $t('main.stats.title') }} <v-icon icon="mdi-chart-box-outline" />
-          </v-btn>
+              </v-card>
+            </v-dialog>
+            <v-btn class="home-action-btn" variant="tonal" hide-details elevation="3"
+              @click="backupModal.visible = true">{{ $t('main.backup.title') }}<v-icon icon="mdi-backup-restore" />
+            </v-btn>
+            <v-btn class="home-action-btn" variant="tonal" hide-details elevation="3"
+              @click="logModal.visible = true">{{ $t('basic.log.title') }} <v-icon icon="mdi-list-box-outline" />
+            </v-btn>
+            <v-btn class="home-action-btn" variant="tonal" hide-details elevation="3"
+              @click="usageStatsModal.visible = true">{{ $t('main.stats.title') }} <v-icon icon="mdi-chart-box-outline" />
+            </v-btn>
+          </div>
         </v-col>
       </v-row>
       <v-row>
@@ -374,10 +375,26 @@ const shortText = (text?: string) => {
   padding-inline: 6px;
 }
 
-.action-pill {
-  border-radius: 20px !important;
+.home-actions-row {
+  margin-top: 12px;
+}
+
+.home-actions {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.home-action-btn {
+  min-width: 128px;
+  border-radius: 8px !important;
+  justify-content: center;
   font-weight: 500;
   letter-spacing: 0.01em;
+  margin: 0 !important;
   text-transform: none;
 }
 
@@ -385,6 +402,16 @@ const shortText = (text?: string) => {
   .home-dashboard {
     min-height: calc(100vh - 96px);
     padding-inline: 12px;
+  }
+
+  .home-actions {
+    gap: 8px;
+  }
+
+  .home-action-btn {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
+    max-width: 164px;
   }
 }
 </style>

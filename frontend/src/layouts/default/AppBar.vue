@@ -35,9 +35,9 @@
       </router-link>
     </div>
 
-    <v-app-bar-title v-if="menuPosition !== 'top' || isMobile" class="app-bar-title">
+    <div v-if="menuPosition !== 'top' || isMobile" class="app-bar-title">
       <span class="page-title">{{ $t(String(route.name)) }}</span>
-    </v-app-bar-title>
+    </div>
 
     <template v-slot:append>
       <div class="app-bar-actions">
@@ -135,6 +135,7 @@ const isActiveTheme = (th: string) => {
 
 <style scoped>
 .app-bar {
+  position: relative;
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   background: rgba(var(--v-theme-surface), 0.72) !important;
@@ -142,14 +143,23 @@ const isActiveTheme = (th: string) => {
 }
 
 .app-bar-title {
+  position: absolute;
+  inset-block: 0;
+  inset-inline: 104px;
   display: flex;
   align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
 }
 
 .page-title {
   font-size: 16px;
   font-weight: 600;
-  letter-spacing: 0.01em;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .app-bar-actions {
@@ -224,5 +234,11 @@ const isActiveTheme = (th: string) => {
   background: rgba(var(--v-theme-primary), 0.12);
   border-color: rgba(var(--v-theme-primary), 0.3);
   color: rgb(var(--v-theme-primary));
+}
+
+@media (max-width: 600px) {
+  .app-bar-title {
+    inset-inline: 96px;
+  }
 }
 </style>
