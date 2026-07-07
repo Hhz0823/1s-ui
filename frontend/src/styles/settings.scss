@@ -929,3 +929,78 @@ body,
     margin: 10px;
   }
 }
+
+/* ===== Rounded Surface Clipping ===== */
+.v-btn .v-btn__overlay,
+.v-btn .v-btn__underlay,
+.v-btn .v-ripple__container {
+  border-radius: inherit !important;
+}
+
+.v-btn {
+  border-radius: 12px !important;
+  background-clip: padding-box;
+  isolation: isolate;
+  overflow: hidden !important;
+}
+
+.v-field,
+.v-field .v-field__overlay,
+.v-field .v-field__outline,
+.v-field .v-field__loader,
+.v-input__control {
+  border-radius: inherit !important;
+}
+
+.v-field {
+  background-clip: padding-box;
+  overflow: hidden !important;
+}
+
+.v-field .v-field__overlay {
+  inset: 0;
+}
+
+.v-overlay__content,
+.v-overlay__content > .v-card,
+.v-overlay__content > .v-list {
+  border-radius: 14px !important;
+}
+
+.v-overlay__content > .v-card,
+.v-overlay__content > .v-list,
+.v-select__content,
+.v-autocomplete__content,
+.v-combobox__content {
+  background-clip: padding-box;
+  overflow: hidden !important;
+}
+
+.v-select__content .v-list,
+.v-autocomplete__content .v-list,
+.v-combobox__content .v-list {
+  border-radius: inherit !important;
+  padding: 6px !important;
+  overflow: hidden auto !important;
+}
+
+.v-list-item,
+.v-list-item .v-list-item__overlay,
+.v-list-item .v-list-item__underlay,
+.v-ripple__container {
+  border-radius: inherit !important;
+}
+
+.v-list-item {
+  background-clip: padding-box;
+  overflow: hidden !important;
+}
+
+.v-list-item--active,
+.v-list-item:hover {
+  box-shadow: none !important;
+}
+
+.v-dialog > .v-overlay__content > .v-card {
+  border-radius: 14px !important;
+}
