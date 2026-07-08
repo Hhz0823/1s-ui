@@ -35,6 +35,16 @@
     :tag="stats.tag"
     @close="closeStats"
   />
+  <v-dialog v-model="resetTrafficModal" width="auto">
+    <v-card rounded="lg" :title="$t('actions.resetTraffic')">
+      <v-divider></v-divider>
+      <v-card-text>{{ $t('confirm') }}</v-card-text>
+      <v-card-actions>
+        <v-btn color="error" variant="outlined" :loading="resetTrafficLoading" @click="resetTraffic">{{ $t('yes') }}</v-btn>
+        <v-btn color="success" variant="outlined" @click="resetTrafficModal = false">{{ $t('no') }}</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
   <v-row class="page-toolbar" justify="start" align="center">
     <v-col cols="auto">
       <v-btn color="primary" @click="showModal(0)">{{ $t('actions.add') }}</v-btn>
@@ -58,6 +68,12 @@
               <v-icon icon="mdi-account-multiple-check"></v-icon>
             </template>
             <v-list-item-title v-text="$t('actions.editbulk')"></v-list-item-title>
+          </v-list-item>
+          <v-list-item link @click="confirmResetTraffic">
+            <template v-slot:prepend>
+              <v-icon icon="mdi-restore"></v-icon>
+            </template>
+            <v-list-item-title v-text="$t('actions.resetTraffic')"></v-list-item-title>
           </v-list-item>
         </v-list>
       </v-menu>
@@ -182,6 +198,24 @@
             <template v-else>-</template>
           </div>
         </template>
+        <template v-slot:item.createdAt="{ item }">
+          <div class="text-start">
+            <template v-if="item.createdAt>0">
+              <v-tooltip activator="parent" location="top" :text="new Date(item.createdAt * 1000).toLocaleString(locale)" />
+              {{ new Date(item.createdAt * 1000).toLocaleDateString(locale) }}
+            </template>
+            <template v-else>-</template>
+          </div>
+        </template>
+        <template v-slot:item.onlineAt="{ item }">
+          <div class="text-start">
+            <template v-if="item.onlineAt>0">
+              <v-tooltip activator="parent" location="top" :text="new Date(item.onlineAt * 1000).toLocaleString(locale)" />
+              {{ new Date(item.onlineAt * 1000).toLocaleString(locale) }}
+            </template>
+            <template v-else>-</template>
+          </div>
+        </template>
         <template v-slot:item.actions="{ item }">
         <v-icon
           class="me-2"
@@ -251,6 +285,7 @@ import { computed, ref } from 'vue'
 import { HumanReadable } from '@/plugins/utils'
 import { i18n, locale } from '@/locales'
 import { useDisplay } from 'vuetify'
+import HttpUtils from '@/plugins/httputil'
 
 const { smAndDown } = useDisplay()
 
@@ -303,6 +338,8 @@ const headers = [
   { title: i18n.global.t('stats.volume'), key: 'volume' },
   { title: i18n.global.t('date.expiry'), key: 'expiry' },
   { title: i18n.global.t('online'), key: 'online' },
+  { title: i18n.global.t('date.created'), key: 'createdAt' },
+  { title: i18n.global.t('date.lastOnline'), key: 'onlineAt' },
   { key: 'data-table-group', width: 0 },
 ]
 
@@ -417,6 +454,24 @@ const editBulk = () => {
 
 const closeEditBulk = () => {
   editBulkModal.value = false
+}
+
+const resetTrafficModal = ref(false)
+const resetTrafficLoading = ref(false)
+
+const confirmResetTraffic = () => {
+  resetTrafficModal.value = true
+  actionMenu.value = false
+}
+
+const resetTraffic = async () => {
+  resetTrafficLoading.value = true
+  const msg = await HttpUtils.post('api/resetTraffic', {})
+  resetTrafficLoading.value = false
+  if (msg.success) {
+    resetTrafficModal.value = false
+    await Data().loadData()
+  }
 }
 
 const percent = (c: Client) => { return c.volume>0 ? Math.round((c.up+c.down) *100 / c.volume) : 0 }

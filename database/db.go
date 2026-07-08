@@ -2,6 +2,7 @@ package database
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"path"
 	"strings"
@@ -55,7 +56,9 @@ func OpenDB(dbPath string) error {
 	if strings.Contains(dbPath, "?") {
 		sep = "&"
 	}
-	dsn := dbPath + sep + "_busy_timeout=10000&_journal_mode=WAL"
+	// _cache_size=-200 caps each connection's page cache at about 200 KiB,
+	// reducing memory amplification if a connection escapes the pool.
+	dsn := dbPath + sep + "_busy_timeout=10000&_journal_mode=WAL&_cache_size=-200"
 	db, err = gorm.Open(sqlite.Open(dsn), c)
 	if err != nil {
 		return err
@@ -66,8 +69,9 @@ func OpenDB(dbPath string) error {
 		return err
 	}
 	sqlDB.SetMaxOpenConns(25)
-	sqlDB.SetMaxIdleConns(5)
+	sqlDB.SetMaxIdleConns(2)
 	sqlDB.SetConnMaxLifetime(time.Hour)
+	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 
 	if config.IsDebug() {
 		db = db.Debug()
@@ -88,6 +92,10 @@ func InitDB(dbPath string) error {
 			{Type: "direct", Tag: "direct", Options: json.RawMessage(`{}`)},
 		}
 		db.Create(&defaultOutbound)
+	}
+
+	if err = dedupStats(); err != nil {
+		return err
 	}
 
 	err = db.AutoMigrate(
@@ -112,6 +120,40 @@ func InitDB(dbPath string) error {
 	}
 
 	return nil
+}
+
+// dedupStats merges duplicate traffic buckets before AutoMigrate adds the
+// unique stats index introduced by newer upstream versions.
+func dedupStats() error {
+	if !db.Migrator().HasTable(&model.Stats{}) {
+		return nil
+	}
+
+	var dupGroups int64
+	err := db.Raw("SELECT COUNT(*) FROM (SELECT 1 FROM stats GROUP BY resource, tag, date_time, direction HAVING COUNT(*) > 1)").Scan(&dupGroups).Error
+	if err != nil {
+		return err
+	}
+	if dupGroups == 0 {
+		return nil
+	}
+	log.Printf("stats: collapsing %d duplicate group(s) before adding unique index", dupGroups)
+
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`CREATE TEMP TABLE stats_dedup AS
+			SELECT MIN(id) AS id, resource, tag, date_time, direction, SUM(traffic) AS traffic
+			FROM stats GROUP BY resource, tag, date_time, direction`).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("DELETE FROM stats").Error; err != nil {
+			return err
+		}
+		if err := tx.Exec(`INSERT INTO stats (id, resource, tag, date_time, direction, traffic)
+			SELECT id, resource, tag, date_time, direction, traffic FROM stats_dedup`).Error; err != nil {
+			return err
+		}
+		return tx.Exec("DROP TABLE stats_dedup").Error
+	})
 }
 
 func GetDB() *gorm.DB {

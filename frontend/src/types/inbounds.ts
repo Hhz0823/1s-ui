@@ -254,11 +254,13 @@ const defaultValues: Record<InType, Inbound> = {
 export function createInbound<T extends Inbound>(type: InType,json?: Partial<T>): Inbound {
   const defaultObject: Inbound = { ...defaultValues[type] ?? {}, ...(json ?? {}) }
   defaultObject.core_type = defaultObject.core_type || CoreTypes.SingBox
-  if (defaultObject.core_type == CoreTypes.Xray && type == InTypes.VLESS) {
+  if (defaultObject.core_type == CoreTypes.Xray && [InTypes.VLESS, InTypes.VMess, InTypes.Trojan].includes(type)) {
     const inbound = <any>defaultObject
-    inbound.transport = inbound.transport && Object.keys(inbound.transport).length > 0
-      ? inbound.transport
-      : { type: 'xhttp', path: '/xhttp', mode: 'auto' }
+    if (!inbound.transport || Object.keys(inbound.transport).length == 0) {
+      inbound.transport = type == InTypes.VLESS
+        ? { type: 'xhttp', path: '/xhttp', mode: 'auto' }
+        : { type: 'ws', path: '/', host: location.hostname }
+    }
   }
   if (type == InTypes.Shadowsocks && !(<Shadowsocks>defaultObject).password) {
     const method = (<Shadowsocks>defaultObject).method

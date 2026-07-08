@@ -29,12 +29,15 @@ func (s *WarpService) getWarpInfo(deviceId string, accessToken string) ([]byte, 
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 20 * time.Second}
 	resp, err := client.Do(req)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("warp info request returned status %d", resp.StatusCode)
+	}
 	buffer := bytes.NewBuffer(make([]byte, 8192))
 	buffer.Reset()
 	_, err = buffer.ReadFrom(resp.Body)
@@ -62,12 +65,15 @@ func (s *WarpService) RegisterWarp(ep *model.Endpoint) error {
 	req.Header.Add("CF-Client-Version", "a-7.21-0721")
 	req.Header.Add("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 20 * time.Second}
 	resp, err := client.Do(req)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("warp registration returned status %d", resp.StatusCode)
+	}
 	buffer := bytes.NewBuffer(make([]byte, 8192))
 	buffer.Reset()
 	_, err = buffer.ReadFrom(resp.Body)
@@ -145,6 +151,8 @@ func (s *WarpService) RegisterWarp(ep *model.Endpoint) error {
 	epOptions["private_key"] = privateKey.String()
 	epOptions["address"] = []string{fmt.Sprintf("%s/32", v4), fmt.Sprintf("%s/128", v6)}
 	epOptions["listen_port"] = 0
+	// Keep WARP as a sing-box userspace endpoint. Routes must opt in explicitly.
+	epOptions["system"] = false
 	epOptions["peers"] = peers
 
 	ep.Options, err = json.MarshalIndent(epOptions, "", "  ")

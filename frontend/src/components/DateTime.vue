@@ -1,7 +1,7 @@
 <template>
   <v-text-field
-    id="expiry"
-    :label="$t('date.expiry')"
+    :id="fieldId"
+    :label="fieldLabel"
     v-model="dateFormatted"
     prepend-inner-icon="mdi-calendar"
     readonly
@@ -11,7 +11,7 @@
     v-model="Input"
     @input="Input=$event"
     :locale="locale"
-    element="expiry"
+    :element="fieldId"
     compact-time
     type="datetime">
       <template v-slot:next-month>
@@ -48,7 +48,7 @@ import 'moment/locale/zh-cn'
 import 'moment/locale/zh-tw'
 
 export default {
-  props: ['expiry'],
+  props: ['expiry', 'label', 'inputId'],
   emits: ['submit'],
   data() {
     return {
@@ -60,6 +60,12 @@ export default {
   computed: {
     locale() {
       return locale
+    },
+    fieldId() {
+      return this.inputId || 'expiry'
+    },
+    fieldLabel() {
+      return this.label || i18n.global.t('date.expiry')
     },
     dateFormatted() {
       if (this.expDate == 0) return i18n.global.t('unlimited')

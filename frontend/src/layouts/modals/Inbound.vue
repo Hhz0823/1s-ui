@@ -62,7 +62,7 @@
               <XrayTransport v-if="isXray && Object.hasOwn(inbound,'transport')" :data="inbound" />
               <Transport v-else-if="Object.hasOwn(inbound,'transport')" :data="inbound" />
               <Users v-if="hasUser" :clients="clients" :data="initUsers" />
-              <InTls v-if="HasTls.includes(inbound.type)"  :inbound="inbound" :tlsConfigs="tlsConfigs" :tls_id="inbound.tls_id" />
+              <InTls v-if="hasTlsPanel"  :inbound="inbound" :tlsConfigs="tlsConfigs" :tls_id="inbound.tls_id" />
               <Multiplex v-if="!isXray && MuxAvailable.includes(inbound.type)" direction="in" :data="inbound" />
             </v-window-item>
             <v-window-item value="c">
@@ -77,7 +77,7 @@
                   <template v-for="addr,index in inbound.addrs">
                     {{ $t('in.addr') }} #{{ (index+1) }} <v-icon icon="mdi-delete" color="error" @click="inbound.addrs?.splice(index,1)" />
                     <v-divider></v-divider>
-                    <AddrVue :addr="addr" :hasTls="HasTls.includes(inbound.type)" />
+                    <AddrVue :addr="addr" :hasTls="hasTlsPanel" />
                   </template>
                 </v-card-text>
               </v-card>
@@ -187,6 +187,14 @@ export default {
         InTypes.Trojan,
         InTypes.Shadowsocks,
       ],
+      xrayTypeItems: [
+        { title: 'VLESS', value: InTypes.VLESS },
+        { title: 'VMess', value: InTypes.VMess },
+        { title: 'Trojan', value: InTypes.Trojan },
+        { title: 'Shadowsocks', value: InTypes.Shadowsocks },
+        { title: 'SOCKS', value: InTypes.SOCKS },
+        { title: 'HTTP', value: InTypes.HTTP },
+      ],
       OnlyTLS: [InTypes.Hysteria, InTypes.Hysteria2, InTypes.TUIC, InTypes.Naive, InTypes.AnyTls ],
     }
   },
@@ -226,7 +234,7 @@ export default {
     },
     changeCore() {
       if (!this.inbound.listen_port) this.inbound.listen_port = RandomUtil.randomIntRange(10000, 60000)
-      if (this.isXray && this.inbound.type != InTypes.VLESS) {
+      if (this.isXray && !this.xrayTypeItems.some((item) => item.value == this.inbound.type)) {
         this.inbound.type = InTypes.VLESS
       }
       this.changeType()
@@ -293,9 +301,15 @@ export default {
     },
     inboundTypeItems() {
       if (this.isXray) {
-        return [{ title: 'VLESS', value: InTypes.VLESS }]
+        return this.xrayTypeItems
       }
       return Object.keys(this.inTypes).map((key,index) => ({title: key, value: Object.values(this.inTypes)[index]}))
+    },
+    hasTlsPanel() {
+      if (this.isXray) {
+        return [InTypes.VLESS, InTypes.VMess, InTypes.Trojan].includes(this.inbound.type)
+      }
+      return this.HasTls.includes(this.inbound.type)
     },
     clients() {
       return Data().clients?? []

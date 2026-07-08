@@ -45,6 +45,14 @@
         ></v-select>
       </v-col>
     </v-row>
+    <v-row>
+      <v-col cols="12" sm="6" md="3" lg="2">
+        <v-switch color="primary" v-model="subClashNoDefGrp" :label="$t('setting.clashNoDefGrp')" hide-details />
+      </v-col>
+      <v-col cols="12" sm="6" md="3" lg="2">
+        <v-switch color="primary" v-model="subClashSprtAll" :label="$t('setting.clashSprtAll')" hide-details />
+      </v-col>
+    </v-row>
     <v-card-actions>
       <v-spacer></v-spacer>
       <v-btn @click="openEditor" variant="outlined" hide-details>{{ $t('editor') }}</v-btn>
@@ -238,9 +246,17 @@ export default {
       get() { return this.metaJson.rules.length > 0 ? this.metaJson.rules.filter((r:string) => r != "MATCH,Proxy") : [] },
       set(v:string[]) {
         let newRules = <string[]>[]
-        v.forEach((r:string) => { newRules.push(r) })          
+        v.forEach((r:string) => { newRules.push(r) })
         this.updateMetaJson([ ...newRules, "MATCH,Proxy" ], 'rules')
       }
+    },
+    subClashNoDefGrp: {
+      get() { return this.$props.settings.subClashNoDefGrp == "true" },
+      set(v:boolean) { this.$props.settings.subClashNoDefGrp = v ? "true" : "false" }
+    },
+    subClashSprtAll: {
+      get() { return this.$props.settings.subClashSprtAll == "true" },
+      set(v:boolean) { this.$props.settings.subClashSprtAll = v ? "true" : "false" }
     }
   },
   components: { Editor }

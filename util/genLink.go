@@ -28,7 +28,14 @@ func removeLinkParam(params []LinkParam, key string) []LinkParam {
 	return filtered
 }
 
-func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname string) []string {
+func joinRemark(clientRemark, inboundRemark string) string {
+	if clientRemark != "" {
+		return clientRemark + "-" + inboundRemark
+	}
+	return inboundRemark
+}
+
+func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname string, clientRemark string) []string {
 	inbound, err := i.MarshalFull()
 	if err != nil {
 		return []string{}
@@ -52,7 +59,7 @@ func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname stri
 		Addrs = append(Addrs, map[string]interface{}{
 			"server":      hostname,
 			"server_port": (*inbound)["listen_port"],
-			"remark":      i.Tag,
+			"remark":      joinRemark(clientRemark, i.Tag),
 		})
 		if i.TlsId > 0 {
 			Addrs[0]["tls"] = tls
@@ -60,7 +67,7 @@ func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname stri
 	} else {
 		for index, addr := range Addrs {
 			addrRemark, _ := addr["remark"].(string)
-			Addrs[index]["remark"] = i.Tag + addrRemark
+			Addrs[index]["remark"] = joinRemark(clientRemark, i.Tag+addrRemark)
 			if i.TlsId > 0 {
 				newTls := map[string]interface{}{}
 				for k, v := range tls {
@@ -80,8 +87,18 @@ func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname stri
 
 	if i.RuntimeCore() == model.CoreTypeXray {
 		switch i.Type {
+		case "socks":
+			return socksLink(userConfig["socks"], Addrs)
+		case "http":
+			return httpLink(userConfig["http"], Addrs)
+		case "shadowsocks":
+			return shadowsocksLink(userConfig, *inbound, Addrs)
 		case "vless":
 			return xrayVlessLink(userConfig["vless"], *inbound, Addrs)
+		case "vmess":
+			return xrayVmessLink(userConfig["vmess"], *inbound, Addrs)
+		case "trojan":
+			return xrayTrojanLink(userConfig["trojan"], *inbound, Addrs)
 		}
 		return []string{}
 	}
@@ -126,6 +143,12 @@ func prepareTls(t *model.Tls) map[string]interface{} {
 	}
 	if err := json.Unmarshal(t.Server, &iTls); err != nil {
 		return nil
+	}
+
+	if oTls["certificate_public_key_sha256"] != nil {
+		if pin := CertSha256Hex(CertPEMFromTLS(iTls)); pin != "" {
+			oTls["pinSHA256"] = pin
+		}
 	}
 
 	for k, v := range iTls {
@@ -308,6 +331,8 @@ func hysteria2Link(
 			params = removeLinkParam(params, "pcs")
 			if pinSHA256 := pinnedPeerCertSha256ForLink(getPinnedPeerCertSha256(tls)); pinSHA256 != "" {
 				params = append(params, LinkParam{"pinSHA256", pinSHA256})
+			} else if pinSHA256, ok := tls["pinSHA256"].(string); ok && pinSHA256 != "" {
+				params = append(params, LinkParam{"pinSHA256", pinSHA256})
 			}
 		}
 		if obfs, ok := inbound["obfs"].(map[string]interface{}); ok {
@@ -450,6 +475,32 @@ func xrayVlessLink(
 	return links
 }
 
+func xrayTrojanLink(
+	userConfig map[string]interface{},
+	inbound map[string]interface{},
+	addrs []map[string]interface{}) []string {
+
+	password, _ := userConfig["password"].(string)
+	baseParams := getXrayTransportParams(inbound["transport"])
+	var links []string
+
+	for _, addr := range addrs {
+		params := make([]LinkParam, len(baseParams))
+		copy(params, baseParams)
+		if tls, ok := addr["tls"].(map[string]interface{}); ok {
+			if enabled, _ := tls["enabled"].(bool); enabled {
+				getTlsParams(&params, tls, "allowInsecure")
+			}
+		}
+		port, _ := addr["server_port"].(float64)
+		uri := fmt.Sprintf("trojan://%s@%s:%.0f", password, addr["server"].(string), port)
+		uri = addParams(uri, params, addr["remark"].(string))
+		links = append(links, uri)
+	}
+
+	return links
+}
+
 func trojanLink(
 	userConfig map[string]interface{},
 	inbound map[string]interface{},
@@ -470,6 +521,73 @@ func trojanLink(
 		links = append(links, uri)
 	}
 
+	return links
+}
+
+func xrayVmessLink(
+	userConfig map[string]interface{},
+	inbound map[string]interface{},
+	addrs []map[string]interface{}) []string {
+
+	uuid, _ := userConfig["uuid"].(string)
+	transportParams := getXrayTransportParams(inbound["transport"])
+	var links []string
+
+	baseParams := map[string]interface{}{
+		"v":   "2",
+		"id":  uuid,
+		"aid": 0,
+	}
+
+	var net, host, path, serviceName, mode string
+	for _, p := range transportParams {
+		switch p.Key {
+		case "type":
+			net = p.Value
+		case "host":
+			host = p.Value
+		case "path":
+			path = p.Value
+		case "serviceName":
+			serviceName = p.Value
+		case "mode":
+			mode = p.Value
+		}
+	}
+	if net == "" || net == "raw" {
+		net = "tcp"
+	}
+	baseParams["net"] = net
+	if host != "" {
+		baseParams["host"] = host
+	}
+	if path != "" {
+		baseParams["path"] = path
+	}
+	if serviceName != "" {
+		baseParams["path"] = serviceName
+	}
+	if mode != "" {
+		baseParams["mode"] = mode
+	}
+
+	for _, addr := range addrs {
+		obj := make(map[string]interface{})
+		for k, v := range baseParams {
+			obj[k] = v
+		}
+
+		obj["add"], _ = addr["server"].(string)
+		port, _ := addr["server_port"].(float64)
+		obj["port"] = fmt.Sprintf("%.0f", port)
+		obj["ps"], _ = addr["remark"].(string)
+		populateVmessTlsParams(obj, addr["tls"])
+
+		jsonStr, _ := json.Marshal(obj)
+
+		uri := fmt.Sprintf("vmess://%s", toBase64(jsonStr))
+		links = append(links, uri)
+	}
 	return links
 }
 

@@ -42,33 +42,38 @@ var defaultConfig = `{
 }`
 
 var defaultValueMap = map[string]string{
-	"webListen":     "",
-	"webDomain":     "",
-	"webPort":       "2095",
-	"secret":        common.Random(32),
-	"webCertFile":   "",
-	"webKeyFile":    "",
-	"webPath":       "/app/",
-	"webURI":        "",
-	"sessionMaxAge": "0",
-	"trafficAge":    "30",
-	"timeLocation":  "Asia/Shanghai",
-	"subListen":     "",
-	"subPort":       "2096",
-	"subPath":       "/sub/",
-	"subDomain":     "",
-	"subCertFile":   "",
-	"subKeyFile":    "",
-	"subUpdates":    "12",
-	"subEncode":     "true",
-	"subShowInfo":   "false",
-	"subURI":        "",
-	"subJsonExt":    "",
-	"subClashExt":   "",
-	"congestionAlgo": "",
-	"qdisc":          "",
-	"config":        defaultConfig,
-	"version":       config.GetVersion(),
+	"webListen":          "",
+	"webDomain":          "",
+	"webPort":            "2095",
+	"secret":             common.Random(32),
+	"webCertFile":        "",
+	"webKeyFile":         "",
+	"webPath":            "/app/",
+	"webURI":             "",
+	"sessionMaxAge":      "0",
+	"trafficAge":         "30",
+	"statsBucketSeconds": "60",
+	"timeLocation":       "Asia/Shanghai",
+	"subListen":          "",
+	"subPort":            "2096",
+	"subPath":            "/sub/",
+	"subDomain":          "",
+	"subCertFile":        "",
+	"subKeyFile":         "",
+	"subUpdates":         "12",
+	"subEncode":          "true",
+	"subShowInfo":        "false",
+	"subURI":             "",
+	"subJsonExt":         "",
+	"subClashExt":        "",
+	"subClashNoDefGrp":   "false",
+	"subClashSprtAll":    "false",
+	"globalReset":        "",
+	"globalResetLast":    "0",
+	"congestionAlgo":     "",
+	"qdisc":              "",
+	"config":             defaultConfig,
+	"version":            config.GetVersion(),
 }
 
 type SettingService struct {
@@ -101,6 +106,7 @@ func (s *SettingService) GetAllSetting() (*map[string]string, error) {
 	delete(allSetting, "secret")
 	delete(allSetting, "config")
 	delete(allSetting, "version")
+	delete(allSetting, "globalResetLast")
 
 	return &allSetting, nil
 }
@@ -244,6 +250,18 @@ func (s *SettingService) GetTrafficAge() (int, error) {
 	return s.getInt("trafficAge")
 }
 
+func (s *SettingService) GetStatsBucketSeconds() (int64, error) {
+	v, err := s.getInt("statsBucketSeconds")
+	if err != nil {
+		return 0, err
+	}
+	if v < 1 {
+		def, _ := strconv.Atoi(defaultValueMap["statsBucketSeconds"])
+		return int64(def), nil
+	}
+	return int64(v), nil
+}
+
 func (s *SettingService) GetTimeLocation() (*time.Location, error) {
 	l, err := s.getString("timeLocation")
 	if err != nil {
@@ -323,6 +341,22 @@ func (s *SettingService) GetSubShowInfo() (bool, error) {
 
 func (s *SettingService) GetSubURI() (string, error) {
 	return s.getString("subURI")
+}
+
+func (s *SettingService) GetGlobalReset() (string, error) {
+	return s.getString("globalReset")
+}
+
+func (s *SettingService) GetGlobalResetLast() (int64, error) {
+	str, err := s.getString("globalResetLast")
+	if err != nil {
+		return 0, err
+	}
+	return strconv.ParseInt(str, 10, 64)
+}
+
+func (s *SettingService) SetGlobalResetLast(value int64) error {
+	return s.setString("globalResetLast", strconv.FormatInt(value, 10))
 }
 
 func (s *SettingService) GetFinalSubURI(host string) (string, error) {
@@ -415,6 +449,14 @@ func (s *SettingService) GetSubJsonExt() (string, error) {
 
 func (s *SettingService) GetSubClashExt() (string, error) {
 	return s.getString("subClashExt")
+}
+
+func (s *SettingService) GetSubClashNoDefGrp() (bool, error) {
+	return s.getBool("subClashNoDefGrp")
+}
+
+func (s *SettingService) GetSubClashSprtAll() (bool, error) {
+	return s.getBool("subClashSprtAll")
 }
 
 func (s *SettingService) fileExists(path string) error {

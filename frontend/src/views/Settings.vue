@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <v-card :loading="loading">
     <v-tabs
     v-model="tab"
@@ -70,7 +70,26 @@
               ></v-text-field>
           </v-col>
           <v-col cols="12" sm="6" md="4">
+            <v-text-field
+              type="number"
+              v-model.number="statsBucketSeconds"
+              min="1"
+              :label="$t('setting.statsBucketSeconds')"
+              :suffix="$t('date.s')"
+              v-tooltip:top="$t('setting.statsBucketSecondsHint')"
+              hide-details
+              ></v-text-field>
+          </v-col>
+          <v-col cols="12" sm="6" md="4">
             <v-text-field v-model="settings.timeLocation" :label="$t('setting.timeLoc')" hide-details></v-text-field>
+          </v-col>
+          <v-col cols="12" sm="6" md="4">
+            <v-text-field
+              v-model="settings.globalReset"
+              :label="$t('setting.globalReset')"
+              v-tooltip:top="$t('setting.globalResetHint')"
+              hide-details
+              placeholder="0 0 1 * *"></v-text-field>
           </v-col>
         </v-row>
 
@@ -86,6 +105,30 @@
             ></v-select>
           </v-col>
           <v-col cols="12" sm="6" md="4">
+            <v-select
+              v-model="uiStyleModel"
+              :items="uiStyleOptions"
+              :label="$t('setting.uiStyle')"
+              hide-details
+            ></v-select>
+          </v-col>
+          <v-col cols="12" sm="6" md="4">
+            <v-select
+              v-model="uiDensityModel"
+              :items="uiDensityOptions"
+              :label="$t('setting.uiDensity')"
+              hide-details
+            ></v-select>
+          </v-col>
+          <v-col cols="12" sm="6" md="4">
+            <v-select
+              v-model="bgPresetModel"
+              :items="bgPresetOptions"
+              :label="$t('setting.bgPreset')"
+              hide-details
+            ></v-select>
+          </v-col>
+          <v-col cols="12" sm="6" md="4" v-if="bgPresetModel === 'custom'">
             <v-text-field
               v-model="bgImageModel"
               :label="$t('setting.bgImage')"
@@ -95,10 +138,36 @@
               @click:clear="bgImageModel = ''"
             ></v-text-field>
           </v-col>
-          <v-col cols="12" sm="6" md="4" v-if="bgImageModel">
-            <v-img :src="bgImageModel" max-height="60" max-width="120" cover class="rounded-lg" style="border: 1px solid rgba(var(--v-theme-on-surface),0.1);" />
+          <v-col cols="12" sm="6" md="4" v-if="bgPresetModel === 'custom'">
+            <v-file-input
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              prepend-icon="mdi-image-plus"
+              :label="$t('setting.bgUpload')"
+              hide-details
+              clearable
+              @update:model-value="handleBgFile"
+            ></v-file-input>
           </v-col>
-          <v-col cols="12" sm="6" md="4" v-if="bgImageModel">
+          <v-col cols="12" sm="6" md="4" v-if="previewBackground">
+            <v-img :src="previewBackground" height="76" cover class="rounded-lg app-bg-preview" />
+          </v-col>
+          <v-col cols="12" sm="6" md="4" v-if="bgPresetModel !== 'none'">
+            <v-select
+              v-model="bgFitModel"
+              :items="bgFitOptions"
+              :label="$t('setting.bgFit')"
+              hide-details
+            ></v-select>
+          </v-col>
+          <v-col cols="12" sm="6" md="4" v-if="bgPresetModel !== 'none'">
+            <v-select
+              v-model="bgPositionModel"
+              :items="bgPositionOptions"
+              :label="$t('setting.bgPosition')"
+              hide-details
+            ></v-select>
+          </v-col>
+          <v-col cols="12" sm="6" md="4" v-if="bgPresetModel !== 'none'">
             <v-slider
               v-model="bgBlurModel"
               :label="$t('setting.bgBlur') || 'Background Blur'"
@@ -112,7 +181,7 @@
               </template>
             </v-slider>
           </v-col>
-          <v-col cols="12" sm="6" md="4" v-if="bgImageModel">
+          <v-col cols="12" sm="6" md="4" v-if="bgPresetModel !== 'none'">
             <v-slider
               v-model="bgOpacityModel"
               :label="$t('setting.bgOpacity') || 'Background Opacity'"
@@ -125,6 +194,25 @@
                 <v-chip size="small" variant="tonal">{{ bgOpacityModel }}%</v-chip>
               </template>
             </v-slider>
+          </v-col>
+          <v-col cols="12" sm="6" md="4" v-if="bgPresetModel !== 'none'">
+            <v-slider
+              v-model="bgSaturateModel"
+              :label="$t('setting.bgSaturate')"
+              :min="50" :max="180" :step="5"
+              thumb-label="always"
+              color="primary"
+              hide-details
+            >
+              <template v-slot:append>
+                <v-chip size="small" variant="tonal">{{ bgSaturateModel }}%</v-chip>
+              </template>
+            </v-slider>
+          </v-col>
+          <v-col cols="12" sm="6" md="4">
+            <v-btn color="primary" variant="tonal" prepend-icon="mdi-restore" @click="resetUiPrefs">
+              {{ $t('setting.resetUi') }}
+            </v-btn>
           </v-col>
         </v-row>
       </v-window-item>
@@ -258,7 +346,16 @@ import { FindDiff } from '@/plugins/utils'
 import SubJsonExtVue from '@/components/SubJsonExt.vue'
 import SubClashExtVue from '@/components/SubClashExt.vue'
 import { push } from 'notivue'
+import bgAsset from '@/assets/bg.jpg'
 const tab = ref("t1")
+
+const uiPreferenceEvent = 'ui-preferences-changed'
+const notifyUiPrefs = () => window.dispatchEvent(new Event(uiPreferenceEvent))
+const setUiPref = (key: string, value: string) => {
+  if (value) localStorage.setItem(key, value)
+  else localStorage.removeItem(key)
+  notifyUiPrefs()
+}
 
 const menuPositionModel = computed({
   get: () => localStorage.getItem('menuPosition') || 'side',
@@ -268,25 +365,88 @@ const menuPositionOptions = [
   { title: i18n.global.t('setting.menuSide'), value: 'side' },
   { title: i18n.global.t('setting.menuTop'), value: 'top' },
 ]
+const uiStyleModel = computed({
+  get: () => localStorage.getItem('uiStyle') || 'glass',
+  set: (v: string) => setUiPref('uiStyle', v)
+})
+const uiStyleOptions = [
+  { title: i18n.global.t('setting.uiStyleGlass'), value: 'glass' },
+  { title: i18n.global.t('setting.uiStyleSolid'), value: 'solid' },
+  { title: i18n.global.t('setting.uiStyleClear'), value: 'clear' },
+]
+const uiDensityModel = computed({
+  get: () => localStorage.getItem('uiDensity') || 'comfortable',
+  set: (v: string) => setUiPref('uiDensity', v)
+})
+const uiDensityOptions = [
+  { title: i18n.global.t('setting.uiDensityComfortable'), value: 'comfortable' },
+  { title: i18n.global.t('setting.uiDensityCompact'), value: 'compact' },
+]
+const bgPresetModel = computed({
+  get: () => localStorage.getItem('bgPreset') || (localStorage.getItem('bgImage') ? 'custom' : 'default'),
+  set: (v: string) => setUiPref('bgPreset', v)
+})
+const bgPresetOptions = [
+  { title: i18n.global.t('setting.bgPresetDefault'), value: 'default' },
+  { title: i18n.global.t('setting.bgPresetNone'), value: 'none' },
+  { title: i18n.global.t('setting.bgPresetCustom'), value: 'custom' },
+]
 const bgImageModel = computed({
   get: () => localStorage.getItem('bgImage') || '',
-  set: (v: string) => { if (v) localStorage.setItem('bgImage', v); else localStorage.removeItem('bgImage') }
+  set: (v: string) => {
+    setUiPref('bgImage', v)
+    if (v) setUiPref('bgPreset', 'custom')
+  }
 })
 const bgBlurModel = computed({
   get: () => parseInt(localStorage.getItem('bgBlur') || '6'),
-  set: (v: number) => { localStorage.setItem('bgBlur', String(v)); applyBgSettings() }
+  set: (v: number) => setUiPref('bgBlur', String(v))
 })
 const bgOpacityModel = computed({
   get: () => parseInt(localStorage.getItem('bgOpacity') || '40'),
-  set: (v: number) => { localStorage.setItem('bgOpacity', String(v)); applyBgSettings() }
+  set: (v: number) => setUiPref('bgOpacity', String(v))
 })
-const applyBgSettings = () => {
-  const el = document.querySelector('.app-bg-image') as HTMLElement
-  if (!el) return
-  const blur = localStorage.getItem('bgBlur') || '6'
-  const opacity = localStorage.getItem('bgOpacity') || '40'
-  el.style.filter = `blur(${blur}px) saturate(1.3)`
-  el.style.opacity = String(parseInt(opacity) / 100)
+const bgSaturateModel = computed({
+  get: () => Math.round(parseFloat(localStorage.getItem('bgSaturate') || '1.3') * 100),
+  set: (v: number) => setUiPref('bgSaturate', String(v / 100))
+})
+const bgFitModel = computed({
+  get: () => localStorage.getItem('bgFit') || 'cover',
+  set: (v: string) => setUiPref('bgFit', v)
+})
+const bgFitOptions = [
+  { title: i18n.global.t('setting.bgFitCover'), value: 'cover' },
+  { title: i18n.global.t('setting.bgFitContain'), value: 'contain' },
+  { title: i18n.global.t('setting.bgFitAuto'), value: 'auto' },
+]
+const bgPositionModel = computed({
+  get: () => localStorage.getItem('bgPosition') || 'center',
+  set: (v: string) => setUiPref('bgPosition', v)
+})
+const bgPositionOptions = [
+  { title: i18n.global.t('setting.bgPositionCenter'), value: 'center' },
+  { title: i18n.global.t('setting.bgPositionTop'), value: 'center top' },
+  { title: i18n.global.t('setting.bgPositionBottom'), value: 'center bottom' },
+]
+const previewBackground = computed(() => {
+  if (bgPresetModel.value === 'none') return ''
+  if (bgPresetModel.value === 'custom') return bgImageModel.value
+  return bgAsset
+})
+const handleBgFile = (value: File | File[] | undefined) => {
+  const file = Array.isArray(value) ? value[0] : value
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    bgImageModel.value = String(reader.result || '')
+  }
+  reader.readAsDataURL(file)
+}
+const resetUiPrefs = () => {
+  ;['bgPreset', 'bgImage', 'bgBlur', 'bgOpacity', 'bgSaturate', 'bgFit', 'bgPosition', 'uiStyle', 'uiDensity'].forEach((key) => {
+    localStorage.removeItem(key)
+  })
+  notifyUiPrefs()
 }
 const loading:Ref = inject('loading')?? ref(false)
 const oldSettings = ref({})
@@ -301,6 +461,7 @@ const settings = ref({
   webURI: "",
 	sessionMaxAge: "0",
   trafficAge: "30",
+  statsBucketSeconds: "60",
 	timeLocation: "Asia/Shanghai",
   subListen: "",
 	subPort: "2096",
@@ -314,6 +475,9 @@ const settings = ref({
 	subURI: "",
   subJsonExt: "",
   subClashExt: "",
+  subClashNoDefGrp: "false",
+  subClashSprtAll: "false",
+  globalReset: "",
   congestionAlgo: "",
   qdisc: "",
 })
@@ -407,6 +571,11 @@ const sessionMaxAge = computed({
 const trafficAge = computed({
   get: () => { return settings.value.trafficAge.length>0 ? parseInt(settings.value.trafficAge) : 0 },
   set: (v:number) => { settings.value.trafficAge = v>0 ? v.toString() : "0" }
+})
+
+const statsBucketSeconds = computed({
+  get: () => { return settings.value.statsBucketSeconds.length>0 ? parseInt(settings.value.statsBucketSeconds) : 60 },
+  set: (v:number) => { settings.value.statsBucketSeconds = v>0 ? v.toString() : "60" }
 })
 
 const subPort = computed({

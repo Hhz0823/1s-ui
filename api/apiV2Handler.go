@@ -47,6 +47,8 @@ func (a *APIv2Handler) postHandler(c *gin.Context) {
 		a.ApiService.RestartApp(c)
 	case "restartSb":
 		a.ApiService.RestartSb(c)
+	case "resetTraffic":
+		a.ApiService.ResetTraffic(c)
 	case "restartXray":
 		a.ApiService.RestartXray(c)
 	case "linkConvert":

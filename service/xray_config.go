@@ -84,6 +84,36 @@ func (s *InboundService) GetAllXrayConfig(db *gorm.DB) ([]map[string]interface{}
 				return nil, err
 			}
 			result = append(result, config)
+		case "vmess":
+			config, err := s.buildXrayVMessInbound(db, inbound)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, config)
+		case "trojan":
+			config, err := s.buildXrayTrojanInbound(db, inbound)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, config)
+		case "shadowsocks":
+			config, err := s.buildXrayShadowsocksInbound(db, inbound)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, config)
+		case "socks":
+			config, err := s.buildXraySocksInbound(db, inbound)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, config)
+		case "http":
+			config, err := s.buildXrayHTTPInbound(db, inbound)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, config)
 		default:
 			return nil, common.NewErrorf("xray inbound type <%s> is not supported yet", inbound.Type)
 		}
@@ -135,6 +165,166 @@ func (s *InboundService) buildXrayVlessInbound(db *gorm.DB, inbound *model.Inbou
 	}, nil
 }
 
+func (s *InboundService) buildXrayVMessInbound(db *gorm.DB, inbound *model.Inbound) (map[string]interface{}, error) {
+	_, listen, port, transport, network, err := xrayInboundBasics(inbound, "ws")
+	if err != nil {
+		return nil, err
+	}
+
+	clients, err := s.fetchXrayVMessClients(db, inbound.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	streamSettings, err := buildXrayStreamSettings(inbound, transport, network)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{
+		"tag":      inbound.Tag,
+		"listen":   listen,
+		"port":     port,
+		"protocol": "vmess",
+		"settings": map[string]interface{}{
+			"clients": clients,
+		},
+		"streamSettings": streamSettings,
+	}, nil
+}
+
+func (s *InboundService) buildXrayTrojanInbound(db *gorm.DB, inbound *model.Inbound) (map[string]interface{}, error) {
+	_, listen, port, transport, network, err := xrayInboundBasics(inbound, "ws")
+	if err != nil {
+		return nil, err
+	}
+
+	clients, err := s.fetchXrayPasswordClients(db, inbound.Id, "trojan")
+	if err != nil {
+		return nil, err
+	}
+
+	streamSettings, err := buildXrayStreamSettings(inbound, transport, network)
+	if err != nil {
+		return nil, err
+	}
+
+	return map[string]interface{}{
+		"tag":      inbound.Tag,
+		"listen":   listen,
+		"port":     port,
+		"protocol": "trojan",
+		"settings": map[string]interface{}{
+			"clients": clients,
+		},
+		"streamSettings": streamSettings,
+	}, nil
+}
+
+func (s *InboundService) buildXrayShadowsocksInbound(db *gorm.DB, inbound *model.Inbound) (map[string]interface{}, error) {
+	full, err := inbound.MarshalFull()
+	if err != nil {
+		return nil, err
+	}
+
+	listen, port, err := xrayListenAndPort(full, inbound.Tag)
+	if err != nil {
+		return nil, err
+	}
+
+	method := stringValue((*full)["method"], "2022-blake3-aes-256-gcm")
+	password := stringValue((*full)["password"], "")
+	network := stringValue((*full)["network"], "tcp,udp")
+	if network == "" {
+		network = "tcp,udp"
+	}
+
+	clients, err := s.fetchXrayShadowsocksClients(db, inbound.Id, method)
+	if err != nil {
+		return nil, err
+	}
+	if password == "" && len(clients) > 0 {
+		password, _ = clients[0]["password"].(string)
+	}
+	if password == "" {
+		return nil, common.NewErrorf("xray shadowsocks inbound <%s> missing password", inbound.Tag)
+	}
+
+	return map[string]interface{}{
+		"tag":      inbound.Tag,
+		"listen":   listen,
+		"port":     port,
+		"protocol": "shadowsocks",
+		"settings": map[string]interface{}{
+			"method":   method,
+			"password": password,
+			"network":  network,
+			"clients":  clients,
+		},
+	}, nil
+}
+
+func (s *InboundService) buildXraySocksInbound(db *gorm.DB, inbound *model.Inbound) (map[string]interface{}, error) {
+	full, err := inbound.MarshalFull()
+	if err != nil {
+		return nil, err
+	}
+	listen, port, err := xrayListenAndPort(full, inbound.Tag)
+	if err != nil {
+		return nil, err
+	}
+
+	accounts, err := s.fetchXrayAccountClients(db, inbound.Id, "socks")
+	if err != nil {
+		return nil, err
+	}
+	settings := map[string]interface{}{
+		"udp": true,
+	}
+	if len(accounts) > 0 {
+		settings["auth"] = "password"
+		settings["accounts"] = accounts
+	} else {
+		settings["auth"] = "noauth"
+	}
+
+	return map[string]interface{}{
+		"tag":      inbound.Tag,
+		"listen":   listen,
+		"port":     port,
+		"protocol": "socks",
+		"settings": settings,
+	}, nil
+}
+
+func (s *InboundService) buildXrayHTTPInbound(db *gorm.DB, inbound *model.Inbound) (map[string]interface{}, error) {
+	full, err := inbound.MarshalFull()
+	if err != nil {
+		return nil, err
+	}
+	listen, port, err := xrayListenAndPort(full, inbound.Tag)
+	if err != nil {
+		return nil, err
+	}
+
+	accounts, err := s.fetchXrayAccountClients(db, inbound.Id, "http")
+	if err != nil {
+		return nil, err
+	}
+	settings := map[string]interface{}{}
+	if len(accounts) > 0 {
+		settings["accounts"] = accounts
+	}
+
+	return map[string]interface{}{
+		"tag":      inbound.Tag,
+		"listen":   listen,
+		"port":     port,
+		"protocol": "http",
+		"settings": settings,
+	}, nil
+}
+
 func (s *InboundService) fetchXrayVlessClients(db *gorm.DB, inboundId uint, network string) ([]map[string]interface{}, error) {
 	var users []struct {
 		Name   string
@@ -171,6 +361,127 @@ func (s *InboundService) fetchXrayVlessClients(db *gorm.DB, inboundId uint, netw
 		clients = append(clients, client)
 	}
 	return clients, nil
+}
+
+func (s *InboundService) fetchXrayVMessClients(db *gorm.DB, inboundId uint) ([]map[string]interface{}, error) {
+	users, err := fetchXrayClientConfigs(db, inboundId, "vmess")
+	if err != nil {
+		return nil, err
+	}
+
+	clients := make([]map[string]interface{}, 0, len(users))
+	for _, user := range users {
+		var cfg map[string]interface{}
+		if err := json.Unmarshal([]byte(user.Config), &cfg); err != nil {
+			return nil, err
+		}
+		uuid, _ := cfg["uuid"].(string)
+		if uuid == "" {
+			continue
+		}
+		client := map[string]interface{}{
+			"id":    uuid,
+			"email": user.Name,
+		}
+		clients = append(clients, client)
+	}
+	return clients, nil
+}
+
+func (s *InboundService) fetchXrayPasswordClients(db *gorm.DB, inboundId uint, protocol string) ([]map[string]interface{}, error) {
+	users, err := fetchXrayClientConfigs(db, inboundId, protocol)
+	if err != nil {
+		return nil, err
+	}
+
+	clients := make([]map[string]interface{}, 0, len(users))
+	for _, user := range users {
+		var cfg map[string]interface{}
+		if err := json.Unmarshal([]byte(user.Config), &cfg); err != nil {
+			return nil, err
+		}
+		password, _ := cfg["password"].(string)
+		if password == "" {
+			continue
+		}
+		clients = append(clients, map[string]interface{}{
+			"password": password,
+			"email":    user.Name,
+		})
+	}
+	return clients, nil
+}
+
+func (s *InboundService) fetchXrayShadowsocksClients(db *gorm.DB, inboundId uint, method string) ([]map[string]interface{}, error) {
+	protocol := "shadowsocks"
+	if method == "2022-blake3-aes-128-gcm" {
+		protocol = "shadowsocks16"
+	}
+	users, err := fetchXrayClientConfigs(db, inboundId, protocol)
+	if err != nil {
+		return nil, err
+	}
+
+	clients := make([]map[string]interface{}, 0, len(users))
+	for _, user := range users {
+		var cfg map[string]interface{}
+		if err := json.Unmarshal([]byte(user.Config), &cfg); err != nil {
+			return nil, err
+		}
+		password, _ := cfg["password"].(string)
+		if password == "" {
+			continue
+		}
+		client := map[string]interface{}{
+			"password": password,
+			"email":    user.Name,
+		}
+		if !strings.HasPrefix(method, "2022") {
+			client["method"] = method
+		}
+		clients = append(clients, client)
+	}
+	return clients, nil
+}
+
+func (s *InboundService) fetchXrayAccountClients(db *gorm.DB, inboundId uint, protocol string) ([]map[string]interface{}, error) {
+	users, err := fetchXrayClientConfigs(db, inboundId, protocol)
+	if err != nil {
+		return nil, err
+	}
+
+	accounts := make([]map[string]interface{}, 0, len(users))
+	for _, user := range users {
+		var cfg map[string]interface{}
+		if err := json.Unmarshal([]byte(user.Config), &cfg); err != nil {
+			return nil, err
+		}
+		username, _ := cfg["username"].(string)
+		password, _ := cfg["password"].(string)
+		if username == "" || password == "" {
+			continue
+		}
+		accounts = append(accounts, map[string]interface{}{
+			"user": username,
+			"pass": password,
+		})
+	}
+	return accounts, nil
+}
+
+type xrayClientConfigRow struct {
+	Name   string
+	Config string
+}
+
+func fetchXrayClientConfigs(db *gorm.DB, inboundId uint, protocol string) ([]xrayClientConfigRow, error) {
+	var users []xrayClientConfigRow
+	err := db.Raw(fmt.Sprintf(`SELECT name, json_extract(config, "$.%s") AS config
+		FROM clients
+		WHERE enable = true
+			AND json_extract(config, "$.%s") IS NOT NULL
+			AND ? IN (SELECT json_each.value FROM json_each(clients.inbounds))`, protocol, protocol), inboundId).Scan(&users).Error
+	return users, err
 }
 
 func buildXrayStreamSettings(inbound *model.Inbound, transport map[string]interface{}, network string) (map[string]interface{}, error) {
@@ -214,6 +525,36 @@ func buildXrayStreamSettings(inbound *model.Inbound, transport map[string]interf
 	}
 
 	return stream, nil
+}
+
+func xrayInboundBasics(inbound *model.Inbound, defaultNetwork string) (*map[string]interface{}, string, int, map[string]interface{}, string, error) {
+	full, err := inbound.MarshalFull()
+	if err != nil {
+		return nil, "", 0, nil, "", err
+	}
+	listen, port, err := xrayListenAndPort(full, inbound.Tag)
+	if err != nil {
+		return nil, "", 0, nil, "", err
+	}
+
+	transport, _ := (*full)["transport"].(map[string]interface{})
+	network := defaultNetwork
+	if tp, ok := transport["type"].(string); ok && tp != "" {
+		network = tp
+	}
+	return full, listen, port, transport, network, nil
+}
+
+func xrayListenAndPort(full *map[string]interface{}, tag string) (string, int, error) {
+	listen, _ := (*full)["listen"].(string)
+	if listen == "" {
+		listen = "0.0.0.0"
+	}
+	port := toInt((*full)["listen_port"])
+	if port == 0 {
+		return "", 0, common.NewErrorf("xray inbound <%s> missing listen_port", tag)
+	}
+	return listen, port, nil
 }
 
 func addXraySecurity(stream map[string]interface{}, tlsConfig *model.Tls) error {

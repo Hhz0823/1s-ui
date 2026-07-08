@@ -106,9 +106,12 @@ const themes = [
   { value: 'sunset', icon: 'mdi-weather-sunset' },
   { value: 'forest', icon: 'mdi-pine-tree' },
   { value: 'sakura', icon: 'mdi-flower' },
+  { value: 'daylight', icon: 'mdi-weather-sunny-alert' },
+  { value: 'mint', icon: 'mdi-leaf' },
   { value: 'cyberpunk', icon: 'mdi-robot' },
   { value: 'nord', icon: 'mdi-snowflake' },
   { value: 'dracula', icon: 'mdi-bat' },
+  { value: 'graphite', icon: 'mdi-circle-slice-8' },
   { value: 'system', icon: 'mdi-laptop' },
 ]
 

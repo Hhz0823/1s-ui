@@ -3,7 +3,15 @@ package cronjob
 import (
 	"time"
 
+	"github.com/Hhz0823/1s-ui/logger"
+
 	"github.com/robfig/cron/v3"
+)
+
+// cronParser accepts standard 5-field cron, optional leading seconds, and
+// descriptors such as @daily or @every 10s.
+var cronParser = cron.NewParser(
+	cron.SecondOptional | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
 )
 
 type CronJob struct {
@@ -14,15 +22,24 @@ func NewCronJob() *CronJob {
 	return &CronJob{}
 }
 
-func (c *CronJob) Start(loc *time.Location, trafficAge int) error {
-	c.cron = cron.New(cron.WithLocation(loc), cron.WithSeconds())
+func (c *CronJob) Start(loc *time.Location, trafficAge int, statsBucketSeconds int64, globalReset string) error {
+	c.cron = cron.New(cron.WithLocation(loc), cron.WithParser(cronParser))
 	c.cron.Start()
 
 	go func() {
 		// Start stats job
-		c.cron.AddJob("@every 10s", NewStatsJob(trafficAge > 0))
+		c.cron.AddJob("@every 10s", NewStatsJob(trafficAge > 0, statsBucketSeconds))
 		// Start expiry job
 		c.cron.AddJob("@every 1m", NewDepleteJob())
+		// Periodic global traffic reset, only when a valid cron spec is configured
+		if globalReset != "" && globalReset != "off" {
+			schedule, err := cronParser.Parse(globalReset)
+			if err != nil {
+				logger.Warning("invalid globalReset cron spec <", globalReset, ">: ", err)
+			} else {
+				c.cron.AddJob(globalReset, NewResetTrafficJob(schedule))
+			}
+		}
 		// Start deleting old stats
 		if trafficAge > 0 {
 			c.cron.AddJob("@daily", NewDelStatsJob(trafficAge))

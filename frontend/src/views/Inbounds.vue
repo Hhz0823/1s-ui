@@ -276,9 +276,12 @@ const coreOptions = computed(() => {
 
 watch(() => quickAdd.value.protocol, (val) => {
   quickAdd.value.hasPassword = val === 'shadowsocks'
-  quickAdd.value.hasMethod = val === 'shadowsocks'
+  quickAdd.value.hasMethod = val === 'shadowsocks' && quickAdd.value.core_type !== CoreTypes.Xray
   quickAdd.value.hasObfs = val === 'hysteria2'
   quickAdd.value.hasHandshake = val === 'shadowtls'
+  if (quickAdd.value.core_type === CoreTypes.Xray && val === 'shadowsocks') {
+    quickAdd.value.method = '2022-blake3-aes-256-gcm'
+  }
   regenerateQuickAdd()
 })
 
@@ -288,7 +291,14 @@ watch(() => quickAdd.value.core_type, (val) => {
     return
   }
   if (val === CoreTypes.Xray) {
-    quickAdd.value.protocol = 'vless'
+    const allowed = xrayProtocolOptions.some((item) => item.value === quickAdd.value.protocol)
+    if (!allowed) quickAdd.value.protocol = 'vless'
+    if (quickAdd.value.protocol === 'shadowsocks') {
+      quickAdd.value.method = '2022-blake3-aes-256-gcm'
+      quickAdd.value.hasMethod = false
+    }
+  } else {
+    quickAdd.value.hasMethod = quickAdd.value.protocol === 'shadowsocks'
   }
   regenerateQuickAdd()
 })
@@ -339,9 +349,18 @@ const singBoxProtocolOptions = [
   { title: 'Direct', value: 'direct' },
 ]
 
+const xrayProtocolOptions = [
+  { title: 'VLESS', value: 'vless' },
+  { title: 'VMess', value: 'vmess' },
+  { title: 'Trojan', value: 'trojan' },
+  { title: 'Shadowsocks', value: 'shadowsocks' },
+  { title: 'SOCKS', value: 'socks' },
+  { title: 'HTTP', value: 'http' },
+]
+
 const protocolOptions = computed(() => {
   if (quickAdd.value.core_type === CoreTypes.Xray) {
-    return [{ title: 'VLESS', value: 'vless' }]
+    return xrayProtocolOptions
   }
   return singBoxProtocolOptions
 })
@@ -459,6 +478,7 @@ const createQuickNode = async () => {
       return
     }
   }
+  const isXray = quickAdd.value.core_type === CoreTypes.Xray
   const inbound = createInbound(proto, {
     id: 0,
     core_type: quickAdd.value.core_type,
@@ -469,20 +489,22 @@ const createQuickNode = async () => {
 
   switch (proto) {
     case 'shadowsocks':
-      ;(inbound as any).method = quickAdd.value.method || '2022-blake3-aes-256-gcm'
-      ;(inbound as any).password = quickAdd.value.password
+      ;(inbound as any).method = isXray ? '2022-blake3-aes-256-gcm' : quickAdd.value.method || '2022-blake3-aes-256-gcm'
+      ;(inbound as any).password = quickAdd.value.password || randomPasswordForMethod((inbound as any).method)
       inbound.addrs = []
       inbound.out_json = {}
       break
     case 'vmess':
       ;(inbound as any).tls_id = tlsId
-      ;(inbound as any).transport = { type: 'http' }
+      ;(inbound as any).transport = isXray
+        ? { type: 'ws', path: '/', host: location.hostname }
+        : { type: 'http' }
       inbound.addrs = []
       inbound.out_json = {}
       break
     case 'vless':
       ;(inbound as any).tls_id = tlsId
-      ;(inbound as any).transport = quickAdd.value.core_type === CoreTypes.Xray
+      ;(inbound as any).transport = isXray
         ? { type: 'xhttp', path: '/xhttp', host: location.hostname, mode: 'auto' }
         : { type: 'http' }
       inbound.addrs = []
@@ -490,7 +512,9 @@ const createQuickNode = async () => {
       break
     case 'trojan':
       ;(inbound as any).tls_id = tlsId
-      ;(inbound as any).transport = { type: 'http' }
+      ;(inbound as any).transport = isXray
+        ? { type: 'ws', path: '/', host: location.hostname }
+        : { type: 'http' }
       inbound.addrs = []
       inbound.out_json = {}
       break
@@ -547,7 +571,7 @@ const createQuickNode = async () => {
         protoConfig.vmess = { name: clientName, uuid: uuid, alterId: 0 }
         break
       case 'vless':
-        protoConfig.vless = { name: clientName, uuid: uuid, flow: quickAdd.value.core_type === CoreTypes.Xray ? '' : 'xtls-rprx-vision' }
+        protoConfig.vless = { name: clientName, uuid: uuid, flow: isXray ? '' : 'xtls-rprx-vision' }
         break
       case 'trojan':
         protoConfig.trojan = { name: clientName, password: password }

@@ -73,18 +73,9 @@ func (s *ClashService) GetClash(subId string) (*string, []string, error) {
 		return nil, nil, err
 	}
 
-	links := s.LinkService.GetLinks(&client.Links, "external", "")
-	tagNumEnable := 0
-	if len(links) > 1 {
-		tagNumEnable = 1
-	}
-	for index, link := range links {
-		json, tag, err := util.GetOutbound(link, (index+1)*tagNumEnable)
-		if err == nil && len(tag) > 0 {
-			*outbounds = append(*outbounds, *json)
-			*outTags = append(*outTags, tag)
-		}
-	}
+	extOutbounds, extTags := s.LinkService.GetExternalOutbounds(&client.Links)
+	*outbounds = append(*outbounds, extOutbounds...)
+	*outTags = append(*outTags, extTags...)
 
 	basicConfig, err := s.getClashConfig()
 	if err != nil || len(basicConfig) == 0 {
@@ -222,9 +213,13 @@ func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, b
 		if isTls {
 			proxy["tls"] = tls["enabled"]
 
-			// ALPN if exists
-			if alpn, ok := tls["alpn"].([]interface{}); ok {
-				proxy["alpn"] = alpn
+			switch t {
+			case "hysteria", "hysteria2", "tuic":
+				proxy["alpn"] = []string{"h3"}
+			default:
+				if alpn, ok := tls["alpn"].([]interface{}); ok {
+					proxy["alpn"] = alpn
+				}
 			}
 
 			// Add reality if exists
@@ -254,6 +249,9 @@ func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, b
 			}
 			if insecure, ok := tls["insecure"].(bool); ok && insecure {
 				proxy["skip-cert-verify"] = insecure
+			}
+			if fp := util.CertSha256Hex(util.CertPEMFromTLS(tls)); fp != "" {
+				proxy["fingerprint"] = fp
 			}
 			// ech outbounds
 			if ech, ok := tls["ech"].(map[string]interface{}); ok && ech["enabled"].(bool) {
@@ -296,8 +294,29 @@ func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, b
 				if path, ok := transport["path"].(string); ok {
 					wsOpts["path"] = path
 				}
-				if headers, ok := transport["headers"].([]interface{}); ok {
-					wsOpts["headers"] = headers
+				wsHeaders := make(map[string]interface{})
+				if headers, ok := transport["headers"].(map[string]interface{}); ok {
+					for k, v := range headers {
+						if arr, ok := v.([]interface{}); ok {
+							if len(arr) > 0 {
+								wsHeaders[k] = arr[0]
+							}
+						} else {
+							wsHeaders[k] = v
+						}
+					}
+				}
+				if _, hasHost := wsHeaders["Host"]; !hasHost {
+					if host, ok := transport["host"].(string); ok && host != "" {
+						wsHeaders["Host"] = host
+					} else if isTls {
+						if sni, ok := tls["server_name"].(string); ok && sni != "" {
+							wsHeaders["Host"] = sni
+						}
+					}
+				}
+				if len(wsHeaders) > 0 {
+					wsOpts["headers"] = wsHeaders
 				}
 				if ed, ok := transport["early_data_header_name"].(string); ok {
 					wsOpts["early-data-header-name"] = ed
@@ -357,18 +376,9 @@ func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, b
 		proxyTags = append(proxyTags, obMap["tag"].(string))
 	}
 
-	var proxyGroups []map[string]interface{}
-	err := yaml.Unmarshal([]byte(ProxyGroups), &proxyGroups)
-	if err != nil {
-		logger.Error(err.Error())
-	}
-
-	proxyGroups[1]["proxies"] = proxyTags
-	proxyGroups[0]["proxies"] = append([]string{proxyGroups[1]["name"].(string)}, proxyTags...)
-
 	// Merge proxies and proxy groups if exist
 	var output map[string]interface{}
-	err = yaml.Unmarshal([]byte(basicConfig), &output)
+	err := yaml.Unmarshal([]byte(basicConfig), &output)
 	if err != nil {
 		logger.Error(err.Error())
 	}
@@ -379,10 +389,54 @@ func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, b
 		output["proxies"] = proxies
 	}
 
-	if pg, ok := output["proxy-groups"].([]interface{}); ok {
-		output["proxy-groups"] = append(pg, proxyGroups[0], proxyGroups[1])
-	} else {
-		output["proxy-groups"] = proxyGroups
+	pgSlice, _ := output["proxy-groups"].([]interface{})
+
+	noDefGrp, _ := s.SettingService.GetSubClashNoDefGrp()
+	sprtAll, _ := s.SettingService.GetSubClashSprtAll()
+
+	if !noDefGrp {
+		var proxyGroups []map[string]interface{}
+		if err := yaml.Unmarshal([]byte(ProxyGroups), &proxyGroups); err != nil {
+			return "", err
+		}
+		proxyGroups[1]["proxies"] = proxyTags
+		proxyGroups[0]["proxies"] = append([]string{proxyGroups[1]["name"].(string)}, proxyTags...)
+		if hasGroupNamed(pgSlice, "Auto") {
+			proxyGroups = proxyGroups[:1]
+			proxyGroups[0]["proxies"] = proxyTags
+		}
+		if pg, ok := output["proxy-groups"].([]interface{}); ok {
+			for _, item := range pg {
+				if g, ok := item.(map[string]interface{}); ok {
+					proxyGroups = append(proxyGroups, g)
+				}
+			}
+			output["proxy-groups"] = proxyGroups
+		} else {
+			output["proxy-groups"] = proxyGroups
+		}
+	}
+
+	if sprtAll {
+		if list, ok := output["proxy-groups"].([]map[string]interface{}); ok {
+			for _, group := range list {
+				proxies, ok := group["proxies"].([]interface{})
+				if !ok {
+					continue
+				}
+				newProxies := make([]interface{}, 0, len(proxies))
+				for _, p := range proxies {
+					if name, ok := p.(string); ok && strings.EqualFold(name, "all") {
+						for _, tag := range proxyTags {
+							newProxies = append(newProxies, tag)
+						}
+					} else {
+						newProxies = append(newProxies, p)
+					}
+				}
+				group["proxies"] = newProxies
+			}
+		}
 	}
 
 	result, err := yaml.Marshal(output)
@@ -390,4 +444,21 @@ func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, b
 		return "", err
 	}
 	return string(result), nil
+}
+
+func hasGroupNamed(pg interface{}, name string) bool {
+	list, ok := pg.([]interface{})
+	if !ok {
+		return false
+	}
+	for _, item := range list {
+		group, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if gname, ok := group["name"].(string); ok && gname == name {
+			return true
+		}
+	}
+	return false
 }

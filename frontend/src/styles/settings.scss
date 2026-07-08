@@ -451,6 +451,11 @@ body {
   opacity: 0.08;
 }
 
+.app-bg-preview {
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
 /* ===== Top Menu Mode ===== */
 .top-menu-bar {
   display: flex;
@@ -722,6 +727,85 @@ body,
   background: rgba(var(--v-theme-surface), 0.78) !important;
   border: 1px solid rgba(var(--v-theme-on-surface), 0.08) !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06) !important;
+}
+
+.ui-style--glass .app-page .v-card,
+.ui-style--glass .app-page .v-data-table,
+.ui-style--glass .v-dialog > .v-overlay__content > .v-card {
+  backdrop-filter: blur(16px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(160%) !important;
+}
+
+.ui-style--solid .app-bg-image {
+  display: none;
+}
+
+.ui-style--solid .app-page .v-card,
+.ui-style--solid .app-page .v-card[rounded],
+.ui-style--solid .app-page .v-card.rounded-xl,
+.ui-style--solid .app-page .v-card.rounded-lg,
+.ui-style--solid .app-page .v-data-table,
+.ui-style--solid .v-dialog > .v-overlay__content > .v-card {
+  background: rgb(var(--v-theme-surface)) !important;
+  border-color: rgba(var(--v-theme-on-surface), 0.1) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 10px 28px rgba(0, 0, 0, 0.08) !important;
+}
+
+.ui-style--clear .app-page .v-card,
+.ui-style--clear .app-page .v-card[rounded],
+.ui-style--clear .app-page .v-card.rounded-xl,
+.ui-style--clear .app-page .v-card.rounded-lg,
+.ui-style--clear .app-page .v-data-table {
+  background: rgba(var(--v-theme-surface), 0.58) !important;
+  border-color: rgba(var(--v-theme-on-surface), 0.12) !important;
+  backdrop-filter: blur(22px) saturate(175%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(175%) !important;
+}
+
+.ui-density--compact .app-page {
+  padding-top: 18px;
+}
+
+.ui-density--compact .app-page > .v-row {
+  margin: -6px !important;
+}
+
+.ui-density--compact .app-page > .v-row > .v-col {
+  padding: 6px !important;
+}
+
+.ui-density--compact .resource-card {
+  min-height: 196px;
+}
+
+.ui-density--compact .resource-card .v-card-title {
+  min-height: 38px;
+  padding: 10px 12px 2px !important;
+}
+
+.ui-density--compact .resource-card .v-card-subtitle {
+  padding: 0 12px 6px !important;
+}
+
+.ui-density--compact .resource-card__body {
+  gap: 4px;
+  padding: 10px 12px !important;
+}
+
+.ui-density--compact .resource-row {
+  min-height: 24px;
+}
+
+.ui-density--compact .resource-actions {
+  min-height: 38px;
+  padding: 4px 6px !important;
+}
+
+.ui-density--compact .resource-actions .v-btn {
+  width: 32px;
+  height: 32px;
 }
 
 .app-page .v-card:hover,

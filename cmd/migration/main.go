@@ -25,6 +25,11 @@ func MigrateDb() {
 		log.Fatal(err)
 		return
 	}
+	defer func() {
+		if sqlDB, e := db.DB(); e == nil {
+			_ = sqlDB.Close()
+		}
+	}()
 	tx := db.Begin()
 	defer func() {
 		if err == nil {
@@ -65,6 +70,14 @@ func MigrateDb() {
 		err = to1_3(tx)
 		if err != nil {
 			log.Fatal("Migration to 1.3 failed: ", err)
+			return
+		}
+	}
+
+	if dbVersion < "1.5.2" {
+		err = to1_5_2(tx)
+		if err != nil {
+			log.Fatal("Migration to 1.5.2 failed: ", err)
 			return
 		}
 	}

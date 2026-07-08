@@ -7,6 +7,7 @@ import (
 	"github.com/Hhz0823/1s-ui/database"
 	"github.com/Hhz0823/1s-ui/database/model"
 	"github.com/Hhz0823/1s-ui/logger"
+	"github.com/Hhz0823/1s-ui/util"
 	"github.com/Hhz0823/1s-ui/util/common"
 )
 
@@ -32,18 +33,22 @@ func (s *UserService) UpdateFirstUser(username string, password string) error {
 	} else if password == "" {
 		return common.NewError("password can not be empty")
 	}
+	hashedPass, err := util.HashPassword(password)
+	if err != nil {
+		return err
+	}
 	db := database.GetDB()
 	user := &model.User{}
-	err := db.Model(model.User{}).First(user).Error
+	err = db.Model(model.User{}).First(user).Error
 	if database.IsNotFound(err) {
 		user.Username = username
-		user.Password = password
+		user.Password = hashedPass
 		return db.Model(model.User{}).Create(user).Error
 	} else if err != nil {
 		return err
 	}
 	user.Username = username
-	user.Password = password
+	user.Password = hashedPass
 	return db.Save(user).Error
 }
 
@@ -60,7 +65,7 @@ func (s *UserService) CheckUser(username string, password string, remoteIP strin
 
 	user := &model.User{}
 	err := db.Model(model.User{}).
-		Where("username = ? and password = ?", username, password).
+		Where("username = ?", username).
 		First(user).
 		Error
 	if database.IsNotFound(err) {
@@ -68,6 +73,20 @@ func (s *UserService) CheckUser(username string, password string, remoteIP strin
 	} else if err != nil {
 		logger.Warning("check user err:", err, " IP: ", remoteIP)
 		return nil
+	}
+
+	if !util.CheckPassword(password, user.Password) {
+		return nil
+	}
+
+	if !util.IsHashedPassword(user.Password) {
+		if hashedPass, err := util.HashPassword(password); err == nil {
+			if err := db.Model(model.User{}).Where("id = ?", user.Id).Update("password", hashedPass).Error; err != nil {
+				logger.Warning("unable to upgrade stored password", err)
+			} else {
+				user.Password = hashedPass
+			}
+		}
 	}
 
 	lastLoginTxt := time.Now().Format("2006-01-02 15:04:05") + " " + remoteIP
@@ -93,12 +112,19 @@ func (s *UserService) GetUsers() (*[]model.User, error) {
 func (s *UserService) ChangePass(id string, oldPass string, newUser string, newPass string) error {
 	db := database.GetDB()
 	user := &model.User{}
-	err := db.Model(model.User{}).Where("id = ? AND password = ?", id, oldPass).First(user).Error
+	err := db.Model(model.User{}).Where("id = ?", id).First(user).Error
 	if err != nil || database.IsNotFound(err) {
 		return err
 	}
+	if !util.CheckPassword(oldPass, user.Password) {
+		return common.NewError("wrong password")
+	}
+	hashedPass, err := util.HashPassword(newPass)
+	if err != nil {
+		return err
+	}
 	user.Username = newUser
-	user.Password = newPass
+	user.Password = hashedPass
 	return db.Save(user).Error
 }
 
