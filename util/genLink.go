@@ -458,7 +458,7 @@ func xrayVlessLink(
 		copy(params, baseParams)
 		if tls, ok := addr["tls"].(map[string]interface{}); ok {
 			if enabled, _ := tls["enabled"].(bool); enabled {
-				getTlsParams(&params, tls, "allowInsecure")
+				getXrayTlsParams(&params, tls, "allowInsecure")
 				if isTcpTransport(params) {
 					if flow, ok := userConfig["flow"].(string); ok {
 						params = append(params, LinkParam{"flow", flow})
@@ -489,7 +489,7 @@ func xrayTrojanLink(
 		copy(params, baseParams)
 		if tls, ok := addr["tls"].(map[string]interface{}); ok {
 			if enabled, _ := tls["enabled"].(bool); enabled {
-				getTlsParams(&params, tls, "allowInsecure")
+				getXrayTlsParams(&params, tls, "allowInsecure")
 			}
 		}
 		port, _ := addr["server_port"].(float64)
@@ -581,7 +581,7 @@ func xrayVmessLink(
 		port, _ := addr["server_port"].(float64)
 		obj["port"] = fmt.Sprintf("%.0f", port)
 		obj["ps"], _ = addr["remark"].(string)
-		populateVmessTlsParams(obj, addr["tls"])
+		populateXrayVmessTlsParams(obj, addr["tls"])
 
 		jsonStr, _ := json.Marshal(obj)
 
@@ -674,6 +674,32 @@ func populateVmessTlsParams(obj map[string]interface{}, tlsConfig interface{}) {
 			case "alpn":
 				obj["alpn"] = p.Value
 			case "pcs":
+				obj["pcs"] = p.Value
+			}
+		}
+	} else {
+		obj["tls"] = "none"
+	}
+}
+
+func populateXrayVmessTlsParams(obj map[string]interface{}, tlsConfig interface{}) {
+	if tlsMap, ok := tlsConfig.(map[string]interface{}); ok && tlsMap["enabled"].(bool) {
+		obj["tls"] = "tls"
+		var tlsParams []LinkParam
+		getXrayTlsParams(&tlsParams, tlsMap, "allowInsecure")
+		for _, p := range tlsParams {
+			switch p.Key {
+			case "security":
+			case "allowInsecure":
+				obj["allowInsecure"] = 1
+			case "sni":
+				obj["sni"] = p.Value
+			case "fp":
+				obj["fp"] = p.Value
+			case "alpn":
+				obj["alpn"] = p.Value
+			case "pinSHA256":
+				obj["pinSHA256"] = p.Value
 				obj["pcs"] = p.Value
 			}
 		}
@@ -835,6 +861,33 @@ func getTlsParams(params *[]LinkParam, tls map[string]interface{}, insecureKey s
 	if pcs := getPinnedPeerCertSha256(tls); pcs != "" {
 		*params = append(*params, LinkParam{"pcs", pcs})
 	}
+}
+
+func getXrayTlsParams(params *[]LinkParam, tls map[string]interface{}, insecureKey string) {
+	var rawParams []LinkParam
+	getTlsParams(&rawParams, tls, insecureKey)
+	for _, p := range rawParams {
+		if p.Key == "pcs" {
+			if pin := xrayPinSHA256ForLink(p.Value); pin != "" {
+				*params = append(*params, LinkParam{"pinSHA256", pin})
+			}
+			continue
+		}
+		*params = append(*params, p)
+	}
+	if pin, ok := tls["pinSHA256"].(string); ok {
+		if normalized := xrayPinSHA256ForLink(pin); normalized != "" {
+			*params = append(*params, LinkParam{"pinSHA256", normalized})
+		}
+	}
+}
+
+func xrayPinSHA256ForLink(value string) string {
+	converted := pinnedPeerCertSha256ForLink(value)
+	if _, normalized, ok := decodePinnedPeerCertSha256Hex(converted); ok {
+		return normalized
+	}
+	return ""
 }
 
 func getPinnedPeerCertSha256(tls map[string]interface{}) string {
