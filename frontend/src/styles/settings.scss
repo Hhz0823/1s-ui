@@ -1040,6 +1040,7 @@ body,
   inset: 0;
   overflow: hidden !important;
   clip-path: inset(0 round var(--app-current-radius));
+  pointer-events: none !important;
 }
 
 .v-btn-toggle {
@@ -1095,6 +1096,7 @@ body,
   inset: 0;
   overflow: hidden !important;
   clip-path: inset(0 round var(--app-current-radius));
+  pointer-events: none !important;
 }
 
 .v-overlay__content,
@@ -1136,6 +1138,7 @@ body,
   inset: 0;
   overflow: hidden !important;
   clip-path: inset(0 round var(--app-current-radius));
+  pointer-events: none !important;
 }
 
 .v-list-item--active,

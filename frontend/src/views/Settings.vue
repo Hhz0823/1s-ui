@@ -100,6 +100,9 @@
             <v-select
               v-model="menuPositionModel"
               :items="menuPositionOptions"
+              item-title="title"
+              item-value="value"
+              :return-object="false"
               :label="$t('setting.menuPosition')"
               hide-details
             ></v-select>
@@ -108,6 +111,9 @@
             <v-select
               v-model="uiStyleModel"
               :items="uiStyleOptions"
+              item-title="title"
+              item-value="value"
+              :return-object="false"
               :label="$t('setting.uiStyle')"
               hide-details
             ></v-select>
@@ -116,6 +122,9 @@
             <v-select
               v-model="uiDensityModel"
               :items="uiDensityOptions"
+              item-title="title"
+              item-value="value"
+              :return-object="false"
               :label="$t('setting.uiDensity')"
               hide-details
             ></v-select>
@@ -124,6 +133,9 @@
             <v-select
               v-model="bgPresetModel"
               :items="bgPresetOptions"
+              item-title="title"
+              item-value="value"
+              :return-object="false"
               :label="$t('setting.bgPreset')"
               hide-details
             ></v-select>
@@ -155,6 +167,9 @@
             <v-select
               v-model="bgFitModel"
               :items="bgFitOptions"
+              item-title="title"
+              item-value="value"
+              :return-object="false"
               :label="$t('setting.bgFit')"
               hide-details
             ></v-select>
@@ -163,6 +178,9 @@
             <v-select
               v-model="bgPositionModel"
               :items="bgPositionOptions"
+              item-title="title"
+              item-value="value"
+              :return-object="false"
               :label="$t('setting.bgPosition')"
               hide-details
             ></v-select>
@@ -365,31 +383,53 @@ type UiPrefs = {
   bgPosition: string
 }
 
+const uiPrefChoices = {
+  menuPosition: ['side', 'top'],
+  uiStyle: ['glass', 'solid', 'clear'],
+  uiDensity: ['comfortable', 'compact'],
+  bgPreset: ['default', 'none', 'custom'],
+  bgFit: ['cover', 'contain', 'auto'],
+  bgPosition: ['center', 'center top', 'center bottom'],
+} as const
+
+const uiPrefValue = (value: unknown) => {
+  if (value && typeof value === 'object' && 'value' in value) {
+    return String((value as { value?: unknown }).value ?? '')
+  }
+  return String(value ?? '')
+}
+
+const normalizeUiChoice = (value: unknown, fallback: string, choices: readonly string[]) => {
+  const next = uiPrefValue(value)
+  return choices.includes(next) ? next : fallback
+}
+
 const readUiPrefs = (): UiPrefs => ({
-  menuPosition: localStorage.getItem('menuPosition') || 'side',
-  uiStyle: localStorage.getItem('uiStyle') || 'glass',
-  uiDensity: localStorage.getItem('uiDensity') || 'comfortable',
-  bgPreset: localStorage.getItem('bgPreset') || (localStorage.getItem('bgImage') ? 'custom' : 'default'),
+  menuPosition: normalizeUiChoice(localStorage.getItem('menuPosition'), 'side', uiPrefChoices.menuPosition),
+  uiStyle: normalizeUiChoice(localStorage.getItem('uiStyle'), 'glass', uiPrefChoices.uiStyle),
+  uiDensity: normalizeUiChoice(localStorage.getItem('uiDensity'), 'comfortable', uiPrefChoices.uiDensity),
+  bgPreset: normalizeUiChoice(localStorage.getItem('bgPreset'), localStorage.getItem('bgImage') ? 'custom' : 'default', uiPrefChoices.bgPreset),
   bgImage: localStorage.getItem('bgImage') || '',
   bgBlur: localStorage.getItem('bgBlur') || '6',
   bgOpacity: localStorage.getItem('bgOpacity') || '40',
   bgSaturate: localStorage.getItem('bgSaturate') || '1.3',
-  bgFit: localStorage.getItem('bgFit') || 'cover',
-  bgPosition: localStorage.getItem('bgPosition') || 'center',
+  bgFit: normalizeUiChoice(localStorage.getItem('bgFit'), 'cover', uiPrefChoices.bgFit),
+  bgPosition: normalizeUiChoice(localStorage.getItem('bgPosition'), 'center', uiPrefChoices.bgPosition),
 })
 
 const uiPrefs = ref<UiPrefs>(readUiPrefs())
 
-const setUiPref = (key: keyof UiPrefs, value: string) => {
-  uiPrefs.value = { ...uiPrefs.value, [key]: value }
-  if (value) localStorage.setItem(key, value)
+const setUiPref = (key: keyof UiPrefs, value: unknown) => {
+  const next = uiPrefValue(value)
+  uiPrefs.value = { ...uiPrefs.value, [key]: next }
+  if (next) localStorage.setItem(key, next)
   else localStorage.removeItem(key)
   notifyUiPrefs()
 }
 
 const menuPositionModel = computed({
   get: () => uiPrefs.value.menuPosition,
-  set: (v: string) => { setUiPref('menuPosition', v); location.reload() }
+  set: (v: unknown) => setUiPref('menuPosition', normalizeUiChoice(v, 'side', uiPrefChoices.menuPosition))
 })
 const menuPositionOptions = [
   { title: i18n.global.t('setting.menuSide'), value: 'side' },
@@ -397,7 +437,7 @@ const menuPositionOptions = [
 ]
 const uiStyleModel = computed({
   get: () => uiPrefs.value.uiStyle,
-  set: (v: string) => setUiPref('uiStyle', v)
+  set: (v: unknown) => setUiPref('uiStyle', normalizeUiChoice(v, 'glass', uiPrefChoices.uiStyle))
 })
 const uiStyleOptions = [
   { title: i18n.global.t('setting.uiStyleGlass'), value: 'glass' },
@@ -406,7 +446,7 @@ const uiStyleOptions = [
 ]
 const uiDensityModel = computed({
   get: () => uiPrefs.value.uiDensity,
-  set: (v: string) => setUiPref('uiDensity', v)
+  set: (v: unknown) => setUiPref('uiDensity', normalizeUiChoice(v, 'comfortable', uiPrefChoices.uiDensity))
 })
 const uiDensityOptions = [
   { title: i18n.global.t('setting.uiDensityComfortable'), value: 'comfortable' },
@@ -414,7 +454,7 @@ const uiDensityOptions = [
 ]
 const bgPresetModel = computed({
   get: () => uiPrefs.value.bgPreset,
-  set: (v: string) => setUiPref('bgPreset', v)
+  set: (v: unknown) => setUiPref('bgPreset', normalizeUiChoice(v, 'default', uiPrefChoices.bgPreset))
 })
 const bgPresetOptions = [
   { title: i18n.global.t('setting.bgPresetDefault'), value: 'default' },
@@ -442,7 +482,7 @@ const bgSaturateModel = computed({
 })
 const bgFitModel = computed({
   get: () => uiPrefs.value.bgFit,
-  set: (v: string) => setUiPref('bgFit', v)
+  set: (v: unknown) => setUiPref('bgFit', normalizeUiChoice(v, 'cover', uiPrefChoices.bgFit))
 })
 const bgFitOptions = [
   { title: i18n.global.t('setting.bgFitCover'), value: 'cover' },
@@ -451,7 +491,7 @@ const bgFitOptions = [
 ]
 const bgPositionModel = computed({
   get: () => uiPrefs.value.bgPosition,
-  set: (v: string) => setUiPref('bgPosition', v)
+  set: (v: unknown) => setUiPref('bgPosition', normalizeUiChoice(v, 'center', uiPrefChoices.bgPosition))
 })
 const bgPositionOptions = [
   { title: i18n.global.t('setting.bgPositionCenter'), value: 'center' },
@@ -473,7 +513,7 @@ const handleBgFile = (value: File | File[] | undefined) => {
   reader.readAsDataURL(file)
 }
 const resetUiPrefs = () => {
-  ;['bgPreset', 'bgImage', 'bgBlur', 'bgOpacity', 'bgSaturate', 'bgFit', 'bgPosition', 'uiStyle', 'uiDensity'].forEach((key) => {
+  ;['menuPosition', 'bgPreset', 'bgImage', 'bgBlur', 'bgOpacity', 'bgSaturate', 'bgFit', 'bgPosition', 'uiStyle', 'uiDensity'].forEach((key) => {
     localStorage.removeItem(key)
   })
   uiPrefs.value = readUiPrefs()

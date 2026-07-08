@@ -74,16 +74,20 @@ const isMobile = computed((): boolean => {
 })
 
 const uiPreferenceEvent = 'ui-preferences-changed'
+const normalizeUiChoice = (value: string | null, fallback: string, choices: readonly string[]) => {
+  return value && choices.includes(value) ? value : fallback
+}
 const readUiPrefs = () => ({
-  bgPreset: localStorage.getItem('bgPreset') || (localStorage.getItem('bgImage') ? 'custom' : 'default'),
+  menuPosition: normalizeUiChoice(localStorage.getItem('menuPosition'), 'side', ['side', 'top']),
+  bgPreset: normalizeUiChoice(localStorage.getItem('bgPreset'), localStorage.getItem('bgImage') ? 'custom' : 'default', ['default', 'none', 'custom']),
   bgImage: localStorage.getItem('bgImage') || '',
   bgBlur: localStorage.getItem('bgBlur') || '6',
   bgOpacity: localStorage.getItem('bgOpacity') || '40',
   bgSaturate: localStorage.getItem('bgSaturate') || '1.3',
-  bgFit: localStorage.getItem('bgFit') || 'cover',
-  bgPosition: localStorage.getItem('bgPosition') || 'center',
-  uiStyle: localStorage.getItem('uiStyle') || 'glass',
-  uiDensity: localStorage.getItem('uiDensity') || 'comfortable',
+  bgFit: normalizeUiChoice(localStorage.getItem('bgFit'), 'cover', ['cover', 'contain', 'auto']),
+  bgPosition: normalizeUiChoice(localStorage.getItem('bgPosition'), 'center', ['center', 'center top', 'center bottom']),
+  uiStyle: normalizeUiChoice(localStorage.getItem('uiStyle'), 'glass', ['glass', 'solid', 'clear']),
+  uiDensity: normalizeUiChoice(localStorage.getItem('uiDensity'), 'comfortable', ['comfortable', 'compact']),
 })
 const uiPrefs = ref(readUiPrefs())
 const refreshUiPrefs = () => {
@@ -111,7 +115,7 @@ const bgFit = computed(() => uiPrefs.value.bgFit)
 const bgPosition = computed(() => uiPrefs.value.bgPosition)
 const uiStyle = computed(() => uiPrefs.value.uiStyle)
 const uiDensity = computed(() => uiPrefs.value.uiDensity)
-const menuPosition = computed(() => localStorage.getItem('menuPosition') || 'side')
+const menuPosition = computed(() => uiPrefs.value.menuPosition)
 
 watch([smAndDown, menuPosition], ([mobile, position]) => {
   drawerOpen.value = !mobile && position !== 'top'
