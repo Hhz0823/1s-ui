@@ -131,10 +131,17 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 			c.Redirect(http.StatusTemporaryRedirect, base_url)
 			return
 		}
+		setIndexNoCache(c)
 		c.HTML(http.StatusOK, "index.html", gin.H{"BASE_URL": base_url})
 	})
 
 	return engine, nil
+}
+
+func setIndexNoCache(c *gin.Context) {
+	c.Header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+	c.Header("Pragma", "no-cache")
+	c.Header("Expires", "0")
 }
 
 func getWebFiles() (fs.FS, string, fs.FS, error) {
