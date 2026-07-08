@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"net/http"
 	"os"
 	"os/exec"
 	"runtime"
@@ -530,55 +531,109 @@ func (a *ApiService) SetSysctl(c *gin.Context) {
 	}
 
 	var results []string
+	var failures []string
+	algoApplied := false
+	qdiscApplied := qdisc == ""
 
-	// Set congestion control algorithm
 	if algo != "" {
-		cmd := exec.Command("sysctl", "-w", "net.ipv4.tcp_congestion_control="+algo)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			logger.Warning("set congestion_control failed:", err, string(out))
-			results = append(results, "WARNING: "+strings.TrimSpace(string(out)))
-		} else {
-			results = append(results, strings.TrimSpace(string(out)))
-		}
+		tryLoadKernelModule("tcp_" + algo)
 
-		// Ensure the algo is in available list
-		availCmd := exec.Command("sysctl", "-n", "net.ipv4.tcp_available_congestion_control")
-		availOut, availErr := availCmd.CombinedOutput()
-		if availErr == nil {
-			available := strings.TrimSpace(string(availOut))
-			if !strings.Contains(available, algo) {
-				addCmd := exec.Command("sysctl", "-w", "net.ipv4.tcp_available_congestion_control="+available+" "+algo)
-				addOut, addErr := addCmd.CombinedOutput()
-				if addErr == nil {
-					results = append(results, strings.TrimSpace(string(addOut)))
-				}
-			}
+		available, out, err := readSysctl("net.ipv4.tcp_available_congestion_control")
+		if err != nil {
+			msg := "当前系统不支持通过 sysctl 设置 TCP 拥塞控制: " + commandMessage(out, err)
+			logger.Warning(msg)
+			failures = append(failures, msg)
+			results = append(results, "失败: "+msg)
+		} else if !sysctlListHas(available, algo) {
+			msg := "当前内核不支持 " + algo + "，可用算法: " + available
+			failures = append(failures, msg)
+			results = append(results, "失败: "+msg)
+		} else if out, err := writeSysctl("net.ipv4.tcp_congestion_control", algo); err != nil {
+			msg := "设置 TCP 拥塞控制失败: " + commandMessage(out, err)
+			logger.Warning(msg)
+			failures = append(failures, msg)
+			results = append(results, "失败: "+msg)
+		} else {
+			algoApplied = true
+			results = append(results, strings.TrimSpace(string(out)))
 		}
 	}
 
-	// Set queue discipline
 	if qdisc != "" {
-		cmd := exec.Command("sysctl", "-w", "net.core.default_qdisc="+qdisc)
-		out, err := cmd.CombinedOutput()
+		if qdisc == "cake" {
+			tryLoadKernelModule("sch_cake")
+		}
+		out, err := writeSysctl("net.core.default_qdisc", qdisc)
 		if err != nil {
-			logger.Warning("set default_qdisc failed:", err, string(out))
-			results = append(results, "WARNING: "+strings.TrimSpace(string(out)))
+			msg := "设置队列调度失败: " + commandMessage(out, err)
+			logger.Warning(msg)
+			failures = append(failures, msg)
+			results = append(results, "失败: "+msg)
 		} else {
+			qdiscApplied = true
 			results = append(results, strings.TrimSpace(string(out)))
 		}
 	}
 
-	// Save settings
 	db := database.GetDB()
-	db.Exec("DELETE FROM settings WHERE key = ?", "congestionAlgo")
-	if algo != "" {
+	if algoApplied {
+		db.Exec("DELETE FROM settings WHERE key = ?", "congestionAlgo")
 		db.Exec("INSERT INTO settings (key, value) VALUES (?, ?)", "congestionAlgo", algo)
 	}
-	db.Exec("DELETE FROM settings WHERE key = ?", "qdisc")
-	if qdisc != "" {
-		db.Exec("INSERT INTO settings (key, value) VALUES (?, ?)", "qdisc", qdisc)
+	if qdiscApplied {
+		db.Exec("DELETE FROM settings WHERE key = ?", "qdisc")
+		if qdisc != "" {
+			db.Exec("INSERT INTO settings (key, value) VALUES (?, ?)", "qdisc", qdisc)
+		}
+	}
+
+	if len(failures) > 0 {
+		c.JSON(http.StatusOK, Msg{
+			Success: false,
+			Msg:     strings.Join(failures, "\n"),
+			Obj:     results,
+		})
+		return
 	}
 
 	jsonObj(c, results, nil)
+}
+
+func readSysctl(key string) (string, []byte, error) {
+	out, err := exec.Command("sysctl", "-n", key).CombinedOutput()
+	return strings.TrimSpace(string(out)), out, err
+}
+
+func writeSysctl(key string, value string) ([]byte, error) {
+	return exec.Command("sysctl", "-w", key+"="+value).CombinedOutput()
+}
+
+func commandMessage(out []byte, err error) string {
+	msg := strings.TrimSpace(string(out))
+	if msg != "" {
+		return msg
+	}
+	if err != nil {
+		return err.Error()
+	}
+	return "unknown error"
+}
+
+func sysctlListHas(list string, value string) bool {
+	for _, item := range strings.Fields(list) {
+		if item == value {
+			return true
+		}
+	}
+	return false
+}
+
+func tryLoadKernelModule(module string) {
+	module = strings.TrimSpace(module)
+	if module == "" {
+		return
+	}
+	if err := exec.Command("modprobe", module).Run(); err != nil {
+		logger.Debug("modprobe ", module, " skipped: ", err)
+	}
 }

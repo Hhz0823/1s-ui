@@ -760,8 +760,9 @@ const applyCongestion = async () => {
     settings.value.congestionAlgo = algo
     settings.value.qdisc = qdiscVal
   } else {
-    sysctlResult.value = msg.msg || 'Failed'
+    sysctlResult.value = i18n.global.t('failed') || 'Failed'
     sysctlError.value = true
+    sysctlMessages.value = Array.isArray(msg.obj) ? msg.obj : (msg.msg ? msg.msg.split('\n') : [])
   }
 }
 </script>
