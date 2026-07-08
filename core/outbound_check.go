@@ -22,8 +22,16 @@ func CheckOutbound(ctx context.Context, tag string, link string) (result CheckOu
 	}
 	ob, ok := outbound_manager.Outbound(tag)
 	if !ok {
-		result.Error = "outbound not found"
-		return result
+		if endpoint_manager == nil {
+			result.Error = "outbound or endpoint not found"
+			return result
+		}
+		ep, epOk := endpoint_manager.Get(tag)
+		if !epOk {
+			result.Error = "outbound or endpoint not found"
+			return result
+		}
+		ob = ep
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, checkTimeout)

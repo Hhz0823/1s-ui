@@ -54,7 +54,7 @@
         variant="outlined"
         :loading="testingAll"
         append-icon="mdi-speedometer"
-        :disabled="testingAll || outbounds.length === 0"
+        :disabled="testingAll || checkableTags.length === 0"
         @click="checkAllOutbounds"
       >
         {{ $t('actions.testAll') || 'Test all' }}
@@ -199,6 +199,41 @@
               <template v-else>-</template>
             </v-col>
           </v-row>
+          <v-row>
+            <v-col>{{ $t('out.delay') }}</v-col>
+            <v-col>
+              <v-progress-circular
+                v-if="checkResults[item.tag]?.loading"
+                indeterminate
+                size="20"
+              />
+              <v-icon
+                icon="mdi-speedometer"
+                v-else
+                @click="checkOutbound(item.tag)"
+              >
+                <v-tooltip activator="parent" location="top" :text="$t('actions.test')"></v-tooltip>
+              </v-icon>
+              <template v-if="checkResults[item.tag]?.loading == false">
+                <template v-if="checkResults[item.tag]">
+                  <v-chip
+                    v-if="checkResults[item.tag].success"
+                    density="compact"
+                    size="small"
+                    color="success"
+                    variant="flat"
+                  >
+                    {{ checkResults[item.tag].data?.Delay + $t('date.ms') }}
+                  </v-chip>
+                  <v-tooltip v-else location="top" :text="checkResults[item.tag].errorMessage || $t('failed')">
+                    <template v-slot:activator="{ props }">
+                      <v-icon v-bind="props" size="small" color="error" icon="mdi-close-circle" />
+                    </template>
+                  </v-tooltip>
+                </template>
+              </template>
+            </v-col>
+          </v-row>
         </v-card-text>
         <v-divider></v-divider>
         <v-card-actions>
@@ -268,12 +303,19 @@ const checkOutbound = async (tag: string) => {
 
 const testingAll = ref(false)
 
+const checkableTags = computed(() => {
+  return [
+    ...outbounds.value.map((o) => o.tag),
+    ...warpEndpoints.value.map((e: any) => e.tag),
+  ].filter(Boolean)
+})
+
 const checkAllOutbounds = async () => {
-  const list = outbounds.value
-  if (list.length === 0) return
+  const tags = checkableTags.value
+  if (tags.length === 0) return
   testingAll.value = true
   try {
-    await Promise.all(list.map((o) => checkOutbound(o.tag)))
+    await Promise.all(tags.map((tag) => checkOutbound(tag)))
   } finally {
     testingAll.value = false
   }
