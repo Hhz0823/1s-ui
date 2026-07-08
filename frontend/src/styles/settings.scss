@@ -1015,51 +1015,102 @@ body,
 }
 
 /* ===== Rounded Surface Clipping ===== */
-.v-btn .v-btn__overlay,
-.v-btn .v-btn__underlay,
-.v-btn .v-ripple__container {
-  border-radius: inherit !important;
+.v-application {
+  --app-control-radius: 10px;
+  --app-control-radius-lg: 12px;
+  --app-overlay-radius: 14px;
+  --app-list-item-radius: 8px;
 }
 
 .v-btn {
-  border-radius: 12px !important;
-  background-clip: padding-box;
+  --app-current-radius: var(--app-control-radius);
+  border-radius: var(--app-current-radius) !important;
+  background-clip: padding-box !important;
+  isolation: isolate;
+  overflow: hidden !important;
+}
+
+.v-btn::before,
+.v-btn::after,
+.v-btn .v-btn__overlay,
+.v-btn .v-btn__underlay,
+.v-btn .v-btn__loader,
+.v-btn .v-ripple__container {
+  border-radius: inherit !important;
+  inset: 0;
+  overflow: hidden !important;
+  clip-path: inset(0 round var(--app-current-radius));
+}
+
+.v-btn-toggle {
+  --app-toggle-radius: var(--app-control-radius-lg);
+  border-radius: var(--app-toggle-radius) !important;
+  background-clip: padding-box !important;
+  isolation: isolate;
+  overflow: hidden !important;
+}
+
+.v-btn-toggle > .v-btn {
+  --app-current-radius: 0;
+  border-radius: 0 !important;
+  clip-path: none;
+}
+
+.v-btn-toggle > .v-btn:first-child {
+  border-start-start-radius: var(--app-toggle-radius) !important;
+  border-end-start-radius: var(--app-toggle-radius) !important;
+}
+
+.v-btn-toggle > .v-btn:last-child {
+  border-start-end-radius: var(--app-toggle-radius) !important;
+  border-end-end-radius: var(--app-toggle-radius) !important;
+}
+
+.v-btn-toggle > .v-btn:only-child {
+  --app-current-radius: var(--app-toggle-radius);
+  border-radius: var(--app-toggle-radius) !important;
+}
+
+.v-field {
+  --app-current-radius: var(--app-control-radius);
+  border-radius: var(--app-current-radius) !important;
+  background-clip: padding-box !important;
   isolation: isolate;
   overflow: hidden !important;
 }
 
 .v-field,
+.v-field .v-field__field,
 .v-field .v-field__overlay,
 .v-field .v-field__outline,
 .v-field .v-field__loader,
+.v-field .v-field__append-inner,
+.v-field .v-field__prepend-inner,
 .v-input__control {
   border-radius: inherit !important;
 }
 
-.v-field {
-  background-clip: padding-box;
-  overflow: hidden !important;
-}
-
-.v-field .v-field__overlay {
+.v-field .v-field__overlay,
+.v-field .v-field__loader {
   inset: 0;
+  overflow: hidden !important;
+  clip-path: inset(0 round var(--app-current-radius));
 }
 
 .v-overlay__content,
-.v-overlay__content > .v-card,
-.v-overlay__content > .v-list {
-  border-radius: 14px !important;
-}
-
 .v-overlay__content > .v-card,
 .v-overlay__content > .v-list,
 .v-select__content,
 .v-autocomplete__content,
 .v-combobox__content {
-  background-clip: padding-box;
+  --app-current-radius: var(--app-overlay-radius);
+  border-radius: var(--app-current-radius) !important;
+  background-clip: padding-box !important;
+  isolation: isolate;
   overflow: hidden !important;
 }
 
+.v-overlay__content > .v-list,
 .v-select__content .v-list,
 .v-autocomplete__content .v-list,
 .v-combobox__content .v-list {
@@ -1068,16 +1119,23 @@ body,
   overflow: hidden auto !important;
 }
 
-.v-list-item,
-.v-list-item .v-list-item__overlay,
-.v-list-item .v-list-item__underlay,
-.v-ripple__container {
-  border-radius: inherit !important;
+.v-list-item {
+  --app-current-radius: var(--app-list-item-radius);
+  border-radius: var(--app-current-radius) !important;
+  background-clip: padding-box !important;
+  isolation: isolate;
+  overflow: hidden !important;
 }
 
-.v-list-item {
-  background-clip: padding-box;
+.v-list-item::before,
+.v-list-item::after,
+.v-list-item .v-list-item__overlay,
+.v-list-item .v-list-item__underlay,
+.v-list-item .v-ripple__container {
+  border-radius: inherit !important;
+  inset: 0;
   overflow: hidden !important;
+  clip-path: inset(0 round var(--app-current-radius));
 }
 
 .v-list-item--active,
@@ -1086,5 +1144,6 @@ body,
 }
 
 .v-dialog > .v-overlay__content > .v-card {
-  border-radius: 14px !important;
+  --app-current-radius: var(--app-overlay-radius);
+  border-radius: var(--app-current-radius) !important;
 }
