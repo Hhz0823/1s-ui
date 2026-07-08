@@ -351,22 +351,52 @@ const tab = ref("t1")
 
 const uiPreferenceEvent = 'ui-preferences-changed'
 const notifyUiPrefs = () => window.dispatchEvent(new Event(uiPreferenceEvent))
-const setUiPref = (key: string, value: string) => {
+
+type UiPrefs = {
+  menuPosition: string
+  uiStyle: string
+  uiDensity: string
+  bgPreset: string
+  bgImage: string
+  bgBlur: string
+  bgOpacity: string
+  bgSaturate: string
+  bgFit: string
+  bgPosition: string
+}
+
+const readUiPrefs = (): UiPrefs => ({
+  menuPosition: localStorage.getItem('menuPosition') || 'side',
+  uiStyle: localStorage.getItem('uiStyle') || 'glass',
+  uiDensity: localStorage.getItem('uiDensity') || 'comfortable',
+  bgPreset: localStorage.getItem('bgPreset') || (localStorage.getItem('bgImage') ? 'custom' : 'default'),
+  bgImage: localStorage.getItem('bgImage') || '',
+  bgBlur: localStorage.getItem('bgBlur') || '6',
+  bgOpacity: localStorage.getItem('bgOpacity') || '40',
+  bgSaturate: localStorage.getItem('bgSaturate') || '1.3',
+  bgFit: localStorage.getItem('bgFit') || 'cover',
+  bgPosition: localStorage.getItem('bgPosition') || 'center',
+})
+
+const uiPrefs = ref<UiPrefs>(readUiPrefs())
+
+const setUiPref = (key: keyof UiPrefs, value: string) => {
+  uiPrefs.value = { ...uiPrefs.value, [key]: value }
   if (value) localStorage.setItem(key, value)
   else localStorage.removeItem(key)
   notifyUiPrefs()
 }
 
 const menuPositionModel = computed({
-  get: () => localStorage.getItem('menuPosition') || 'side',
-  set: (v: string) => { localStorage.setItem('menuPosition', v); location.reload() }
+  get: () => uiPrefs.value.menuPosition,
+  set: (v: string) => { setUiPref('menuPosition', v); location.reload() }
 })
 const menuPositionOptions = [
   { title: i18n.global.t('setting.menuSide'), value: 'side' },
   { title: i18n.global.t('setting.menuTop'), value: 'top' },
 ]
 const uiStyleModel = computed({
-  get: () => localStorage.getItem('uiStyle') || 'glass',
+  get: () => uiPrefs.value.uiStyle,
   set: (v: string) => setUiPref('uiStyle', v)
 })
 const uiStyleOptions = [
@@ -375,7 +405,7 @@ const uiStyleOptions = [
   { title: i18n.global.t('setting.uiStyleClear'), value: 'clear' },
 ]
 const uiDensityModel = computed({
-  get: () => localStorage.getItem('uiDensity') || 'comfortable',
+  get: () => uiPrefs.value.uiDensity,
   set: (v: string) => setUiPref('uiDensity', v)
 })
 const uiDensityOptions = [
@@ -383,7 +413,7 @@ const uiDensityOptions = [
   { title: i18n.global.t('setting.uiDensityCompact'), value: 'compact' },
 ]
 const bgPresetModel = computed({
-  get: () => localStorage.getItem('bgPreset') || (localStorage.getItem('bgImage') ? 'custom' : 'default'),
+  get: () => uiPrefs.value.bgPreset,
   set: (v: string) => setUiPref('bgPreset', v)
 })
 const bgPresetOptions = [
@@ -392,26 +422,26 @@ const bgPresetOptions = [
   { title: i18n.global.t('setting.bgPresetCustom'), value: 'custom' },
 ]
 const bgImageModel = computed({
-  get: () => localStorage.getItem('bgImage') || '',
+  get: () => uiPrefs.value.bgImage,
   set: (v: string) => {
     setUiPref('bgImage', v)
     if (v) setUiPref('bgPreset', 'custom')
   }
 })
 const bgBlurModel = computed({
-  get: () => parseInt(localStorage.getItem('bgBlur') || '6'),
+  get: () => parseInt(uiPrefs.value.bgBlur || '6'),
   set: (v: number) => setUiPref('bgBlur', String(v))
 })
 const bgOpacityModel = computed({
-  get: () => parseInt(localStorage.getItem('bgOpacity') || '40'),
+  get: () => parseInt(uiPrefs.value.bgOpacity || '40'),
   set: (v: number) => setUiPref('bgOpacity', String(v))
 })
 const bgSaturateModel = computed({
-  get: () => Math.round(parseFloat(localStorage.getItem('bgSaturate') || '1.3') * 100),
+  get: () => Math.round(parseFloat(uiPrefs.value.bgSaturate || '1.3') * 100),
   set: (v: number) => setUiPref('bgSaturate', String(v / 100))
 })
 const bgFitModel = computed({
-  get: () => localStorage.getItem('bgFit') || 'cover',
+  get: () => uiPrefs.value.bgFit,
   set: (v: string) => setUiPref('bgFit', v)
 })
 const bgFitOptions = [
@@ -420,7 +450,7 @@ const bgFitOptions = [
   { title: i18n.global.t('setting.bgFitAuto'), value: 'auto' },
 ]
 const bgPositionModel = computed({
-  get: () => localStorage.getItem('bgPosition') || 'center',
+  get: () => uiPrefs.value.bgPosition,
   set: (v: string) => setUiPref('bgPosition', v)
 })
 const bgPositionOptions = [
@@ -446,6 +476,7 @@ const resetUiPrefs = () => {
   ;['bgPreset', 'bgImage', 'bgBlur', 'bgOpacity', 'bgSaturate', 'bgFit', 'bgPosition', 'uiStyle', 'uiDensity'].forEach((key) => {
     localStorage.removeItem(key)
   })
+  uiPrefs.value = readUiPrefs()
   notifyUiPrefs()
 }
 const loading:Ref = inject('loading')?? ref(false)
