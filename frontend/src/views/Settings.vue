@@ -97,48 +97,72 @@
         <div class="text-subtitle-2 font-weight-bold mb-3" style="letter-spacing: 0.02em;">{{ $t('setting.uiCustomization') }}</div>
         <v-row>
           <v-col cols="12" sm="6" md="4">
-            <v-select
-              v-model="menuPositionModel"
-              :items="menuPositionOptions"
-              item-title="title"
-              item-value="value"
-              :return-object="false"
-              :label="$t('setting.menuPosition')"
-              hide-details
-            ></v-select>
+            <div class="ui-choice-field">
+              <div class="ui-choice-label">{{ $t('setting.menuPosition') }}</div>
+              <div class="ui-choice-group">
+                <button
+                  v-for="option in menuPositionOptions"
+                  :key="option.value"
+                  type="button"
+                  class="ui-choice-button"
+                  :class="{ 'is-active': menuPositionModel === option.value }"
+                  @click="menuPositionModel = option.value"
+                >
+                  {{ option.title }}
+                </button>
+              </div>
+            </div>
           </v-col>
           <v-col cols="12" sm="6" md="4">
-            <v-select
-              v-model="uiStyleModel"
-              :items="uiStyleOptions"
-              item-title="title"
-              item-value="value"
-              :return-object="false"
-              :label="$t('setting.uiStyle')"
-              hide-details
-            ></v-select>
+            <div class="ui-choice-field">
+              <div class="ui-choice-label">{{ $t('setting.uiStyle') }}</div>
+              <div class="ui-choice-group">
+                <button
+                  v-for="option in uiStyleOptions"
+                  :key="option.value"
+                  type="button"
+                  class="ui-choice-button"
+                  :class="{ 'is-active': uiStyleModel === option.value }"
+                  @click="uiStyleModel = option.value"
+                >
+                  {{ option.title }}
+                </button>
+              </div>
+            </div>
           </v-col>
           <v-col cols="12" sm="6" md="4">
-            <v-select
-              v-model="uiDensityModel"
-              :items="uiDensityOptions"
-              item-title="title"
-              item-value="value"
-              :return-object="false"
-              :label="$t('setting.uiDensity')"
-              hide-details
-            ></v-select>
+            <div class="ui-choice-field">
+              <div class="ui-choice-label">{{ $t('setting.uiDensity') }}</div>
+              <div class="ui-choice-group">
+                <button
+                  v-for="option in uiDensityOptions"
+                  :key="option.value"
+                  type="button"
+                  class="ui-choice-button"
+                  :class="{ 'is-active': uiDensityModel === option.value }"
+                  @click="uiDensityModel = option.value"
+                >
+                  {{ option.title }}
+                </button>
+              </div>
+            </div>
           </v-col>
           <v-col cols="12" sm="6" md="4">
-            <v-select
-              v-model="bgPresetModel"
-              :items="bgPresetOptions"
-              item-title="title"
-              item-value="value"
-              :return-object="false"
-              :label="$t('setting.bgPreset')"
-              hide-details
-            ></v-select>
+            <div class="ui-choice-field">
+              <div class="ui-choice-label">{{ $t('setting.bgPreset') }}</div>
+              <div class="ui-choice-group">
+                <button
+                  v-for="option in bgPresetOptions"
+                  :key="option.value"
+                  type="button"
+                  class="ui-choice-button"
+                  :class="{ 'is-active': bgPresetModel === option.value }"
+                  @click="bgPresetModel = option.value"
+                >
+                  {{ option.title }}
+                </button>
+              </div>
+            </div>
           </v-col>
           <v-col cols="12" sm="6" md="4" v-if="bgPresetModel === 'custom'">
             <v-text-field
@@ -164,68 +188,89 @@
             <v-img :src="previewBackground" height="76" cover class="rounded-lg app-bg-preview" />
           </v-col>
           <v-col cols="12" sm="6" md="4" v-if="bgPresetModel !== 'none'">
-            <v-select
-              v-model="bgFitModel"
-              :items="bgFitOptions"
-              item-title="title"
-              item-value="value"
-              :return-object="false"
-              :label="$t('setting.bgFit')"
-              hide-details
-            ></v-select>
+            <div class="ui-choice-field">
+              <div class="ui-choice-label">{{ $t('setting.bgFit') }}</div>
+              <div class="ui-choice-group">
+                <button
+                  v-for="option in bgFitOptions"
+                  :key="option.value"
+                  type="button"
+                  class="ui-choice-button"
+                  :class="{ 'is-active': bgFitModel === option.value }"
+                  @click="bgFitModel = option.value"
+                >
+                  {{ option.title }}
+                </button>
+              </div>
+            </div>
           </v-col>
           <v-col cols="12" sm="6" md="4" v-if="bgPresetModel !== 'none'">
-            <v-select
-              v-model="bgPositionModel"
-              :items="bgPositionOptions"
-              item-title="title"
-              item-value="value"
-              :return-object="false"
-              :label="$t('setting.bgPosition')"
-              hide-details
-            ></v-select>
+            <div class="ui-choice-field">
+              <div class="ui-choice-label">{{ $t('setting.bgPosition') }}</div>
+              <div class="ui-choice-group">
+                <button
+                  v-for="option in bgPositionOptions"
+                  :key="option.value"
+                  type="button"
+                  class="ui-choice-button"
+                  :class="{ 'is-active': bgPositionModel === option.value }"
+                  @click="bgPositionModel = option.value"
+                >
+                  {{ option.title }}
+                </button>
+              </div>
+            </div>
           </v-col>
           <v-col cols="12" sm="6" md="4" v-if="bgPresetModel !== 'none'">
-            <v-slider
-              v-model="bgBlurModel"
-              :label="$t('setting.bgBlur') || 'Background Blur'"
-              :min="0" :max="20" :step="1"
-              thumb-label="always"
-              color="primary"
-              hide-details
-            >
-              <template v-slot:append>
-                <v-chip size="small" variant="tonal">{{ bgBlurModel }}px</v-chip>
-              </template>
-            </v-slider>
+            <div class="ui-range-field">
+              <div class="ui-range-header">
+                <span>{{ $t('setting.bgBlur') || 'Background Blur' }}</span>
+                <span class="ui-range-value">{{ bgBlurModel }}px</span>
+              </div>
+              <input
+                v-model.number="bgBlurModel"
+                class="ui-range"
+                type="range"
+                min="0"
+                max="20"
+                step="1"
+                :style="rangeStyle(bgBlurModel, 0, 20)"
+              />
+            </div>
           </v-col>
           <v-col cols="12" sm="6" md="4" v-if="bgPresetModel !== 'none'">
-            <v-slider
-              v-model="bgOpacityModel"
-              :label="$t('setting.bgOpacity') || 'Background Opacity'"
-              :min="5" :max="100" :step="1"
-              thumb-label="always"
-              color="primary"
-              hide-details
-            >
-              <template v-slot:append>
-                <v-chip size="small" variant="tonal">{{ bgOpacityModel }}%</v-chip>
-              </template>
-            </v-slider>
+            <div class="ui-range-field">
+              <div class="ui-range-header">
+                <span>{{ $t('setting.bgOpacity') || 'Background Opacity' }}</span>
+                <span class="ui-range-value">{{ bgOpacityModel }}%</span>
+              </div>
+              <input
+                v-model.number="bgOpacityModel"
+                class="ui-range"
+                type="range"
+                min="5"
+                max="100"
+                step="1"
+                :style="rangeStyle(bgOpacityModel, 5, 100)"
+              />
+            </div>
           </v-col>
           <v-col cols="12" sm="6" md="4" v-if="bgPresetModel !== 'none'">
-            <v-slider
-              v-model="bgSaturateModel"
-              :label="$t('setting.bgSaturate')"
-              :min="50" :max="180" :step="5"
-              thumb-label="always"
-              color="primary"
-              hide-details
-            >
-              <template v-slot:append>
-                <v-chip size="small" variant="tonal">{{ bgSaturateModel }}%</v-chip>
-              </template>
-            </v-slider>
+            <div class="ui-range-field">
+              <div class="ui-range-header">
+                <span>{{ $t('setting.bgSaturate') }}</span>
+                <span class="ui-range-value">{{ bgSaturateModel }}%</span>
+              </div>
+              <input
+                v-model.number="bgSaturateModel"
+                class="ui-range"
+                type="range"
+                min="50"
+                max="180"
+                step="5"
+                :style="rangeStyle(bgSaturateModel, 50, 180)"
+              />
+            </div>
           </v-col>
           <v-col cols="12" sm="6" md="4">
             <v-btn color="primary" variant="tonal" prepend-icon="mdi-restore" @click="resetUiPrefs">
@@ -519,6 +564,10 @@ const resetUiPrefs = () => {
   uiPrefs.value = readUiPrefs()
   notifyUiPrefs()
 }
+const rangeStyle = (value: number, min: number, max: number) => {
+  const percent = Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100))
+  return { '--ui-range-percent': `${percent}%` }
+}
 const loading:Ref = inject('loading')?? ref(false)
 const oldSettings = ref({})
 
@@ -716,3 +765,150 @@ const applyCongestion = async () => {
   }
 }
 </script>
+
+<style scoped>
+.ui-choice-field,
+.ui-range-field {
+  min-height: 64px;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+  border-radius: 10px;
+  background: rgba(var(--v-theme-surface), 0.72);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  padding: 8px;
+}
+
+.ui-choice-label,
+.ui-range-header {
+  color: rgba(var(--v-theme-on-surface), 0.68);
+  font-size: 12px;
+  line-height: 1.2;
+  margin-bottom: 7px;
+}
+
+.ui-choice-group {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 4px;
+}
+
+.ui-choice-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(var(--v-theme-on-surface), 0.74);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.1;
+  padding: 0 8px;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+  white-space: nowrap;
+}
+
+.ui-choice-button:hover {
+  background: rgba(var(--v-theme-primary), 0.08);
+}
+
+.ui-choice-button.is-active {
+  background: rgba(var(--v-theme-primary), 0.92);
+  color: rgb(var(--v-theme-on-primary));
+  box-shadow: 0 6px 16px rgba(var(--v-theme-primary), 0.22);
+}
+
+.ui-range-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+
+.ui-range-value {
+  flex: 0 0 auto;
+  min-width: 48px;
+  border-radius: 999px;
+  background: rgba(var(--v-theme-primary), 0.14);
+  color: rgb(var(--v-theme-primary));
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+  text-align: center;
+}
+
+.ui-range {
+  --ui-range-percent: 0%;
+  display: block;
+  width: 100%;
+  height: 24px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.ui-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgb(var(--v-theme-primary)) 0 var(--ui-range-percent),
+    rgba(var(--v-theme-on-surface), 0.16) var(--ui-range-percent) 100%
+  );
+}
+
+.ui-range::-webkit-slider-thumb {
+  width: 18px;
+  height: 18px;
+  border: 3px solid rgb(var(--v-theme-surface));
+  border-radius: 50%;
+  appearance: none;
+  background: rgb(var(--v-theme-primary));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  margin-top: -6px;
+}
+
+.ui-range::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(var(--v-theme-on-surface), 0.16);
+}
+
+.ui-range::-moz-range-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: rgb(var(--v-theme-primary));
+}
+
+.ui-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 3px solid rgb(var(--v-theme-surface));
+  border-radius: 50%;
+  background: rgb(var(--v-theme-primary));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.ui-range:focus-visible {
+  outline: 2px solid rgba(var(--v-theme-primary), 0.35);
+  outline-offset: 4px;
+}
+
+@media (max-width: 560px) {
+  .ui-choice-group {
+    grid-auto-flow: row;
+    grid-auto-columns: unset;
+  }
+
+  .ui-choice-button {
+    justify-content: center;
+    white-space: normal;
+  }
+}
+</style>
