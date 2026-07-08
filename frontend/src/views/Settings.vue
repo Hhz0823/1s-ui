@@ -115,23 +115,6 @@
           </v-col>
           <v-col cols="12" sm="6" md="4">
             <div class="ui-choice-field">
-              <div class="ui-choice-label">{{ $t('setting.uiStyle') }}</div>
-              <div class="ui-choice-group">
-                <button
-                  v-for="option in uiStyleOptions"
-                  :key="option.value"
-                  type="button"
-                  class="ui-choice-button"
-                  :class="{ 'is-active': uiStyleModel === option.value }"
-                  @click="uiStyleModel = option.value"
-                >
-                  {{ option.title }}
-                </button>
-              </div>
-            </div>
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <div class="ui-choice-field">
               <div class="ui-choice-label">{{ $t('setting.uiDensity') }}</div>
               <div class="ui-choice-group">
                 <button
@@ -417,7 +400,6 @@ const notifyUiPrefs = () => window.dispatchEvent(new Event(uiPreferenceEvent))
 
 type UiPrefs = {
   menuPosition: string
-  uiStyle: string
   uiDensity: string
   bgPreset: string
   bgImage: string
@@ -430,7 +412,6 @@ type UiPrefs = {
 
 const uiPrefChoices = {
   menuPosition: ['side', 'top'],
-  uiStyle: ['glass', 'solid', 'clear'],
   uiDensity: ['comfortable', 'compact'],
   bgPreset: ['default', 'none', 'custom'],
   bgFit: ['cover', 'contain', 'auto'],
@@ -451,7 +432,6 @@ const normalizeUiChoice = (value: unknown, fallback: string, choices: readonly s
 
 const readUiPrefs = (): UiPrefs => ({
   menuPosition: normalizeUiChoice(localStorage.getItem('menuPosition'), 'side', uiPrefChoices.menuPosition),
-  uiStyle: normalizeUiChoice(localStorage.getItem('uiStyle'), 'glass', uiPrefChoices.uiStyle),
   uiDensity: normalizeUiChoice(localStorage.getItem('uiDensity'), 'comfortable', uiPrefChoices.uiDensity),
   bgPreset: normalizeUiChoice(localStorage.getItem('bgPreset'), localStorage.getItem('bgImage') ? 'custom' : 'default', uiPrefChoices.bgPreset),
   bgImage: localStorage.getItem('bgImage') || '',
@@ -479,15 +459,6 @@ const menuPositionModel = computed({
 const menuPositionOptions = [
   { title: i18n.global.t('setting.menuSide'), value: 'side' },
   { title: i18n.global.t('setting.menuTop'), value: 'top' },
-]
-const uiStyleModel = computed({
-  get: () => uiPrefs.value.uiStyle,
-  set: (v: unknown) => setUiPref('uiStyle', normalizeUiChoice(v, 'glass', uiPrefChoices.uiStyle))
-})
-const uiStyleOptions = [
-  { title: i18n.global.t('setting.uiStyleGlass'), value: 'glass' },
-  { title: i18n.global.t('setting.uiStyleSolid'), value: 'solid' },
-  { title: i18n.global.t('setting.uiStyleClear'), value: 'clear' },
 ]
 const uiDensityModel = computed({
   get: () => uiPrefs.value.uiDensity,
@@ -558,9 +529,10 @@ const handleBgFile = (value: File | File[] | undefined) => {
   reader.readAsDataURL(file)
 }
 const resetUiPrefs = () => {
-  ;['menuPosition', 'bgPreset', 'bgImage', 'bgBlur', 'bgOpacity', 'bgSaturate', 'bgFit', 'bgPosition', 'uiStyle', 'uiDensity'].forEach((key) => {
+  ;['menuPosition', 'bgPreset', 'bgImage', 'bgBlur', 'bgOpacity', 'bgSaturate', 'bgFit', 'bgPosition', 'uiDensity'].forEach((key) => {
     localStorage.removeItem(key)
   })
+  localStorage.setItem('uiStyle', 'glass')
   uiPrefs.value = readUiPrefs()
   notifyUiPrefs()
 }

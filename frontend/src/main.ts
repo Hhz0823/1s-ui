@@ -40,6 +40,7 @@ const notivue = createNotivue({
 })
 
 const loading = ref(false)
+localStorage.setItem('uiStyle', 'glass')
 
 const app = createApp(App)
 app.provide('loading', loading)

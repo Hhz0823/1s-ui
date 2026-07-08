@@ -74,8 +74,14 @@ const isMobile = computed((): boolean => {
 })
 
 const uiPreferenceEvent = 'ui-preferences-changed'
+const currentUiStyle = 'glass'
 const normalizeUiChoice = (value: string | null, fallback: string, choices: readonly string[]) => {
   return value && choices.includes(value) ? value : fallback
+}
+const migrateLegacyUiStyle = () => {
+  if (localStorage.getItem('uiStyle') !== currentUiStyle) {
+    localStorage.setItem('uiStyle', currentUiStyle)
+  }
 }
 const readUiPrefs = () => ({
   menuPosition: normalizeUiChoice(localStorage.getItem('menuPosition'), 'side', ['side', 'top']),
@@ -86,15 +92,18 @@ const readUiPrefs = () => ({
   bgSaturate: localStorage.getItem('bgSaturate') || '1.3',
   bgFit: normalizeUiChoice(localStorage.getItem('bgFit'), 'cover', ['cover', 'contain', 'auto']),
   bgPosition: normalizeUiChoice(localStorage.getItem('bgPosition'), 'center', ['center', 'center top', 'center bottom']),
-  uiStyle: normalizeUiChoice(localStorage.getItem('uiStyle'), 'glass', ['glass', 'solid', 'clear']),
+  uiStyle: currentUiStyle,
   uiDensity: normalizeUiChoice(localStorage.getItem('uiDensity'), 'comfortable', ['comfortable', 'compact']),
 })
 const uiPrefs = ref(readUiPrefs())
 const refreshUiPrefs = () => {
+  migrateLegacyUiStyle()
   uiPrefs.value = readUiPrefs()
 }
 
 onMounted(() => {
+  migrateLegacyUiStyle()
+  refreshUiPrefs()
   window.addEventListener(uiPreferenceEvent, refreshUiPrefs)
   window.addEventListener('storage', refreshUiPrefs)
 })
