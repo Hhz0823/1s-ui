@@ -802,6 +802,7 @@ const applyCongestion = async () => {
   border: 0;
   border-radius: 8px;
   background: transparent;
+  background-clip: padding-box;
   color: rgba(var(--v-theme-on-surface), 0.74);
   cursor: pointer;
   font: inherit;
@@ -811,6 +812,9 @@ const applyCongestion = async () => {
   padding: 0 8px;
   transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
   white-space: nowrap;
+  isolation: isolate;
+  overflow: hidden;
+  clip-path: inset(0 round 8px);
 }
 
 .ui-choice-button:hover {

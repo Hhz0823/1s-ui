@@ -209,12 +209,6 @@ body {
 .v-card.v-card--variant-outlined,
 .v-card.v-card--variant-tonal,
 .v-card.v-card--variant-flat,
-.v-text-field,
-.v-select,
-.v-textarea,
-.v-switch,
-.v-checkbox,
-.v-btn-toggle,
 .v-card-text .v-card {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -965,6 +959,15 @@ body,
   --app-new-control-blur: blur(16px) saturate(160%);
   --app-new-control-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   --app-new-control-shadow-focus: 0 0 0 2px rgba(var(--v-theme-primary), 0.18), 0 8px 20px rgba(var(--v-theme-primary), 0.08);
+  --app-dialog-scrim-bg: rgba(15, 23, 42, 0.08);
+  --app-dialog-scrim-blur: blur(6px) saturate(112%);
+  --app-dialog-card-bg: rgba(255, 255, 255, 0.84);
+  --app-dialog-card-border: rgba(255, 255, 255, 0.64);
+  --app-dialog-card-blur: blur(18px) saturate(172%);
+  --app-dialog-radius: 20px;
+  --app-dialog-control-radius: 14px;
+  --app-dialog-button-radius: 12px;
+  --app-dialog-field-bg: rgba(255, 255, 255, 0.66);
 }
 
 .ui-style--solid {
@@ -1011,6 +1014,30 @@ body,
 .v-file-input .v-field--focused {
   border-color: rgba(var(--v-theme-primary), 0.48) !important;
   box-shadow: var(--app-new-control-shadow-focus) !important;
+}
+
+.v-input.v-text-field,
+.v-input.v-select,
+.v-input.v-autocomplete,
+.v-input.v-combobox,
+.v-input.v-textarea,
+.v-input.v-file-input {
+  --app-current-radius: var(--app-control-radius, 10px);
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: var(--app-current-radius) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.v-switch.v-input,
+.v-checkbox.v-input {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .v-field__overlay,
@@ -1065,6 +1092,14 @@ body,
 
 .v-dialog > .v-overlay__content {
   margin: 16px;
+  border-radius: var(--app-dialog-radius, 20px) !important;
+}
+
+.v-dialog > .v-overlay__scrim {
+  opacity: 1 !important;
+  background: var(--app-dialog-scrim-bg) !important;
+  backdrop-filter: var(--app-dialog-scrim-blur) !important;
+  -webkit-backdrop-filter: var(--app-dialog-scrim-blur) !important;
 }
 
 .v-dialog .v-card-text {
@@ -1082,12 +1117,22 @@ body,
   position: relative;
   isolation: isolate;
   opacity: 1 !important;
-  border-radius: var(--app-overlay-radius, 14px) !important;
-  background: rgba(var(--v-theme-surface), 0.94) !important;
-  border: 1px solid rgba(var(--v-theme-on-surface), 0.12) !important;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.08) !important;
-  backdrop-filter: blur(18px) saturate(165%) !important;
-  -webkit-backdrop-filter: blur(18px) saturate(165%) !important;
+  border-radius: var(--app-dialog-radius, 20px) !important;
+  background: var(--app-dialog-card-bg) !important;
+  border: 1px solid var(--app-dialog-card-border) !important;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16), 0 2px 8px rgba(15, 23, 42, 0.08) !important;
+  backdrop-filter: var(--app-dialog-card-blur) !important;
+  -webkit-backdrop-filter: var(--app-dialog-card-blur) !important;
+  background-clip: padding-box !important;
+  clip-path: inset(0 round var(--app-dialog-radius, 20px));
+  overflow: hidden !important;
+}
+
+.ui-style--glass .v-dialog > .v-overlay__content > .v-card {
+  background: var(--app-dialog-card-bg) !important;
+  border-color: var(--app-dialog-card-border) !important;
+  backdrop-filter: var(--app-dialog-card-blur) !important;
+  -webkit-backdrop-filter: var(--app-dialog-card-blur) !important;
 }
 
 .ui-style--solid .v-dialog > .v-overlay__content > .v-card {
@@ -1097,7 +1142,7 @@ body,
 }
 
 .ui-style--clear .v-dialog > .v-overlay__content > .v-card {
-  background: rgba(var(--v-theme-surface), 0.86) !important;
+  background: rgba(255, 255, 255, 0.78) !important;
 }
 
 .v-theme--dark .v-dialog > .v-overlay__content > .v-card,
@@ -1107,14 +1152,97 @@ body,
 .v-theme--cyberpunk .v-dialog > .v-overlay__content > .v-card,
 .v-theme--nord .v-dialog > .v-overlay__content > .v-card,
 .v-theme--dracula .v-dialog > .v-overlay__content > .v-card {
-  background: rgba(var(--v-theme-surface), 0.9) !important;
-  border-color: rgba(255, 255, 255, 0.12) !important;
-  box-shadow: 0 20px 52px rgba(0, 0, 0, 0.38), 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  background: rgba(32, 32, 36, 0.86) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 20px 52px rgba(0, 0, 0, 0.34), 0 2px 8px rgba(0, 0, 0, 0.18) !important;
 }
 
-.v-dialog > .v-overlay__content > .v-card > .v-card-title,
+.v-dialog > .v-overlay__content > .v-card > .v-card-title {
+  background: rgba(255, 255, 255, 0.24);
+  backdrop-filter: blur(10px) saturate(145%);
+  -webkit-backdrop-filter: blur(10px) saturate(145%);
+}
+
 .v-dialog > .v-overlay__content > .v-card > .v-card-actions {
-  background: rgba(var(--v-theme-surface), 0.32);
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.v-dialog .v-input.v-text-field,
+.v-dialog .v-input.v-select,
+.v-dialog .v-input.v-autocomplete,
+.v-dialog .v-input.v-combobox,
+.v-dialog .v-input.v-textarea,
+.v-dialog .v-input.v-file-input {
+  --app-current-radius: var(--app-dialog-control-radius, 14px);
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: var(--app-current-radius) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.v-dialog .v-input__control {
+  border-radius: var(--app-current-radius, var(--app-dialog-control-radius, 14px)) !important;
+}
+
+.v-dialog .v-field {
+  --app-current-radius: var(--app-dialog-control-radius, 14px);
+  border-radius: var(--app-current-radius) !important;
+  background: var(--app-dialog-field-bg) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  clip-path: inset(0 round var(--app-current-radius));
+}
+
+.v-dialog .v-field__outline,
+.v-dialog .v-field__outline *,
+.v-dialog .v-field__overlay,
+.v-dialog .v-field__loader {
+  display: none !important;
+  opacity: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.v-dialog .v-field .v-field__field,
+.v-dialog .v-field .v-field__append-inner,
+.v-dialog .v-field .v-field__prepend-inner {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.v-dialog .v-btn:not(.v-btn--icon) {
+  --app-current-radius: var(--app-dialog-button-radius, 12px);
+  border-radius: var(--app-current-radius) !important;
+  clip-path: inset(0 round var(--app-current-radius));
+}
+
+.v-dialog > .v-overlay__content > .v-card > .v-card-actions .v-btn:not(.v-btn--icon) {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.v-dialog > .v-overlay__content > .v-card > .v-card-actions .v-btn:not(.v-btn--icon) .v-btn__overlay,
+.v-dialog > .v-overlay__content > .v-card > .v-card-actions .v-btn:not(.v-btn--icon) .v-btn__underlay {
+  opacity: 0 !important;
+  background: transparent !important;
+}
+
+.v-dialog > .v-overlay__content > .v-card > .v-card-actions .v-btn:not(.v-btn--icon):hover {
+  background: rgba(var(--v-theme-primary), 0.08) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.v-dialog > .v-overlay__content > .v-card > .v-card-actions .v-btn:not(.v-btn--icon):focus-visible {
+  box-shadow: 0 0 0 2px rgba(var(--v-theme-primary), 0.18) !important;
 }
 
 @media (max-width: 960px) {
@@ -1170,6 +1298,8 @@ body,
   --app-control-radius-lg: 12px;
   --app-overlay-radius: 14px;
   --app-list-item-radius: 8px;
+  --app-surface-radius: 14px;
+  --app-section-radius: 12px;
 }
 
 .v-btn {
@@ -1178,6 +1308,7 @@ body,
   background-clip: padding-box !important;
   isolation: isolate;
   overflow: hidden !important;
+  clip-path: inset(0 round var(--app-current-radius));
 }
 
 .v-btn::before,
@@ -1191,6 +1322,11 @@ body,
   overflow: hidden !important;
   clip-path: inset(0 round var(--app-current-radius));
   pointer-events: none !important;
+}
+
+.v-btn .v-btn__content {
+  position: relative;
+  z-index: 1;
 }
 
 .v-btn-toggle {
@@ -1208,11 +1344,13 @@ body,
 }
 
 .v-btn-toggle > .v-btn:first-child {
+  --app-current-radius: var(--app-toggle-radius) 0 0 var(--app-toggle-radius);
   border-start-start-radius: var(--app-toggle-radius) !important;
   border-end-start-radius: var(--app-toggle-radius) !important;
 }
 
 .v-btn-toggle > .v-btn:last-child {
+  --app-current-radius: 0 var(--app-toggle-radius) var(--app-toggle-radius) 0;
   border-start-end-radius: var(--app-toggle-radius) !important;
   border-end-end-radius: var(--app-toggle-radius) !important;
 }
@@ -1228,6 +1366,7 @@ body,
   background-clip: padding-box !important;
   isolation: isolate;
   overflow: hidden !important;
+  clip-path: inset(0 round var(--app-current-radius));
 }
 
 .v-field,
@@ -1297,6 +1436,323 @@ body,
 }
 
 .v-dialog > .v-overlay__content > .v-card {
-  --app-current-radius: var(--app-overlay-radius, 14px);
+  --app-current-radius: var(--app-dialog-radius, 20px);
   border-radius: var(--app-current-radius) !important;
+}
+
+/* ===== Unified Page Surfaces ===== */
+.app-page > .v-row:first-of-type:not(.resource-grid) {
+  margin-bottom: 16px !important;
+}
+
+.app-page > .v-row:first-of-type:not(.resource-grid) > .v-col {
+  gap: 10px;
+}
+
+.app-page > .v-row > .v-col.v-card-subtitle,
+.app-page .v-expansion-panel-text .v-col.v-card-subtitle {
+  --app-current-radius: var(--app-section-radius, 12px);
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 38px;
+  padding: 8px 12px !important;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.06) !important;
+  border-radius: var(--app-current-radius) !important;
+  background: rgba(var(--v-theme-surface), 0.42) !important;
+  box-shadow: none !important;
+  color: rgba(var(--v-theme-on-surface), 0.78) !important;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: start !important;
+  opacity: 1 !important;
+  backdrop-filter: blur(14px) saturate(155%);
+  -webkit-backdrop-filter: blur(14px) saturate(155%);
+  background-clip: padding-box !important;
+  clip-path: inset(0 round var(--app-current-radius));
+}
+
+.app-page > .v-row:has(> .v-col.v-card-subtitle),
+.app-page .v-expansion-panel-text .v-row:has(> .v-col.v-card-subtitle) {
+  margin-top: 16px !important;
+  margin-bottom: 4px !important;
+}
+
+.app-page > .v-row > .v-col:not(.v-card-subtitle) > .v-row,
+.app-page .v-expansion-panel-text .v-row:not(:has(> .v-col.v-card-subtitle)) {
+  justify-content: center;
+}
+
+.app-page .v-expansion-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  width: min(100%, 1120px);
+  margin-inline: auto;
+  background: transparent !important;
+}
+
+.app-page .v-expansion-panel {
+  --app-current-radius: var(--app-surface-radius, 14px);
+  width: 100%;
+  margin: 0 !important;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.08) !important;
+  border-radius: var(--app-current-radius) !important;
+  background: rgba(var(--v-theme-surface), 0.72) !important;
+  box-shadow: var(--app-new-control-shadow) !important;
+  overflow: hidden !important;
+  backdrop-filter: var(--app-new-control-blur) !important;
+  -webkit-backdrop-filter: var(--app-new-control-blur) !important;
+  background-clip: padding-box !important;
+  clip-path: inset(0 round var(--app-current-radius));
+}
+
+.app-page .v-expansion-panel::after {
+  border-color: transparent !important;
+}
+
+.app-page .v-expansion-panel-title {
+  position: relative;
+  min-height: 52px;
+  justify-content: center;
+  padding: 0 52px !important;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.app-page .v-expansion-panel-title__icon {
+  position: absolute;
+  inset-inline-end: 16px;
+}
+
+.app-page .v-expansion-panel-title__overlay {
+  opacity: 0 !important;
+}
+
+.app-page .v-expansion-panel-text__wrapper {
+  padding: 14px 16px 18px !important;
+}
+
+.app-page .v-card,
+.app-page .v-table,
+.app-page .v-data-table,
+.app-data-table {
+  --app-current-radius: var(--app-surface-radius, 14px);
+  border-radius: var(--app-current-radius) !important;
+  background-clip: padding-box !important;
+  clip-path: inset(0 round var(--app-current-radius));
+}
+
+.ui-style--clear .app-page .v-card,
+.ui-style--clear .app-page .v-card[rounded],
+.ui-style--clear .app-page .v-card.rounded-xl,
+.ui-style--clear .app-page .v-card.rounded-lg,
+.ui-style--clear .app-page .v-table,
+.ui-style--clear .app-page .v-data-table,
+.ui-style--clear .app-data-table {
+  border-radius: var(--app-surface-radius, 14px) !important;
+  clip-path: inset(0 round var(--app-surface-radius, 14px));
+}
+
+.app-page .v-data-table,
+.app-page .v-table {
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.08) !important;
+  background: rgba(var(--v-theme-surface), 0.72) !important;
+  box-shadow: var(--app-new-control-shadow) !important;
+  backdrop-filter: var(--app-new-control-blur) !important;
+  -webkit-backdrop-filter: var(--app-new-control-blur) !important;
+  overflow: hidden !important;
+}
+
+.app-page .v-data-table .v-table__wrapper,
+.app-page .v-table .v-table__wrapper {
+  border-radius: inherit !important;
+}
+
+.app-page .v-data-table thead th,
+.app-page .v-table thead th {
+  background: rgba(var(--v-theme-surface), 0.58) !important;
+  color: rgba(var(--v-theme-on-surface), 0.78) !important;
+  font-weight: 700 !important;
+}
+
+.app-page .v-data-table tbody tr:hover,
+.app-page .v-table tbody tr:hover {
+  background: rgba(var(--v-theme-primary), 0.05) !important;
+}
+
+/* ===== Unified Button Layout ===== */
+.v-btn,
+.v-btn:hover,
+.v-btn:active {
+  transform: none !important;
+}
+
+.v-btn {
+  min-height: 40px;
+  line-height: 1.2;
+}
+
+.v-btn:not(.v-btn--icon) {
+  min-width: 84px;
+  max-width: 100%;
+  padding-inline: 16px !important;
+}
+
+.v-btn.v-btn--icon {
+  flex: 0 0 40px;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  padding: 0 !important;
+}
+
+.v-btn.v-btn--icon.v-btn--size-small {
+  flex-basis: 36px;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+}
+
+.v-btn .v-btn__content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.v-btn:not(.v-btn--icon) .v-btn__content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-page .v-btn {
+  margin: 0 !important;
+}
+
+.app-page > .page-toolbar,
+.app-page > .v-row:first-of-type:not(.resource-grid) {
+  margin-bottom: 18px !important;
+}
+
+.app-page > .page-toolbar > .v-col,
+.app-page > .v-row:first-of-type:not(.resource-grid) > .v-col,
+.app-page .page-toolbar__actions {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 12px;
+}
+
+.app-page > .page-toolbar > .v-col > .v-btn:not(.v-btn--icon),
+.app-page > .v-row:first-of-type:not(.resource-grid) > .v-col > .v-btn:not(.v-btn--icon),
+.app-page .page-toolbar__actions > .v-btn:not(.v-btn--icon) {
+  flex: 0 1 auto;
+  min-width: 112px;
+  height: 42px;
+}
+
+.app-page > .page-toolbar > .v-col > .v-btn.v-btn--icon,
+.app-page > .v-row:first-of-type:not(.resource-grid) > .v-col > .v-btn.v-btn--icon,
+.app-page .page-toolbar__actions > .v-btn.v-btn--icon {
+  flex: 0 0 42px;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+}
+
+.v-card-actions,
+.resource-actions {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-page > .v-row > .v-col > .v-card > .v-card-actions,
+.resource-actions {
+  justify-content: center !important;
+}
+
+.app-page > .v-row > .v-col > .v-card > .v-card-actions .v-btn.v-btn--icon,
+.resource-actions .v-btn.v-btn--icon {
+  flex: 0 0 34px;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+}
+
+.v-dialog .v-card-actions {
+  justify-content: flex-end !important;
+  gap: 8px;
+  padding: 12px 16px 14px !important;
+}
+
+.v-dialog .v-card-actions .v-btn:not(.v-btn--icon) {
+  flex: 0 0 auto;
+  min-width: 76px;
+  height: 40px;
+}
+
+@media (max-width: 600px) {
+  .app-page > .page-toolbar > .v-col,
+  .app-page > .v-row:first-of-type:not(.resource-grid) > .v-col,
+  .app-page .page-toolbar__actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 10px;
+  }
+
+  .app-page > .page-toolbar > .v-col > .v-btn:not(.v-btn--icon),
+  .app-page > .v-row:first-of-type:not(.resource-grid) > .v-col > .v-btn:not(.v-btn--icon),
+  .app-page .page-toolbar__actions > .v-btn:not(.v-btn--icon) {
+    width: 100%;
+    min-width: 0;
+    justify-self: stretch;
+    padding-inline: 10px !important;
+  }
+
+  .app-page > .page-toolbar > .v-col > .v-btn.v-btn--icon,
+  .app-page > .v-row:first-of-type:not(.resource-grid) > .v-col > .v-btn.v-btn--icon,
+  .app-page .page-toolbar__actions > .v-btn.v-btn--icon {
+    justify-self: center;
+  }
+
+  .app-page > .v-row:first-of-type:not(.resource-grid):has(> .v-col--cols-auto:nth-child(2)) {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch !important;
+    justify-content: center !important;
+    gap: 10px;
+    margin-inline: 0 !important;
+  }
+
+  .app-page > .v-row:first-of-type:not(.resource-grid):has(> .v-col--cols-auto:nth-child(2)) > .v-col--cols-auto {
+    display: flex !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0;
+    padding: 0 !important;
+  }
+
+  .app-page > .v-row:first-of-type:not(.resource-grid):has(> .v-col--cols-auto:nth-child(2)) > .v-col--cols-auto > .v-btn:not(.v-btn--icon) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .v-dialog .v-card-actions {
+    justify-content: stretch !important;
+  }
+
+  .v-dialog .v-card-actions .v-btn:not(.v-btn--icon) {
+    flex: 1 1 120px;
+  }
 }

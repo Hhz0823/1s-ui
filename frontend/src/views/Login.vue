@@ -290,12 +290,16 @@ const isActiveTheme = (th: string) => {
   border-radius: 8px;
   border: 1px solid transparent;
   background: transparent;
+  background-clip: padding-box;
   cursor: pointer;
   font-size: 12px;
   font-weight: 500;
   color: rgb(var(--v-theme-on-surface));
   transition: all 0.2s ease;
   font-family: inherit;
+  isolation: isolate;
+  overflow: hidden;
+  clip-path: inset(0 round 8px);
 }
 
 .theme-chip:hover {
