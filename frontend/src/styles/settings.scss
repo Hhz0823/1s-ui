@@ -955,7 +955,10 @@ body,
 }
 
 /* ===== Unified New UI Controls ===== */
-.v-application {
+:root,
+body,
+.v-application,
+.v-overlay-container {
   --app-new-control-bg: rgba(var(--v-theme-surface), 0.72);
   --app-new-control-border: rgba(var(--v-theme-on-surface), 0.08);
   --app-new-control-border-hover: rgba(var(--v-theme-primary), 0.18);
@@ -1074,12 +1077,44 @@ body,
   padding: 10px 12px !important;
 }
 
+/* Dialogs are secondary pages: keep their own surface visible above the scrim. */
 .v-dialog > .v-overlay__content > .v-card {
-  background: var(--app-new-control-bg) !important;
-  border: 1px solid var(--app-new-control-border) !important;
-  backdrop-filter: var(--app-new-control-blur) !important;
-  -webkit-backdrop-filter: var(--app-new-control-blur) !important;
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22) !important;
+  position: relative;
+  isolation: isolate;
+  opacity: 1 !important;
+  border-radius: var(--app-overlay-radius, 14px) !important;
+  background: rgba(var(--v-theme-surface), 0.94) !important;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12) !important;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+  backdrop-filter: blur(18px) saturate(165%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(165%) !important;
+}
+
+.ui-style--solid .v-dialog > .v-overlay__content > .v-card {
+  background: rgb(var(--v-theme-surface)) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.ui-style--clear .v-dialog > .v-overlay__content > .v-card {
+  background: rgba(var(--v-theme-surface), 0.86) !important;
+}
+
+.v-theme--dark .v-dialog > .v-overlay__content > .v-card,
+.v-theme--midnight .v-dialog > .v-overlay__content > .v-card,
+.v-theme--ocean .v-dialog > .v-overlay__content > .v-card,
+.v-theme--forest .v-dialog > .v-overlay__content > .v-card,
+.v-theme--cyberpunk .v-dialog > .v-overlay__content > .v-card,
+.v-theme--nord .v-dialog > .v-overlay__content > .v-card,
+.v-theme--dracula .v-dialog > .v-overlay__content > .v-card {
+  background: rgba(var(--v-theme-surface), 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 20px 52px rgba(0, 0, 0, 0.38), 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+.v-dialog > .v-overlay__content > .v-card > .v-card-title,
+.v-dialog > .v-overlay__content > .v-card > .v-card-actions {
+  background: rgba(var(--v-theme-surface), 0.32);
 }
 
 @media (max-width: 960px) {
@@ -1127,7 +1162,10 @@ body,
 }
 
 /* ===== Rounded Surface Clipping ===== */
-.v-application {
+:root,
+body,
+.v-application,
+.v-overlay-container {
   --app-control-radius: 10px;
   --app-control-radius-lg: 12px;
   --app-overlay-radius: 14px;
@@ -1135,7 +1173,7 @@ body,
 }
 
 .v-btn {
-  --app-current-radius: var(--app-control-radius);
+  --app-current-radius: var(--app-control-radius, 10px);
   border-radius: var(--app-current-radius) !important;
   background-clip: padding-box !important;
   isolation: isolate;
@@ -1156,7 +1194,7 @@ body,
 }
 
 .v-btn-toggle {
-  --app-toggle-radius: var(--app-control-radius-lg);
+  --app-toggle-radius: var(--app-control-radius-lg, 12px);
   border-radius: var(--app-toggle-radius) !important;
   background-clip: padding-box !important;
   isolation: isolate;
@@ -1185,7 +1223,7 @@ body,
 }
 
 .v-field {
-  --app-current-radius: var(--app-control-radius);
+  --app-current-radius: var(--app-control-radius, 10px);
   border-radius: var(--app-current-radius) !important;
   background-clip: padding-box !important;
   isolation: isolate;
@@ -1217,7 +1255,7 @@ body,
 .v-select__content,
 .v-autocomplete__content,
 .v-combobox__content {
-  --app-current-radius: var(--app-overlay-radius);
+  --app-current-radius: var(--app-overlay-radius, 14px);
   border-radius: var(--app-current-radius) !important;
   background-clip: padding-box !important;
   isolation: isolate;
@@ -1234,7 +1272,7 @@ body,
 }
 
 .v-list-item {
-  --app-current-radius: var(--app-list-item-radius);
+  --app-current-radius: var(--app-list-item-radius, 8px);
   border-radius: var(--app-current-radius) !important;
   background-clip: padding-box !important;
   isolation: isolate;
@@ -1259,6 +1297,6 @@ body,
 }
 
 .v-dialog > .v-overlay__content > .v-card {
-  --app-current-radius: var(--app-overlay-radius);
+  --app-current-radius: var(--app-overlay-radius, 14px);
   border-radius: var(--app-current-radius) !important;
 }

@@ -93,6 +93,17 @@ const uiPrefs = ref(readUiPrefs())
 const refreshUiPrefs = () => {
   uiPrefs.value = readUiPrefs()
 }
+const documentUiClasses = [
+  'ui-style--glass',
+  'ui-style--solid',
+  'ui-style--clear',
+  'ui-density--comfortable',
+  'ui-density--compact',
+]
+const syncDocumentUiClasses = () => {
+  document.body.classList.remove(...documentUiClasses)
+  document.body.classList.add(`ui-style--${uiStyle.value}`, `ui-density--${uiDensity.value}`)
+}
 
 onMounted(() => {
   window.addEventListener(uiPreferenceEvent, refreshUiPrefs)
@@ -101,6 +112,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener(uiPreferenceEvent, refreshUiPrefs)
   window.removeEventListener('storage', refreshUiPrefs)
+  document.body.classList.remove(...documentUiClasses)
 })
 
 const bgImage = computed(() => {
@@ -116,6 +128,8 @@ const bgPosition = computed(() => uiPrefs.value.bgPosition)
 const uiStyle = computed(() => uiPrefs.value.uiStyle)
 const uiDensity = computed(() => uiPrefs.value.uiDensity)
 const menuPosition = computed(() => uiPrefs.value.menuPosition)
+
+watch([uiStyle, uiDensity], syncDocumentUiClasses, { immediate: true })
 
 watch([smAndDown, menuPosition], ([mobile, position]) => {
   drawerOpen.value = !mobile && position !== 'top'
