@@ -83,25 +83,11 @@ const router = createRouter({
   routes,
 })
 
-const DEFAULT_TITLE = '1S-UI'
 let intervalId:any
 
-// Navigation guard to check authentication state
 router.beforeEach((to) => {
-  // Check the session cookie
-  const sessionCookie = document.cookie.split(';').find(cookie => cookie.trim().startsWith('s-ui='))
-  const isAuthenticated = !!sessionCookie
-
-  // If the route requires authentication and the user is not authenticated, redirect to /login
-  if (to.meta.requiresAuth && !isAuthenticated) {
-    return '/login'
-  }
-  if (to.path === '/login' && isAuthenticated) {
-    // If already authenticated and visiting /login, redirect to '/'
-    return '/'
-  }
-
-  // Load default data
+  // The server and API own authentication. The session cookie is HttpOnly and
+  // intentionally unavailable to client-side routing.
   if (to.path !== '/login') {
     loadDataInterval()
   } else {

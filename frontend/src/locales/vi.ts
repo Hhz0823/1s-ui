@@ -478,6 +478,9 @@
     addUrlTest: "Thêm URLTest",
     delay: "Độ trễ",
     warpSafeTip: "Chỉ tạo đầu ra WARP cho tuyến 1S-UI được chọn rõ ràng; không đổi tuyến mặc định của hệ thống",
+    warpExit: "Đầu ra WARP",
+    warpTrace: "Kiểm tra đầu ra WARP",
+    warpCustomEndpoint: "WARP Endpoint",
   },
   rule: {
     add: "Thêm Quy tắc",

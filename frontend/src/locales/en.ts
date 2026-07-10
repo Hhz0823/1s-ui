@@ -478,6 +478,9 @@
     addUrlTest: "Add URLTest",
     delay: "Delay",
     warpSafeTip: "Creates a WARP outbound for explicit 1S-UI routes only; system default routes are unchanged",
+    warpExit: "WARP Exit",
+    warpTrace: "Check WARP exit",
+    warpCustomEndpoint: "WARP Endpoint",
   },
   rule: {
     add: "Add Rule",

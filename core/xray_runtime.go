@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -35,6 +36,53 @@ func NewXrayRuntime() *XrayRuntime {
 		xrayPath:   config.GetXrayPath(),
 		configPath: config.GetXrayConfigPath(),
 	}
+}
+
+func (r *XrayRuntime) Validate(rawConfig []byte) error {
+	r.mu.Lock()
+	if err := r.validateBinaryLocked(); err != nil {
+		r.mu.Unlock()
+		return err
+	}
+	xrayPath := r.xrayPath
+	configDir := filepath.Dir(r.configPath)
+	r.mu.Unlock()
+
+	if err := os.MkdirAll(configDir, 0750); err != nil {
+		return err
+	}
+	file, err := os.CreateTemp(configDir, "xray-validate-*.json")
+	if err != nil {
+		return err
+	}
+	tempPath := file.Name()
+	defer os.Remove(tempPath)
+	if _, err = file.Write(rawConfig); err != nil {
+		file.Close()
+		return err
+	}
+	if err = file.Close(); err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	output, err := exec.CommandContext(ctx, xrayPath, "run", "-test", "-config", tempPath).CombinedOutput()
+	if err == nil {
+		return nil
+	}
+	message := strings.TrimSpace(string(output))
+	if ctx.Err() != nil {
+		message = ctx.Err().Error()
+	} else if message == "" {
+		message = err.Error()
+	}
+	validationErr := fmt.Errorf("xray config validation failed: %s", message)
+	r.mu.Lock()
+	r.lastError = validationErr.Error()
+	r.lastOutput = strings.TrimSpace(string(output))
+	r.mu.Unlock()
+	return validationErr
 }
 
 func (r *XrayRuntime) Start(rawConfig []byte) error {

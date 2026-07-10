@@ -961,13 +961,14 @@ body,
   --app-new-control-shadow-focus: 0 0 0 2px rgba(var(--v-theme-primary), 0.18), 0 8px 20px rgba(var(--v-theme-primary), 0.08);
   --app-dialog-scrim-bg: rgba(15, 23, 42, 0.08);
   --app-dialog-scrim-blur: blur(6px) saturate(112%);
-  --app-dialog-card-bg: rgba(255, 255, 255, 0.84);
-  --app-dialog-card-border: rgba(255, 255, 255, 0.64);
+  --app-dialog-card-bg: rgba(255, 255, 255, 0.9);
+  --app-dialog-card-border: rgba(15, 23, 42, 0.12);
   --app-dialog-card-blur: blur(18px) saturate(172%);
   --app-dialog-radius: 20px;
   --app-dialog-control-radius: 14px;
   --app-dialog-button-radius: 12px;
-  --app-dialog-field-bg: rgba(255, 255, 255, 0.66);
+  --app-dialog-field-bg: rgba(15, 23, 42, 0.06);
+  --app-dialog-title-bg: rgba(15, 23, 42, 0.04);
 }
 
 .ui-style--solid {
@@ -1095,6 +1096,15 @@ body,
   border-radius: var(--app-dialog-radius, 20px) !important;
 }
 
+/* Vuetify teleports dialogs outside .v-application and puts the active theme
+   on the dialog itself. Resolve secondary-page surfaces in that scope. */
+.v-dialog {
+  --app-dialog-card-bg: rgba(var(--v-theme-surface), 0.9);
+  --app-dialog-card-border: rgba(var(--v-theme-on-surface), 0.14);
+  --app-dialog-field-bg: rgba(var(--v-theme-on-surface), 0.07);
+  --app-dialog-title-bg: rgba(var(--v-theme-on-surface), 0.045);
+}
+
 .v-dialog > .v-overlay__scrim {
   opacity: 1 !important;
   background: var(--app-dialog-scrim-bg) !important;
@@ -1142,23 +1152,23 @@ body,
 }
 
 .ui-style--clear .v-dialog > .v-overlay__content > .v-card {
-  background: rgba(255, 255, 255, 0.78) !important;
+  background: rgba(var(--v-theme-surface), 0.78) !important;
 }
 
-.v-theme--dark .v-dialog > .v-overlay__content > .v-card,
-.v-theme--midnight .v-dialog > .v-overlay__content > .v-card,
-.v-theme--ocean .v-dialog > .v-overlay__content > .v-card,
-.v-theme--forest .v-dialog > .v-overlay__content > .v-card,
-.v-theme--cyberpunk .v-dialog > .v-overlay__content > .v-card,
-.v-theme--nord .v-dialog > .v-overlay__content > .v-card,
-.v-theme--dracula .v-dialog > .v-overlay__content > .v-card {
-  background: rgba(32, 32, 36, 0.86) !important;
+.v-dialog.v-theme--dark > .v-overlay__content > .v-card,
+.v-dialog.v-theme--midnight > .v-overlay__content > .v-card,
+.v-dialog.v-theme--ocean > .v-overlay__content > .v-card,
+.v-dialog.v-theme--forest > .v-overlay__content > .v-card,
+.v-dialog.v-theme--cyberpunk > .v-overlay__content > .v-card,
+.v-dialog.v-theme--nord > .v-overlay__content > .v-card,
+.v-dialog.v-theme--dracula > .v-overlay__content > .v-card,
+.v-dialog.v-theme--graphite > .v-overlay__content > .v-card {
   border-color: rgba(255, 255, 255, 0.16) !important;
   box-shadow: 0 20px 52px rgba(0, 0, 0, 0.34), 0 2px 8px rgba(0, 0, 0, 0.18) !important;
 }
 
 .v-dialog > .v-overlay__content > .v-card > .v-card-title {
-  background: rgba(255, 255, 255, 0.24);
+  background: var(--app-dialog-title-bg);
   backdrop-filter: blur(10px) saturate(145%);
   -webkit-backdrop-filter: blur(10px) saturate(145%);
 }

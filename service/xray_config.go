@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Hhz0823/1s-ui/config"
+	"github.com/Hhz0823/1s-ui/core"
 	"github.com/Hhz0823/1s-ui/database"
 	"github.com/Hhz0823/1s-ui/database/model"
 	"github.com/Hhz0823/1s-ui/util/common"
@@ -26,15 +27,23 @@ type XrayConfig struct {
 }
 
 func (s *ConfigService) HasXrayInbounds() (bool, error) {
+	return s.hasXrayInbounds(database.GetDB())
+}
+
+func (s *ConfigService) hasXrayInbounds(db *gorm.DB) (bool, error) {
 	var count int64
-	err := database.GetDB().Model(model.Inbound{}).
+	err := db.Model(model.Inbound{}).
 		Where("core_type = ?", model.CoreTypeXray).
 		Count(&count).Error
 	return count > 0, err
 }
 
 func (s *ConfigService) GetXrayConfig() (*[]byte, error) {
-	inbounds, err := s.InboundService.GetAllXrayConfig(database.GetDB())
+	return s.getXrayConfig(database.GetDB())
+}
+
+func (s *ConfigService) getXrayConfig(db *gorm.DB) (*[]byte, error) {
+	inbounds, err := s.InboundService.GetAllXrayConfig(db)
 	if err != nil {
 		return nil, err
 	}
@@ -64,6 +73,21 @@ func (s *ConfigService) GetXrayConfig() (*[]byte, error) {
 		return nil, err
 	}
 	return &rawConfig, nil
+}
+
+func (s *ConfigService) validateXrayConfig(db *gorm.DB) error {
+	hasXray, err := s.hasXrayInbounds(db)
+	if err != nil || !hasXray {
+		return err
+	}
+	rawConfig, err := s.getXrayConfig(db)
+	if err != nil {
+		return err
+	}
+	if xrayPtr == nil {
+		xrayPtr = core.NewXrayRuntime()
+	}
+	return xrayPtr.Validate(*rawConfig)
 }
 
 func (s *InboundService) GetAllXrayConfig(db *gorm.DB) ([]map[string]interface{}, error) {

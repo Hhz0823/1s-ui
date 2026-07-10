@@ -8,6 +8,10 @@ func NewXrayRuntime() *XrayRuntime {
 	return &XrayRuntime{}
 }
 
+func (r *XrayRuntime) Validate(rawConfig []byte) error {
+	return nil
+}
+
 func (r *XrayRuntime) Start(rawConfig []byte) error {
 	return nil
 }

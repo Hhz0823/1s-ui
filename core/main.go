@@ -52,6 +52,7 @@ func (c *Core) Start(sbConfig []byte) error {
 	err := opt.UnmarshalJSONContext(globalCtx, sbConfig)
 	if err != nil {
 		logger.Error("Unmarshal config err:", err.Error())
+		return err
 	}
 
 	c.instance, err = NewBox(Options{

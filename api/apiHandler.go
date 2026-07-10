@@ -111,6 +111,8 @@ func (a *APIHandler) getHandler(c *gin.Context) {
 		a.ApiService.GetXrayConfig(c)
 	case "checkOutbound":
 		a.ApiService.GetCheckOutbound(c)
+	case "checkWarp":
+		a.ApiService.GetCheckWarp(c)
 	default:
 		jsonMsg(c, "failed", common.NewError("unknown action: ", action))
 	}

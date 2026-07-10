@@ -32,6 +32,19 @@
       </table>
       <v-card :subtitle="$t('types.wg.peer')">
         <v-row>
+          <v-col cols="12" md="8">
+            <v-text-field
+              :label="$t('out.warpCustomEndpoint')"
+              placeholder="engage.cloudflareclient.com:2408"
+              hide-details
+              v-model="customEndpoint">
+            </v-text-field>
+          </v-col>
+          <v-col cols="12" md="4">
+            <v-btn block variant="tonal" color="primary" @click="applyCustomEndpoint">
+              {{ $t('actions.set') }}
+            </v-btn>
+          </v-col>
           <v-col cols="12" sm="6">
             <v-text-field
               :label="$t('out.addr')"
@@ -143,8 +156,54 @@ export default {
     }
   },
   methods: {
+    ensureExt() {
+      if (!this.$props.data.ext) {
+        this.$props.data.ext = {}
+      }
+    },
+    parseEndpoint(value:string) {
+      const input = value.trim()
+      if (!input) return null
+      if (input.startsWith('[')) {
+        const match = input.match(/^\[([^\]]+)\](?::(\d+))?$/)
+        if (!match) return null
+        return { host: match[1], port: match[2] ? Number(match[2]) : 2408 }
+      }
+      const lastColon = input.lastIndexOf(':')
+      if (lastColon > 0 && input.indexOf(':') === lastColon) {
+        const port = Number(input.slice(lastColon + 1))
+        return { host: input.slice(0, lastColon), port: Number.isFinite(port) && port > 0 ? port : 2408 }
+      }
+      return { host: input, port: 2408 }
+    },
+    applyCustomEndpoint() {
+      const parsed = this.parseEndpoint(this.customEndpoint)
+      if (!parsed || !this.$props.data.peers?.[0]) return
+      this.$props.data.peers[0].address = parsed.host
+      this.$props.data.peers[0].port = parsed.port
+    },
   },
   computed: {
+    customEndpoint: {
+      get() {
+        this.ensureExt()
+        if (this.$props.data.ext.custom_endpoint) {
+          return this.$props.data.ext.custom_endpoint
+        }
+        const peer = this.$props.data.peers?.[0]
+        if (!peer?.address) return ''
+        return `${peer.address}${peer.port ? ':' + peer.port : ''}`
+      },
+      set(v:string) {
+        this.ensureExt()
+        const value = v.trim()
+        if (value.length > 0) {
+          this.$props.data.ext.custom_endpoint = value
+        } else {
+          delete this.$props.data.ext.custom_endpoint
+        }
+      }
+    },
     optionUdp: {
       get(): boolean { return this.$props.data.udp_timeout != undefined },
       set(v:boolean) { this.$props.data.udp_timeout = v ? "5m" : undefined }

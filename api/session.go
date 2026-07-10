@@ -2,6 +2,8 @@ package api
 
 import (
 	"encoding/gob"
+	"net/http"
+	"strings"
 
 	"github.com/Hhz0823/1s-ui/database/model"
 
@@ -19,8 +21,10 @@ func init() {
 
 func SetLoginUser(c *gin.Context, userName string, maxAge int) error {
 	options := sessions.Options{
-		Path:   "/",
-		Secure: false,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   requestIsHTTPS(c),
 	}
 	if maxAge > 0 {
 		options.MaxAge = maxAge * 60
@@ -36,7 +40,10 @@ func SetLoginUser(c *gin.Context, userName string, maxAge int) error {
 func SetMaxAge(c *gin.Context) error {
 	s := sessions.Default(c)
 	s.Options(sessions.Options{
-		Path: "/",
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   requestIsHTTPS(c),
 	})
 	return s.Save()
 }
@@ -62,8 +69,19 @@ func ClearSession(c *gin.Context) {
 	s := sessions.Default(c)
 	s.Clear()
 	s.Options(sessions.Options{
-		Path:   "/",
-		MaxAge: -1,
+		Path:     "/",
+		MaxAge:   -1,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   requestIsHTTPS(c),
 	})
 	s.Save()
+}
+
+func requestIsHTTPS(c *gin.Context) bool {
+	if c.Request.TLS != nil {
+		return true
+	}
+	forwardedProto := strings.TrimSpace(strings.Split(c.GetHeader("X-Forwarded-Proto"), ",")[0])
+	return strings.EqualFold(forwardedProto, "https")
 }

@@ -478,6 +478,9 @@
     addUrlTest: "添加 URLTest",
     delay: "延迟",
     warpSafeTip: "只创建 1S-UI 可路由的 WARP 出口，不修改系统默认路由",
+    warpExit: "WARP 出口",
+    warpTrace: "检测 WARP 出口",
+    warpCustomEndpoint: "WARP Endpoint",
   },
   rule: {
     add: "添加规则",

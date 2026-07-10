@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Hhz0823/1s-ui/core"
@@ -11,10 +12,11 @@ import (
 	"github.com/Hhz0823/1s-ui/database/model"
 	"github.com/Hhz0823/1s-ui/logger"
 	"github.com/Hhz0823/1s-ui/util/common"
+	"gorm.io/gorm"
 )
 
 var (
-	LastUpdate          int64
+	LastUpdate          atomic.Int64
 	corePtr             *core.Core
 	xrayPtr             *core.XrayRuntime
 	startCoreMu         sync.Mutex
@@ -92,12 +94,13 @@ func (s *ConfigService) StartCore() error {
 	startCoreMu.Lock()
 	if startCoreInProgress {
 		startCoreMu.Unlock()
-		return nil
+		return common.NewError("core operation already in progress")
 	}
 	if time.Since(lastStartFailTime) < startCooldown {
-		logger.Info("start core cooldown ", startCooldown/time.Second, " seconds")
+		remaining := startCooldown - time.Since(lastStartFailTime)
+		logger.Info("start core cooldown ", remaining.Round(time.Second))
 		startCoreMu.Unlock()
-		return nil
+		return common.NewErrorf("core restart cooldown active: %s remaining", remaining.Round(time.Second))
 	}
 	startCoreInProgress = true
 	startCoreMu.Unlock()
@@ -124,7 +127,13 @@ func (s *ConfigService) StartCore() error {
 		logger.Info("sing-box started")
 	}
 
-	return s.ensureXrayCore(false, false)
+	err := s.ensureXrayCore(false, false)
+	if err != nil {
+		startCoreMu.Lock()
+		lastStartFailTime = time.Now()
+		startCoreMu.Unlock()
+	}
+	return err
 }
 
 func (s *ConfigService) RestartCore() error {
@@ -132,14 +141,43 @@ func (s *ConfigService) RestartCore() error {
 	if err != nil {
 		return err
 	}
+	startCoreMu.Lock()
+	lastStartFailTime = time.Time{}
+	startCoreMu.Unlock()
 	return s.StartCore()
+}
+
+func (s *ConfigService) restartSingBoxCore() error {
+	startCoreMu.Lock()
+	if startCoreInProgress {
+		startCoreMu.Unlock()
+		return common.NewError("core operation already in progress")
+	}
+	startCoreInProgress = true
+	startCoreMu.Unlock()
+	defer func() {
+		startCoreMu.Lock()
+		startCoreInProgress = false
+		startCoreMu.Unlock()
+	}()
+
+	if corePtr != nil && corePtr.IsRunning() {
+		if err := corePtr.Stop(); err != nil {
+			return err
+		}
+	}
+	rawConfig, err := s.GetConfig("")
+	if err != nil {
+		return err
+	}
+	return corePtr.Start(*rawConfig)
 }
 
 func (s *ConfigService) restartCoreWithConfig(config json.RawMessage) error {
 	startCoreMu.Lock()
 	if startCoreInProgress {
 		startCoreMu.Unlock()
-		return nil
+		return common.NewError("core operation already in progress")
 	}
 	startCoreInProgress = true
 	startCoreMu.Unlock()
@@ -196,7 +234,7 @@ func (s *ConfigService) restartXrayCore(manual bool) error {
 	startCoreMu.Lock()
 	if startCoreInProgress {
 		startCoreMu.Unlock()
-		return nil
+		return common.NewError("core operation already in progress")
 	}
 	startCoreInProgress = true
 	startCoreMu.Unlock()
@@ -212,7 +250,7 @@ func (s *ConfigService) StartXrayCoreIfNeeded() error {
 	startCoreMu.Lock()
 	if startCoreInProgress {
 		startCoreMu.Unlock()
-		return nil
+		return common.NewError("core operation already in progress")
 	}
 	startCoreInProgress = true
 	startCoreMu.Unlock()
@@ -265,40 +303,104 @@ func (s *ConfigService) CheckOutbound(tag string, link string) core.CheckOutboun
 	return core.CheckOutbound(corePtr.GetCtx(), tag, link)
 }
 
-func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initUsers string, loginUser string, hostname string) ([]string, error) {
-	var err error
-	var objs []string = []string{obj}
+func (s *ConfigService) CheckWarp(tag string, link string) core.CheckWarpResult {
+	if tag == "" {
+		return core.CheckWarpResult{Error: "missing query parameter: tag"}
+	}
+	if corePtr == nil || !corePtr.IsRunning() {
+		return core.CheckWarpResult{Error: "core not running"}
+	}
+	return core.CheckWarp(corePtr.GetCtx(), tag, link)
+}
+
+func inboundIDsContainXray(tx *gorm.DB, ids []uint) (bool, error) {
+	if len(ids) == 0 {
+		return false, nil
+	}
+	var count int64
+	err := tx.Model(model.Inbound{}).
+		Where("id IN ? AND core_type = ?", ids, model.CoreTypeXray).
+		Count(&count).Error
+	return count > 0, err
+}
+
+func inboundChangeAffectsXray(tx *gorm.DB, act string, data json.RawMessage) (bool, error) {
+	switch act {
+	case "new", "edit":
+		var inbound model.Inbound
+		if err := inbound.UnmarshalJSON(data); err != nil {
+			return false, err
+		}
+		if inbound.RuntimeCore() == model.CoreTypeXray {
+			return true, nil
+		}
+		if act == "new" {
+			return false, nil
+		}
+		var oldInbound model.Inbound
+		err := tx.Model(model.Inbound{}).Select("core_type").Where("id = ?", inbound.Id).First(&oldInbound).Error
+		return oldInbound.RuntimeCore() == model.CoreTypeXray, err
+	case "del":
+		var tag string
+		if err := json.Unmarshal(data, &tag); err != nil {
+			return false, err
+		}
+		var inbound model.Inbound
+		err := tx.Model(model.Inbound{}).Select("core_type").Where("tag = ?", tag).First(&inbound).Error
+		return inbound.RuntimeCore() == model.CoreTypeXray, err
+	default:
+		return false, nil
+	}
+}
+
+func tlsChangeAffectsXray(tx *gorm.DB, act string, data json.RawMessage) (bool, error) {
+	if act != "new" && act != "edit" {
+		return false, nil
+	}
+	var tls model.Tls
+	if err := json.Unmarshal(data, &tls); err != nil {
+		return false, err
+	}
+	if tls.Id == 0 {
+		return false, nil
+	}
+	var count int64
+	err := tx.Model(model.Inbound{}).
+		Where("tls_id = ? AND core_type = ?", tls.Id, model.CoreTypeXray).
+		Count(&count).Error
+	return count > 0, err
+}
+
+func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initUsers string, loginUser string, hostname string) (objs []string, err error) {
+	objs = []string{obj}
 	restartXray := false
+	restartWithConfig := false
+	runtimeMayHaveChanged := false
+	var configData json.RawMessage
 
 	db := database.GetDB()
 	tx := db.Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+	committed := false
 	defer func() {
-		if err == nil {
-			tx.Commit()
-			// Try to start core if it is not running
-			if !corePtr.IsRunning() {
-				s.StartCore()
-			} else if restartXray {
-				go func() {
-					if err := s.RestartXrayCoreIfNeeded(); err != nil {
-						logger.Warning("restart xray err:", err)
-					}
-				}()
-			} else {
-				go func() {
-					if err := s.StartXrayCoreIfNeeded(); err != nil {
-						logger.Warning("start xray err:", err)
-					}
-				}()
+		if !committed {
+			if rollbackErr := tx.Rollback().Error; rollbackErr != nil && err == nil {
+				err = rollbackErr
 			}
-		} else {
-			tx.Rollback()
+			if err != nil && runtimeMayHaveChanged && corePtr != nil && corePtr.IsRunning() {
+				if restoreErr := s.restartSingBoxCore(); restoreErr != nil {
+					logger.Error("restore core after failed save:", restoreErr)
+					err = common.NewErrorf("%v; failed to restore core: %v", err, restoreErr)
+				}
+			}
 		}
 	}()
 
 	switch obj {
 	case "clients":
-		restartXray = true
+		runtimeMayHaveChanged = true
 		var inboundIds []uint
 		inboundIds, err = s.ClientService.Save(tx, act, data, hostname)
 		if err == nil && len(inboundIds) > 0 {
@@ -307,37 +409,51 @@ func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initU
 			if err != nil {
 				return nil, common.NewErrorf("failed to update users for inbounds: %v", err)
 			}
+			restartXray, err = inboundIDsContainXray(tx, inboundIds)
 		}
 	case "tls":
-		restartXray = true
+		runtimeMayHaveChanged = true
 		err = s.TlsService.Save(tx, act, data, hostname)
+		if err == nil {
+			restartXray, err = tlsChangeAffectsXray(tx, act, data)
+		}
 		objs = append(objs, "clients", "inbounds")
 	case "inbounds":
-		restartXray = true
-		err = s.InboundService.Save(tx, act, data, initUsers, hostname)
+		runtimeMayHaveChanged = true
+		restartXray, err = inboundChangeAffectsXray(tx, act, data)
+		if err == nil {
+			err = s.InboundService.Save(tx, act, data, initUsers, hostname)
+		}
 		objs = append(objs, "clients")
 	case "outbounds":
+		runtimeMayHaveChanged = true
 		err = s.OutboundService.Save(tx, act, data)
 	case "services":
+		runtimeMayHaveChanged = true
 		err = s.ServicesService.Save(tx, act, data)
 	case "endpoints":
+		runtimeMayHaveChanged = true
 		err = s.EndpointService.Save(tx, act, data)
 	case "config":
 		err = s.SettingService.SaveConfig(tx, data)
 		if err != nil {
 			return nil, err
 		}
-		configData := make(json.RawMessage, len(data))
+		configData = make(json.RawMessage, len(data))
 		copy(configData, data)
-		go func() { _ = s.restartCoreWithConfig(configData) }()
+		restartWithConfig = true
 	case "settings":
-		restartXray = true
 		err = s.SettingService.Save(tx, data)
 	default:
 		return nil, common.NewError("unknown object: ", obj)
 	}
 	if err != nil {
 		return nil, err
+	}
+	if restartXray {
+		if err = s.validateXrayConfig(tx); err != nil {
+			return nil, err
+		}
 	}
 
 	dt := time.Now().Unix()
@@ -352,8 +468,22 @@ func (s *ConfigService) Save(obj string, act string, data json.RawMessage, initU
 		return nil, err
 	}
 
-	LastUpdate = time.Now().Unix()
+	if err = tx.Commit().Error; err != nil {
+		return nil, err
+	}
+	committed = true
+	LastUpdate.Store(time.Now().UnixMilli())
 
+	if restartWithConfig {
+		err = s.restartCoreWithConfig(configData)
+	} else if corePtr != nil && !corePtr.IsRunning() {
+		err = s.StartCore()
+	} else if restartXray {
+		err = s.RestartXrayCoreIfNeeded()
+	}
+	if err != nil {
+		return nil, common.NewErrorf("configuration saved, but core update failed: %v", err)
+	}
 	return objs, nil
 }
 
@@ -361,32 +491,42 @@ func (s *ConfigService) CheckChanges(lu string) (bool, error) {
 	if lu == "" {
 		return true, nil
 	}
-	if LastUpdate == 0 {
+	intLu, err := strconv.ParseInt(lu, 10, 64)
+	if err != nil {
+		return false, err
+	}
+	lastUpdate := LastUpdate.Load()
+	if lastUpdate == 0 {
 		db := database.GetDB()
 		var count int64
-		err := db.Model(model.Changes{}).Where("date_time > " + lu).Count(&count).Error
+		changeTime := intLu
+		if changeTime > 1_000_000_000_000 {
+			changeTime /= 1000
+		}
+		err = db.Model(model.Changes{}).Where("date_time > ?", changeTime).Count(&count).Error
 		if err == nil {
-			LastUpdate = time.Now().Unix()
+			LastUpdate.Store(time.Now().UnixMilli())
 		}
 		return count > 0, err
-	} else {
-		intLu, err := strconv.ParseInt(lu, 10, 64)
-		return LastUpdate > intLu, err
 	}
+	return lastUpdate > intLu, nil
 }
 
 func (s *ConfigService) GetChanges(actor string, chngKey string, count string) []model.Changes {
 	c, _ := strconv.Atoi(count)
-	whereString := "`id`>0"
+	db := database.GetDB()
+	query := db.Model(model.Changes{}).Where("id > ?", 0)
 	if len(actor) > 0 {
-		whereString += " and `actor`='" + actor + "'"
+		query = query.Where("actor = ?", actor)
 	}
 	if len(chngKey) > 0 {
-		whereString += " and `key`='" + chngKey + "'"
+		query = query.Where("key = ?", chngKey)
 	}
-	db := database.GetDB()
+	if c > 0 {
+		query = query.Limit(c)
+	}
 	var chngs []model.Changes
-	err := db.Model(model.Changes{}).Where(whereString).Order("`id` desc").Limit(c).Scan(&chngs).Error
+	err := query.Order("id desc").Scan(&chngs).Error
 	if err != nil {
 		logger.Warning(err)
 	}

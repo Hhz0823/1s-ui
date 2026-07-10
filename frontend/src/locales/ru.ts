@@ -479,6 +479,9 @@
     addUrlTest: "Добавить URLTest",
     delay: "Задержка",
     warpSafeTip: "Создает WARP-выход только для явных маршрутов 1S-UI; системный маршрут по умолчанию не меняется",
+    warpExit: "WARP-выход",
+    warpTrace: "Проверить WARP-выход",
+    warpCustomEndpoint: "WARP Endpoint",
   },
   rule: {
     add: "Добавить правило",

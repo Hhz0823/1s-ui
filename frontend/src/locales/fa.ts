@@ -477,7 +477,10 @@
     port: "پورت سرور",
     addUrlTest: "افزودن URLTest",
     delay: "تأخیر",
-    warpSafeTip: "فقط یک خروجی WARP برای مسیرهای صریح 1S-UI ایجاد می‌کند و مسیر پیش‌فرض سیستم را تغییر نمی‌دهد"
+    warpSafeTip: "فقط یک خروجی WARP برای مسیرهای صریح 1S-UI ایجاد می‌کند و مسیر پیش‌فرض سیستم را تغییر نمی‌دهد",
+    warpExit: "خروجی WARP",
+    warpTrace: "بررسی خروجی WARP",
+    warpCustomEndpoint: "WARP Endpoint",
   },
   rule: {
     add: "ایجاد قانون",

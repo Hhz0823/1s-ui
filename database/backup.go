@@ -6,7 +6,6 @@ import (
 	"io"
 	"mime/multipart"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -32,25 +31,30 @@ func GetDb(exclude string) ([]byte, error) {
 		}
 	}
 
-	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	tempFile, err := os.CreateTemp("", config.GetName()+"-backup-*.db")
 	if err != nil {
 		return nil, err
 	}
-	dbPath := dir + config.GetName() + "_" + time.Now().Format("20060102-200203") + ".db"
+	dbPath := tempFile.Name()
+	if err = tempFile.Close(); err != nil {
+		return nil, err
+	}
+	defer os.Remove(dbPath)
 
 	backupDb, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}
-	defer os.Remove(dbPath)
 
 	err = backupDb.AutoMigrate(
 		&model.Setting{},
 		&model.Tls{},
 		&model.Inbound{},
 		&model.Outbound{},
+		&model.Service{},
 		&model.Endpoint{},
 		&model.User{},
+		&model.Tokens{},
 		&model.Stats{},
 		&model.Client{},
 		&model.Changes{},
@@ -63,8 +67,10 @@ func GetDb(exclude string) ([]byte, error) {
 	var tls []model.Tls
 	var inbound []model.Inbound
 	var outbound []model.Outbound
+	var services []model.Service
 	var endpoint []model.Endpoint
 	var users []model.User
+	var tokens []model.Tokens
 	var clients []model.Client
 	var stats []model.Stats
 	var changes []model.Changes
@@ -98,6 +104,13 @@ func GetDb(exclude string) ([]byte, error) {
 			return nil, err
 		}
 	}
+	if err := db.Model(&model.Service{}).Scan(&services).Error; err != nil {
+		return nil, err
+	} else if len(services) > 0 {
+		if err := backupDb.Save(services).Error; err != nil {
+			return nil, err
+		}
+	}
 	if err := db.Model(&model.Endpoint{}).Scan(&endpoint).Error; err != nil {
 		return nil, err
 	} else if len(endpoint) > 0 {
@@ -109,6 +122,13 @@ func GetDb(exclude string) ([]byte, error) {
 		return nil, err
 	} else if len(users) > 0 {
 		if err := backupDb.Save(users).Error; err != nil {
+			return nil, err
+		}
+	}
+	if err := db.Model(&model.Tokens{}).Scan(&tokens).Error; err != nil {
+		return nil, err
+	} else if len(tokens) > 0 {
+		if err := backupDb.Save(tokens).Error; err != nil {
 			return nil, err
 		}
 	}

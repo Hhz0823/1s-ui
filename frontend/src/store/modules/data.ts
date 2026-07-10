@@ -24,6 +24,7 @@ const Data = defineStore('Data', {
     async loadData() {
       const msg = await HttpUtils.get('api/load', this.lastLoad >0 ? {lu: this.lastLoad} : {} )
       if(msg.success) {
+        if (msg.obj.lastUpdate) this.lastLoad = msg.obj.lastUpdate
         this.onlines = msg.obj.onlines
         if (msg.obj.lastLog) {
           push.error({
@@ -39,7 +40,6 @@ const Data = defineStore('Data', {
       }
     },
     setNewData(data: any) {
-      this.lastLoad = Math.floor((new Date()).getTime()/1000)
       if (data.subURI) this.subURI = data.subURI
       if (data.enableTraffic) this.enableTraffic = data.enableTraffic
       if (data.config) this.config = data.config

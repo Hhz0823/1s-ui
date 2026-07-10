@@ -185,6 +185,12 @@
             </v-col>
           </v-row>
           <v-row>
+            <v-col>{{ $t('out.warpExit') }}</v-col>
+            <v-col>
+              {{ formatWarpTrace(item.tag) }}
+            </v-col>
+          </v-row>
+          <v-row>
             <v-col>{{ $t('types.wg.sysIf') }}</v-col>
             <v-col>
               {{ $t(item.system ? 'enable' : 'disable') }}
@@ -210,9 +216,9 @@
               <v-icon
                 icon="mdi-speedometer"
                 v-else
-                @click="checkOutbound(item.tag)"
+                @click="checkWarpEndpoint(item.tag)"
               >
-                <v-tooltip activator="parent" location="top" :text="$t('actions.test')"></v-tooltip>
+                <v-tooltip activator="parent" location="top" :text="$t('out.warpTrace')"></v-tooltip>
               </v-icon>
               <template v-if="checkResults[item.tag]?.loading == false">
                 <template v-if="checkResults[item.tag]">
@@ -284,7 +290,7 @@ import { computed, ref } from 'vue'
 interface CheckResult {
   loading?: boolean
   success: boolean
-  data?: { OK?: boolean; Delay?: number; Error?: string } | null
+  data?: { OK?: boolean; Delay?: number; Error?: string; IP?: string; Colo?: string; Loc?: string; Warp?: string } | null
   errorMessage?: string
 }
 
@@ -293,6 +299,17 @@ const checkResults = ref<Record<string, CheckResult>>({})
 const checkOutbound = async (tag: string) => {
   checkResults.value = { ...checkResults.value, [tag]: { loading: true, success: false } }
   const msg = await HttpUtils.get('api/checkOutbound', { tag })
+  const success = msg.success && msg.obj?.OK
+  const errorMessage = success ? undefined : (msg.obj?.Error ?? msg.msg ?? '')
+  checkResults.value = {
+    ...checkResults.value,
+    [tag]: { loading: false, success, data: msg.obj ?? null, errorMessage }
+  }
+}
+
+const checkWarpEndpoint = async (tag: string) => {
+  checkResults.value = { ...checkResults.value, [tag]: { loading: true, success: false } }
+  const msg = await HttpUtils.get('api/checkWarp', { tag })
   const success = msg.success && msg.obj?.OK
   const errorMessage = success ? undefined : (msg.obj?.Error ?? msg.msg ?? '')
   checkResults.value = {
@@ -315,7 +332,10 @@ const checkAllOutbounds = async () => {
   if (tags.length === 0) return
   testingAll.value = true
   try {
-    await Promise.all(tags.map((tag) => checkOutbound(tag)))
+    await Promise.all([
+      ...outbounds.value.map((item) => checkOutbound(item.tag)),
+      ...warpEndpoints.value.map((item: any) => checkWarpEndpoint(item.tag)),
+    ])
   } finally {
     testingAll.value = false
   }
@@ -428,6 +448,14 @@ const formatEndpointPeer = (endpoint: any) => {
   const peer = endpoint.peers?.[0]
   if (!peer) return '-'
   return `${peer.address ?? '-'}${peer.port ? ':' + peer.port : ''}`
+}
+
+const formatWarpTrace = (tag: string) => {
+  const data = checkResults.value[tag]?.data
+  if (!data?.IP) return '-'
+  const region = [data.Loc, data.Colo].filter(Boolean).join(' / ')
+  const warp = data.Warp ? ` · WARP ${data.Warp}` : ''
+  return `${data.IP}${region ? ` · ${region}` : ''}${warp}`
 }
 
 const stats = ref({

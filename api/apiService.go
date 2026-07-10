@@ -50,6 +50,7 @@ func (a *ApiService) LoadData(c *gin.Context) {
 
 func (a *ApiService) getData(c *gin.Context) (interface{}, error) {
 	data := make(map[string]interface{}, 0)
+	serverTime := time.Now().UnixMilli()
 	lu := c.Query("lu")
 	isUpdated, err := a.ConfigService.CheckChanges(lu)
 	if err != nil {
@@ -68,6 +69,7 @@ func (a *ApiService) getData(c *gin.Context) (interface{}, error) {
 	if err != nil {
 		return "", err
 	}
+	data["lastUpdate"] = serverTime
 	if isUpdated {
 		config, err := a.SettingService.GetConfig()
 		if err != nil {
@@ -440,6 +442,13 @@ func (a *ApiService) GetCheckOutbound(c *gin.Context) {
 	tag := c.Query("tag")
 	link := c.Query("link")
 	result := a.ConfigService.CheckOutbound(tag, link)
+	jsonObj(c, result, nil)
+}
+
+func (a *ApiService) GetCheckWarp(c *gin.Context) {
+	tag := c.Query("tag")
+	link := c.Query("link")
+	result := a.ConfigService.CheckWarp(tag, link)
 	jsonObj(c, result, nil)
 }
 
