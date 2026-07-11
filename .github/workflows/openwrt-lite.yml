@@ -36,7 +36,7 @@ jobs:
       - name: 构建 OpenWrt Lite 前端
         run: |
           cd frontend
-          npm install
+          npm ci
           VITE_OPENWRT_LITE=true npm run build
 
       - name: 上传前端构建产物

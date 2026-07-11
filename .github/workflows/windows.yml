@@ -42,7 +42,7 @@ jobs:
       - name: 构建前端
         run: |
           cd frontend
-          npm install
+          npm ci
           npm run build
 
       - name: 上传前端构建产物
