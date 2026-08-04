@@ -11,7 +11,7 @@
   [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8)](go.mod)
   [![Vue](https://img.shields.io/badge/Vue-3-42b883)](frontend/package.json)
 
-  **[Linux v1.5.8](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.8)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
+  **[Linux v1.5.9](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.9)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
 </div>
 
 > 1S-UI 基于 [alireza0/s-ui](https://github.com/alireza0/s-ui) 二次开发，仅用于学习、研究与技术交流。请遵守当地法律法规。
@@ -25,7 +25,7 @@
 
 ## 页面截图
 
-截图来自 v1.5.8 默认实色主题，不包含账号密码、Token、证书私钥或节点密钥。
+截图来自 v1.5.9 默认实色主题，不包含账号密码、Token、证书私钥或节点密钥。
 
 | 首页 Dashboard | 入站管理 Inbounds |
 | --- | --- |
@@ -57,10 +57,10 @@
 bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
 
 # 轻量模式，自动确认
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.8 -y --minimal
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.9 -y --minimal
 
 # 全面服务端 + Caddy HTTPS
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.8 -y --full --domain panel.example.com --email admin@example.com
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.9 -y --full --domain panel.example.com --email admin@example.com
 ```
 
 ### 30 秒接入子服务器
@@ -79,7 +79,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
 带完整 Web 面板、可远程管理入站的受管客户端：
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.8 -y \
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.9 -y \
   --managed-client \
   --connect 'https://panel.example.com/app/agent/v1/enroll#CONTROLLER_KEY'
 ```
@@ -202,8 +202,11 @@ IPv6 池模式只会向选定网卡添加地址，不修改系统默认路由。
 
 实现参考 [help660vip/auto-add-ipv6](https://github.com/help660vip/auto-add-ipv6) 的流程，但 1S-UI 使用内置 Go 逻辑，不执行第三方远程脚本。
 
-### v1.5.8 更新重点
+### v1.5.9 更新重点
 
+- 修复低配置安装误进入纯面板模式的问题：轻量版和受管客户端默认启动 sing-box，Xray-core 仍保持禁用。
+- 修复自动生成的 HY2 TLS 证书指纹可能与实际证书不一致的问题；启动时会同步修复 TLS、出站配置和已保存的分享链接。
+- 修复批量节点与远程快速创建使用 IPv6 监听地址后，客户端无法通过原 VPS 公网 IPv4 连接的问题。
 - 增加可复用的主服务器连接 API：子服务器只粘贴一个值即可自动登记、获取独立 Token 并建立 WebSocket；重新生成会撤销旧 API。
 - 增加 15 分钟一次性连接地址，并区分“完整 Web 面板受管客户端”和“仅监控 Agent”安装方式。
 - 修复 HTTP/IP 面板中复制按钮失败的问题，在非安全上下文自动回退到兼容剪贴板方案。
@@ -254,7 +257,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
 To attach a child server, generate a controller connection API under **Server Monitoring → Add Child Server**, then paste that single value into **Server Monitoring → Connect to Controller** on the child. For a fresh managed child with a full Web panel:
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.8 -y \
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.9 -y \
   --managed-client \
   --connect 'https://panel.example.com/app/agent/v1/enroll#CONTROLLER_KEY'
 ```
@@ -267,36 +270,36 @@ With the full reverse-proxy profile, use `http://server-ip/app/` or `https://you
 
 ## 日本語
 
-1S-UI は Ubuntu / Debian 向けのプロキシ管理パネルです。標準コアは sing-box、入站ごとに Xray-core を選択できます。v1.5.8 は 1–100 件の一括ノード作成、IPv6 出口中継、サーバー Agent 監視、履歴グラフ、遠隔操作、PTY ターミナル、Caddy / Nginx 管理に対応します。子サーバーは、メインパネルで生成した接続 API を 1 つ貼り付けるだけで登録できます。
+1S-UI は Ubuntu / Debian 向けのプロキシ管理パネルです。標準コアは sing-box、入站ごとに Xray-core を選択できます。v1.5.9 は 1–100 件の一括ノード作成、IPv6 出口中継、サーバー Agent 監視、履歴グラフ、遠隔操作、PTY ターミナル、Caddy / Nginx 管理に対応します。子サーバーは、メインパネルで生成した接続 API を 1 つ貼り付けるだけで登録できます。
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.8
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.9
 ```
 
 Linux が主なサポート対象です。Windows は保守停止中、OpenWrt Lite は sing-box 専用 v1.5.7 を継続します。
 
 ## 한국어
 
-1S-UI는 Ubuntu/Debian 중심의 프록시 관리 패널입니다. 기본 코어는 sing-box이며 인바운드별로 Xray-core를 선택할 수 있습니다. v1.5.8은 1–100개 노드 일괄 생성, IPv6 출구 릴레이, 서버 Agent 모니터링, 기록 차트, 원격 제어, PTY 터미널 및 Caddy/Nginx 관리를 지원합니다. 자식 서버는 메인 패널에서 생성한 연결 API 하나만 붙여 넣으면 등록됩니다.
+1S-UI는 Ubuntu/Debian 중심의 프록시 관리 패널입니다. 기본 코어는 sing-box이며 인바운드별로 Xray-core를 선택할 수 있습니다. v1.5.9은 1–100개 노드 일괄 생성, IPv6 출구 릴레이, 서버 Agent 모니터링, 기록 차트, 원격 제어, PTY 터미널 및 Caddy/Nginx 관리를 지원합니다. 자식 서버는 메인 패널에서 생성한 연결 API 하나만 붙여 넣으면 등록됩니다.
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.8
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.9
 ```
 
 ## Tiếng Việt
 
-1S-UI là bảng điều khiển proxy ưu tiên Ubuntu/Debian, dùng sing-box mặc định và cho phép chọn Xray-core theo từng inbound. Phiên bản v1.5.8 hỗ trợ tạo hàng loạt 1–100 node, relay IPv6, giám sát Agent, biểu đồ lịch sử, điều khiển từ xa và terminal PTY. Máy con chỉ cần dán một API kết nối do bảng điều khiển chính tạo để đăng ký.
+1S-UI là bảng điều khiển proxy ưu tiên Ubuntu/Debian, dùng sing-box mặc định và cho phép chọn Xray-core theo từng inbound. Phiên bản v1.5.9 hỗ trợ tạo hàng loạt 1–100 node, relay IPv6, giám sát Agent, biểu đồ lịch sử, điều khiển từ xa và terminal PTY. Máy con chỉ cần dán một API kết nối do bảng điều khiển chính tạo để đăng ký.
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.8
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.9
 ```
 
 ## فارسی
 
-1S-UI یک پنل مدیریت پروکسی برای Ubuntu و Debian است. هسته پیش‌فرض sing-box است و برای هر inbound می‌توان Xray-core را انتخاب کرد. نسخه v1.5.8 ساخت گروهی ۱ تا ۱۰۰ نود، خروجی IPv6، پایش Agent، نمودارهای زنده، کنترل از راه دور و ترمینال PTY را پشتیبانی می‌کند. برای ثبت سرور فرزند کافی است تنها API اتصال ساخته‌شده در پنل اصلی را وارد کنید.
+1S-UI یک پنل مدیریت پروکسی برای Ubuntu و Debian است. هسته پیش‌فرض sing-box است و برای هر inbound می‌توان Xray-core را انتخاب کرد. نسخه v1.5.9 ساخت گروهی ۱ تا ۱۰۰ نود، خروجی IPv6، پایش Agent، نمودارهای زنده، کنترل از راه دور و ترمینال PTY را پشتیبانی می‌کند. برای ثبت سرور فرزند کافی است تنها API اتصال ساخته‌شده در پنل اصلی را وارد کنید.
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.8
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.9
 ```
 
 ---
