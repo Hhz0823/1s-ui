@@ -1,9 +1,6 @@
 name: OpenWrt Lite
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       tag:
