@@ -31,13 +31,13 @@
 | --- | --- |
 | ![1S-UI dashboard](docs/screenshots/dashboard.png) | ![1S-UI inbounds](docs/screenshots/inbounds.png) |
 
-| 服务器监控 Server Agents | 实时指标 Live Metrics |
+| 服务器监控 Server Agents | 连接主服务器 Connect Controller |
 | --- | --- |
-| ![Server agents](docs/screenshots/agents.png) | ![Agent live metrics](docs/screenshots/agent-detail.png) |
+| ![Server agents](docs/screenshots/agents.png) | ![Connect a child server](docs/screenshots/controller-connect.png) |
 
-| 远程入站 Remote Inbounds | 登录 Login |
+| 实时指标 Live Metrics | 远程入站 Remote Inbounds |
 | --- | --- |
-| ![Managed client inbounds](docs/screenshots/agent-inbounds.png) | ![1S-UI login](docs/screenshots/login.png) |
+| ![Agent live metrics](docs/screenshots/agent-detail.png) | ![Managed client inbounds](docs/screenshots/agent-inbounds.png) |
 
 ---
 
@@ -49,6 +49,7 @@
 | --- | --- | --- | --- |
 | **轻量 Web 面板** | `--minimal` | 完整 Web UI + sing-box | 单机代理、低配 VPS；性能目标 1 核 512MB |
 | **受管客户端** | `--managed-client` | Web UI + sing-box + Agent | 被中心面板管理的客户端服务器 |
+| **只监控 Agent** | `install-agent.sh` | 独立 Agent，无 Web UI | 只采集指标，不需要远程管理入站 |
 | **全面服务端** | `--full` | Web UI + sing-box + Xray + Agent + 反向代理 | 多服务器控制面；硬性要求至少 2 核 2GB |
 
 ```bash
@@ -62,20 +63,35 @@ bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
 bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.8 -y --full --domain panel.example.com --email admin@example.com
 ```
 
-受管客户端请在主面板打开 **服务器监控 → 添加子服务器 → 生成主服务器连接 API**。子服务器只需输入这一项，系统会按主机名自动登记并绑定：
+### 30 秒接入子服务器
+
+1. 在主面板打开 **服务器监控 → 添加子服务器 → 生成主服务器连接 API**。
+2. 在子服务器打开 **服务器监控 → 连接主服务器**，粘贴完整连接 API，点击 **立即连接**。
+
+系统会按子服务器主机名自动登记，并为每台机器签发独立 Agent Token。无需手动填写 WebSocket 地址、节点名称或 Token：
 
 - 子服务器已经安装 1S-UI：打开 **服务器监控 → 连接主服务器**，粘贴完整连接 API 即可。
 - 全新服务器：执行同一弹窗生成的“受管客户端安装命令”，安装完成后自动绑定。
 - 一个连接 API 可连续接入多台子服务器；重新生成后旧 API 立即失效。
 - 只接入一台服务器时，也可在同一弹窗创建 15 分钟有效、仅使用一次的地址。
+- HTTP/IP 面板也可使用复制按钮；浏览器不提供安全剪贴板 API 时会自动使用兼容复制方式。
 
-手动格式如下：
+带完整 Web 面板、可远程管理入站的受管客户端：
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.8 -y \
   --managed-client \
   --connect 'https://panel.example.com/app/agent/v1/enroll#CONTROLLER_KEY'
 ```
+
+只采集监控指标、不安装子服务器 Web 面板：
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-agent.sh) \
+  --connect 'https://panel.example.com/app/agent/v1/enroll#CONTROLLER_KEY'
+```
+
+> `#CONTROLLER_KEY` 必须保留。密钥位于 URL Fragment，不会随 HTTP 请求发送到服务端访问日志。
 
 ### 安装后的访问地址
 
@@ -112,10 +128,10 @@ s-ui update
 低配策略以“系统不因安装或启动面板发生 OOM/重启”为第一优先级：
 
 - 1 核会启用低开销运行参数，但不会单独阻止 sing-box。
-- 内存低于 1.5GB 时，安装器默认先启动 Web 面板，不自动启动代理内核；确认资源稳定后可手动启动。
+- 内存低于 1.5GB 时，安装器默认启动 Web 面板和 sing-box，并使用较低启动预算；仅显式传入 `--skip-core` 才进入纯面板模式。
 - 低配档位不下载、不启动 Xray-core，并设置 `SUI_DISABLE_XRAY=true`。
-- 全面服务端和新增 Agent 控制面需要至少 2 核 2GB，`--force` 不会绕过该限制。
-- 512MB 目标指轻量 Web 管理保持可用；代理吞吐仍取决于协议、连接数和线路。
+- 作为主服务器创建、管理 Agent 的控制面需要至少 2 核 2GB；受管客户端本身可按低配模式安装。`--force` 不会绕过主控制面的限制。
+- 512MB 目标包含轻量 Web 管理和 sing-box 基础代理；代理吞吐仍取决于协议、连接数和线路。
 
 ### 功能矩阵
 
@@ -188,6 +204,9 @@ IPv6 池模式只会向选定网卡添加地址，不修改系统默认路由。
 
 ### v1.5.8 更新重点
 
+- 增加可复用的主服务器连接 API：子服务器只粘贴一个值即可自动登记、获取独立 Token 并建立 WebSocket；重新生成会撤销旧 API。
+- 增加 15 分钟一次性连接地址，并区分“完整 Web 面板受管客户端”和“仅监控 Agent”安装方式。
+- 修复 HTTP/IP 面板中复制按钮失败的问题，在非安全上下文自动回退到兼容剪贴板方案。
 - 全新的服务器监控列表和节点详情页，提供实时指标、历史曲线、网络流量和远程控制标签页。
 - 修复低负载 Linux VPS 的 CPU 长期显示 `0.0%`，小于 1% 时显示两位小数。
 - 修复节点详情页在桌面和移动端无法继续下滑的问题。
@@ -210,6 +229,8 @@ IPv6 池模式只会向选定网卡添加地址，不修改系统默认路由。
 - IPv6 egress pools and upstream SOCKS5 relays with BitBrowser Excel/plain-text export.
 - Outbound Agent connections over WebSocket/HTTP; no inbound Agent control port is required.
 - A reusable controller connection API lets each child panel bind by pasting one value; optional 15-minute single-use links remain available.
+- Each child is registered by hostname and receives its own Agent token; regenerating the controller API revokes the previous key.
+- Clipboard actions also work on HTTP/IP panels through a compatibility fallback when the secure Clipboard API is unavailable.
 - Live CPU, memory, disk, process, network, RTT/P95/loss metrics, history charts, remote commands, and PTY terminal.
 - Managed-server inbound CRUD, remote quick-add, and remote relay creation through a root-only Unix socket.
 - Default solid UI, responsive desktop/mobile layouts, optional backgrounds and glass/clear styles.
@@ -218,14 +239,24 @@ IPv6 池模式只会向选定网卡添加地址，不修改系统默认路由。
 
 | Profile | Minimum target | Notes |
 | --- | --- | --- |
-| Minimal panel | 1 vCPU / 512MB | Full Web UI; low-memory safety mode may start panel-only |
+| Minimal panel | 1 vCPU / 512MB | Full Web UI + sing-box; Xray remains disabled on low-resource hosts |
 | Managed client | 1 vCPU / 512MB | Full Web UI + sing-box + Agent; generated enrollment command recommended |
 | Full control plane | 2 vCPU / 2GB | Hard requirement; includes Xray, Agent, and reverse proxy |
+
+The 2 vCPU / 2GB hard requirement applies to a panel acting as the Agent control plane. Managed child panels can use the low-resource profile and start sing-box by default; only an explicit `--skip-core` leaves proxy cores stopped.
 
 Quick install:
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
+```
+
+To attach a child server, generate a controller connection API under **Server Monitoring → Add Child Server**, then paste that single value into **Server Monitoring → Connect to Controller** on the child. For a fresh managed child with a full Web panel:
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.8 -y \
+  --managed-client \
+  --connect 'https://panel.example.com/app/agent/v1/enroll#CONTROLLER_KEY'
 ```
 
 Defaults: admin `admin` / `admin` (change immediately), panel `2095` `/app/`, subscription `2096` `/sub/`, database `/usr/local/s-ui/db`.
@@ -236,7 +267,7 @@ With the full reverse-proxy profile, use `http://server-ip/app/` or `https://you
 
 ## 日本語
 
-1S-UI は Ubuntu / Debian 向けのプロキシ管理パネルです。標準コアは sing-box、入站ごとに Xray-core を選択できます。v1.5.8 は 1–100 件の一括ノード作成、IPv6 出口中継、サーバー Agent 監視、履歴グラフ、遠隔操作、PTY ターミナル、Caddy / Nginx 管理に対応します。
+1S-UI は Ubuntu / Debian 向けのプロキシ管理パネルです。標準コアは sing-box、入站ごとに Xray-core を選択できます。v1.5.8 は 1–100 件の一括ノード作成、IPv6 出口中継、サーバー Agent 監視、履歴グラフ、遠隔操作、PTY ターミナル、Caddy / Nginx 管理に対応します。子サーバーは、メインパネルで生成した接続 API を 1 つ貼り付けるだけで登録できます。
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.8
@@ -246,7 +277,7 @@ Linux が主なサポート対象です。Windows は保守停止中、OpenWrt L
 
 ## 한국어
 
-1S-UI는 Ubuntu/Debian 중심의 프록시 관리 패널입니다. 기본 코어는 sing-box이며 인바운드별로 Xray-core를 선택할 수 있습니다. v1.5.8은 1–100개 노드 일괄 생성, IPv6 출구 릴레이, 서버 Agent 모니터링, 기록 차트, 원격 제어, PTY 터미널 및 Caddy/Nginx 관리를 지원합니다.
+1S-UI는 Ubuntu/Debian 중심의 프록시 관리 패널입니다. 기본 코어는 sing-box이며 인바운드별로 Xray-core를 선택할 수 있습니다. v1.5.8은 1–100개 노드 일괄 생성, IPv6 출구 릴레이, 서버 Agent 모니터링, 기록 차트, 원격 제어, PTY 터미널 및 Caddy/Nginx 관리를 지원합니다. 자식 서버는 메인 패널에서 생성한 연결 API 하나만 붙여 넣으면 등록됩니다.
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.8
@@ -254,7 +285,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
 
 ## Tiếng Việt
 
-1S-UI là bảng điều khiển proxy ưu tiên Ubuntu/Debian, dùng sing-box mặc định và cho phép chọn Xray-core theo từng inbound. Phiên bản v1.5.8 hỗ trợ tạo hàng loạt 1–100 node, relay IPv6, giám sát Agent, biểu đồ lịch sử, điều khiển từ xa và terminal PTY.
+1S-UI là bảng điều khiển proxy ưu tiên Ubuntu/Debian, dùng sing-box mặc định và cho phép chọn Xray-core theo từng inbound. Phiên bản v1.5.8 hỗ trợ tạo hàng loạt 1–100 node, relay IPv6, giám sát Agent, biểu đồ lịch sử, điều khiển từ xa và terminal PTY. Máy con chỉ cần dán một API kết nối do bảng điều khiển chính tạo để đăng ký.
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.8
@@ -262,7 +293,7 @@ bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
 
 ## فارسی
 
-1S-UI یک پنل مدیریت پروکسی برای Ubuntu و Debian است. هسته پیش‌فرض sing-box است و برای هر inbound می‌توان Xray-core را انتخاب کرد. نسخه v1.5.8 ساخت گروهی ۱ تا ۱۰۰ نود، خروجی IPv6، پایش Agent، نمودارهای زنده، کنترل از راه دور و ترمینال PTY را پشتیبانی می‌کند.
+1S-UI یک پنل مدیریت پروکسی برای Ubuntu و Debian است. هسته پیش‌فرض sing-box است و برای هر inbound می‌توان Xray-core را انتخاب کرد. نسخه v1.5.8 ساخت گروهی ۱ تا ۱۰۰ نود، خروجی IPv6، پایش Agent، نمودارهای زنده، کنترل از راه دور و ترمینال PTY را پشتیبانی می‌کند. برای ثبت سرور فرزند کافی است تنها API اتصال ساخته‌شده در پنل اصلی را وارد کنید.
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.5.8

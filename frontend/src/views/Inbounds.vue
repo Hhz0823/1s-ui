@@ -717,6 +717,11 @@ const uniqueQuickTags = (count: number, baseTag: string): string[] => {
   return tags
 }
 
+const quickAddListenAddress = (): string => {
+  const host = location.hostname.replace(/^\[|\]$/g, '')
+  return host.includes(':') ? '::' : '0.0.0.0'
+}
+
 const createQuickNode = async () => {
   quickAdd.value.loading = true
   const count = normalizeQuickAddCount()
@@ -751,7 +756,7 @@ const createQuickNode = async () => {
       id: 0,
       core_type: quickAdd.value.core_type,
       tag: tags[index],
-      listen: '::',
+      listen: quickAddListenAddress(),
       listen_port: ports[index],
     } as any)
 

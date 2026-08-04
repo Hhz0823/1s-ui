@@ -30,7 +30,7 @@ FORCE_INSTALL=0
 AUTO_YES=0
 FORCE_XRAY=""                # "" | 1 | 0
 FORCE_PROXY=""               # "" | 1 | 0
-SKIP_CORE=1                  # 1 = SUI_SKIP_CORE (panel web only)
+SKIP_CORE=0                  # 1 = SUI_SKIP_CORE (panel web only)
 START_SERVICE=1
 REQUESTED_VERSION=""
 CONTROLLER_URL=""
@@ -414,21 +414,12 @@ apply_kind_defaults() {
             fi
             return 1
         fi
-        if [[ "$MEM_TOTAL_MB" -lt 1500 ]]; then
-            SKIP_CORE=1
-            core_reason="全面服务端+低内存：先启动面板，内核需稳定后手动启动"
-        fi
     elif [[ "$INSTALL_KIND" == "managed" ]]; then
         INSTALL_XRAY=0
         INSTALL_PROXY=0
         INSTALL_AGENT=1
-        if [[ "$MEM_TOTAL_MB" -lt 1500 ]]; then
-            SKIP_CORE=1
-            core_reason="受管客户端+低内存：先保证 Web 面板和 Agent 稳定，内核稍后从面板启动"
-        else
-            SKIP_CORE=0
-            core_reason="受管客户端：启动面板与 sing-box"
-        fi
+        SKIP_CORE=0
+        core_reason="受管客户端：启动面板与轻量 sing-box（低配档位禁用 Xray）"
         xray_reason="受管客户端默认 sing-box（可用 --with-xray）"
         proxy_reason="受管客户端默认不安装反代（可按需启用）"
         if [[ -z "$CONNECT_URL" && -z "$CONTROLLER_URL" && "$AUTO_YES" -ne 1 ]]; then
@@ -460,15 +451,8 @@ apply_kind_defaults() {
         INSTALL_XRAY=0
         INSTALL_PROXY=0
         INSTALL_AGENT=0
-        # A single CPU core selects low-profile tuning, but does not by itself
-        # prevent sing-box from running. Only the memory safety budget does.
-        if [[ "$MEM_TOTAL_MB" -lt 1500 ]]; then
-            SKIP_CORE=1
-            core_reason="轻量模式+内存不足：默认不启内核（防 OOM；可用 --start-core）"
-        else
-            SKIP_CORE=0
-            core_reason="轻量模式：启动面板时加载 sing-box"
-        fi
+        SKIP_CORE=0
+        core_reason="轻量模式：启动面板时加载轻量 sing-box"
         xray_reason="轻量模式：不装 Xray（可用 --with-xray）"
         proxy_reason="轻量模式：不装反代（可用 --with-proxy --domain ...）"
     fi
@@ -641,7 +625,7 @@ EOF
         echo -e "${green}已启用安全模式：面板启动时不自动加载 sing-box/Xray（防 OOM 关机）${plain}"
         echo -e "${yellow}需要代理时在面板配置入站后点「重启内核」${plain}"
     else
-        echo -e "${yellow}已配置为自动启动代理内核（--start-core）${plain}"
+        echo -e "${yellow}已配置为自动启动 sing-box 代理内核${plain}"
     fi
     if [[ "$DISABLE_XRAY" -eq 1 ]]; then
         echo -e "${green}低配档位仅启用 sing-box；Xray-core 不下载、不启动${plain}"
@@ -1161,6 +1145,16 @@ require_mem_budget() {
     return 0
 }
 
+core_start_budget_mb() {
+    if [[ "$SKIP_CORE" -eq 1 ]]; then
+        echo 384
+    elif [[ "$DISABLE_XRAY" -eq 1 || "$INSTALL_XRAY" -eq 0 ]]; then
+        echo 512
+    else
+        echo 768
+    fi
+}
+
 swap_path_is_active() {
     local path="$1"
     awk -v path="$path" 'NR > 1 && $1 == path { found=1 } END { exit found ? 0 : 1 }' "$PROC_SWAPS_FILE" 2>/dev/null
@@ -1211,7 +1205,7 @@ ensure_swap_if_needed() {
     [[ "$MEM_TOTAL_MB" -lt 700 ]] && minimum_total_mb=768
 
     # Only low-memory hosts need automatic swap. A healthy existing swap of at
-    # least the minimum below is enough for the panel-only startup path.
+    # least the minimum below is enough for the panel + sing-box startup path.
     if [[ "$MEM_TOTAL_MB" -ge 1500 || "$SWAP_MB" -ge "$minimum_total_mb" ]]; then
         SWAP_PREPARED=1
         return 0
@@ -1460,13 +1454,13 @@ install_s-ui() {
 
     if [[ "$START_SERVICE" -eq 1 ]]; then
         # This should be the ONLY full binary launch on a fresh install.
-        local start_budget=384
-        [[ "$SKIP_CORE" -eq 0 ]] && start_budget=768
+        local start_budget
+        start_budget=$(core_start_budget_mb)
         require_mem_budget "$start_budget" || exit 1
         if [[ "$SKIP_CORE" -eq 1 ]]; then
             echo -e "${yellow}启动面板（唯一一次加载主进程；安全模式不启内核）...${plain}"
         else
-            echo -e "${yellow}启动面板与代理内核（已通过 768MB 启动预算检查）...${plain}"
+            echo -e "${yellow}启动面板与代理内核（已通过 ${start_budget}MB 启动预算检查）...${plain}"
         fi
         if ! systemctl start s-ui; then
             echo -e "${red}s-ui 服务启动失败，最近日志：${plain}"

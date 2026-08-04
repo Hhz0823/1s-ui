@@ -49,6 +49,11 @@ func (a *APP) Init() error {
 	a.subServer = sub.NewServer()
 
 	a.configService = service.NewConfigService(a.core)
+	if repaired, repairErr := a.configService.RepairGeneratedTLSPins(); repairErr != nil {
+		return repairErr
+	} else if repaired > 0 {
+		log.Printf("repaired %d generated TLS certificate pin(s)", repaired)
+	}
 
 	return nil
 }

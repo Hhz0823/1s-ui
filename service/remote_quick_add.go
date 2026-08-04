@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"net"
 	"strings"
 	"time"
 	"unicode"
@@ -294,10 +295,18 @@ func quickAddPassword(request RemoteQuickAddRequest, index int) string {
 	return common.Random(20)
 }
 
+func quickAddListenAddress(publicHost string) string {
+	host := strings.Trim(strings.TrimSpace(publicHost), "[]")
+	if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+		return "::"
+	}
+	return "0.0.0.0"
+}
+
 func buildRemoteQuickAddInbound(request RemoteQuickAddRequest, tag string, port int, password string, tlsID uint, publicHost string) map[string]interface{} {
 	inbound := map[string]interface{}{
 		"id": 0, "core_type": request.CoreType, "type": request.Protocol,
-		"tag": tag, "listen": "::", "listen_port": port, "tls_id": tlsID,
+		"tag": tag, "listen": quickAddListenAddress(publicHost), "listen_port": port, "tls_id": tlsID,
 		"addrs": []interface{}{}, "out_json": map[string]interface{}{},
 	}
 	isXray := request.CoreType == model.CoreTypeXray

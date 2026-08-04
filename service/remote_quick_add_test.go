@@ -29,9 +29,26 @@ func TestAllocateRemoteQuickAddSkipsUsedPortsAndTags(t *testing.T) {
 func TestBuildRemoteQuickAddXrayVlessUsesXHTTP(t *testing.T) {
 	request := RemoteQuickAddRequest{CoreType: model.CoreTypeXray, Protocol: "vless"}
 	inbound := buildRemoteQuickAddInbound(request, "vless-1", 443, "secret", 2, "node.example.com")
+	if inbound["listen"] != "0.0.0.0" {
+		t.Fatalf("listen = %v, want IPv4 wildcard for hostname entry", inbound["listen"])
+	}
 	transport, ok := inbound["transport"].(map[string]interface{})
 	if !ok || transport["type"] != "xhttp" || transport["host"] != "node.example.com" {
 		t.Fatalf("unexpected Xray VLESS transport: %#v", inbound["transport"])
+	}
+}
+
+func TestQuickAddListenAddressFollowsPublicEntryFamily(t *testing.T) {
+	tests := map[string]string{
+		"198.51.100.20":    "0.0.0.0",
+		"node.example.com": "0.0.0.0",
+		"2001:db8::20":     "::",
+		"[2001:db8::20]":   "::",
+	}
+	for host, want := range tests {
+		if got := quickAddListenAddress(host); got != want {
+			t.Errorf("quickAddListenAddress(%q) = %q, want %q", host, got, want)
+		}
 	}
 }
 

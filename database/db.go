@@ -3,6 +3,7 @@ package database
 import (
 	"encoding/json"
 	"log"
+	"net"
 	"os"
 	"path"
 	"runtime"
@@ -31,6 +32,37 @@ func initUser() error {
 			Password: "admin",
 		}
 		return db.Create(user).Error
+	}
+	return nil
+}
+
+func normalizeIPv4SharedInboundListeners() error {
+	var inbounds []model.Inbound
+	if err := db.Select("id", "options", "out_json").Find(&inbounds).Error; err != nil {
+		return err
+	}
+	for _, inbound := range inbounds {
+		var options map[string]interface{}
+		if err := json.Unmarshal(inbound.Options, &options); err != nil || options["listen"] != "::" {
+			continue
+		}
+		var outbound map[string]interface{}
+		if err := json.Unmarshal(inbound.OutJson, &outbound); err != nil {
+			continue
+		}
+		server, _ := outbound["server"].(string)
+		ip := net.ParseIP(strings.Trim(server, "[]"))
+		if ip == nil || ip.To4() == nil {
+			continue
+		}
+		options["listen"] = "0.0.0.0"
+		updated, err := json.MarshalIndent(options, "", "  ")
+		if err != nil {
+			return err
+		}
+		if err = db.Model(&model.Inbound{}).Where("id = ?", inbound.Id).UpdateColumn("options", updated).Error; err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -122,6 +154,9 @@ func InitDB(dbPath string) error {
 		&model.AgentNode{},
 	)
 	if err != nil {
+		return err
+	}
+	if err = normalizeIPv4SharedInboundListeners(); err != nil {
 		return err
 	}
 	err = initUser()

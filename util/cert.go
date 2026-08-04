@@ -81,3 +81,12 @@ func CertSha256Hex(pemData string) string {
 	sum := sha256.Sum256(cert.Raw)
 	return hex.EncodeToString(sum[:])
 }
+
+func CertSha256Base64(pemData string) string {
+	cert := parseLeafCert(pemData)
+	if cert == nil {
+		return ""
+	}
+	sum := sha256.Sum256(cert.Raw)
+	return base64.StdEncoding.EncodeToString(sum[:])
+}

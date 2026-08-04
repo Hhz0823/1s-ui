@@ -221,7 +221,15 @@ FORCE_PROXY=0
 FORCE_SKIP_CORE=0
 FORCE_START_CORE=0
 apply_kind_defaults >/dev/null
-assert_eq 1 "$SKIP_CORE" "low-memory minimal mode core guard"
+assert_eq 0 "$SKIP_CORE" "1c1G minimal mode starts sing-box"
+assert_eq 1 "$DISABLE_XRAY" "1c1G minimal mode keeps Xray disabled"
+assert_eq 512 "$(core_start_budget_mb)" "1c1G sing-box startup budget"
+
+FORCE_SKIP_CORE=1
+apply_kind_defaults >/dev/null
+assert_eq 1 "$SKIP_CORE" "explicit --skip-core remains panel-only"
+assert_eq 384 "$(core_start_budget_mb)" "panel-only startup budget"
+FORCE_SKIP_CORE=0
 
 INSTALL_KIND="managed"
 MEM_TOTAL_MB=512
@@ -236,8 +244,9 @@ FORCE_SKIP_CORE=0
 FORCE_START_CORE=0
 apply_kind_defaults >/dev/null
 assert_eq 1 "$INSTALL_AGENT" "1c512 managed-client Agent enablement"
-assert_eq 1 "$SKIP_CORE" "1c512 managed-client safe core startup"
+assert_eq 0 "$SKIP_CORE" "1c512 managed-client starts sing-box"
 assert_eq 1 "$DISABLE_XRAY" "1c512 managed-client Xray runtime guard"
+assert_eq 512 "$(core_start_budget_mb)" "1c512 managed-client startup budget"
 
 INSTALL_KIND="managed"
 CONTROLLER_URL=""
@@ -258,6 +267,8 @@ fi
 if grep -q 'read -r -p "反代域名' "$installer"; then
     fail "interactive installer still asks for reverse proxy domain instead of using the server panel"
 fi
+grep -q '^Environment=SUI_SKIP_CORE=false$' "$repo_root/s-ui.service" \
+    || fail "release service unit does not start sing-box by default"
 grep -q 'setting -listen 127.0.0.1 -domain - -uri -' "$installer" \
     || fail "IP-only reverse proxy setup does not clear stale domain settings"
 

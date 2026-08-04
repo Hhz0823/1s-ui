@@ -21,8 +21,8 @@ OOMPolicy=continue
 # it can thrash small VPS into a reboot-like freeze.
 Environment=GOMEMLIMIT=400MiB
 Environment=GOGC=50
-# Safe default: panel UI only; enable cores from the web UI when ready.
-Environment=SUI_SKIP_CORE=true
+# Default runtime starts sing-box. Low-resource installs disable Xray separately.
+Environment=SUI_SKIP_CORE=false
 
 # Do NOT set MemoryMax here.
 LimitNOFILE=1048576

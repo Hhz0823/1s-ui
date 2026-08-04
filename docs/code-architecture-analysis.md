@@ -135,7 +135,7 @@ Agent/浏览器 WebSocket 已恢复同源校验，拒绝跨站终端劫持。
 - 删除全局 `drop_caches` 和 64MB `dd` 缓冲。
 - 识别 cgroup 内存与 Swap 上限；无法安全安装时在下载前退出。
 - `--force` 不能绕过 2c2G 全面服务端门槛，也不能绕过 OOM、Swap、磁盘门闩。
-- 低内存默认只启动面板；保存配置不再自动启动内核。
+- 低内存默认启动面板与 sing-box、禁用 Xray；仅显式 `--skip-core` 启用纯面板模式。
 - 新安装不执行无意义的 `migrate/admin/uri` 完整进程。
 
 ## 9. 仍需长期处理
