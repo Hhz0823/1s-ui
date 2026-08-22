@@ -16,6 +16,7 @@ import (
 
 func main() {
 	panel := flag.String("panel", os.Getenv("SUI_AGENT_PANEL"), "panel base URL, including its path")
+	publicURL := flag.String("public-url", os.Getenv("SUI_AGENT_PUBLIC_URL"), "public URL of this local Web panel")
 	token := flag.String("token", os.Getenv("SUI_AGENT_TOKEN"), "agent enrollment token")
 	interval := flag.Duration("interval", envDuration("SUI_AGENT_INTERVAL", 15*time.Second), "heartbeat interval (5s-5m)")
 	insecure := flag.Bool("insecure", envBool("SUI_AGENT_INSECURE"), "skip panel TLS certificate verification")
@@ -33,6 +34,7 @@ func main() {
 	defer stop()
 	cfg := monitoragent.ClientConfig{
 		PanelURL:    *panel,
+		PublicURL:   *publicURL,
 		Token:       *token,
 		Interval:    *interval,
 		Insecure:    *insecure,

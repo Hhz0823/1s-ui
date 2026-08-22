@@ -35,6 +35,7 @@ const (
 	CapabilityQuickAddV1     = "inbounds.quick_add.v1"
 	CapabilityRelayV1        = "relay.v1"
 	CapabilityPortTrafficV1  = "port.traffic.v1"
+	CapabilityPanelAccessV1  = "panel.access.v1"
 )
 
 const (
@@ -48,6 +49,7 @@ const (
 	RPCMethodRelayDelete     = "relay.delete"
 	RPCMethodRelayExport     = "relay.bitbrowser_export"
 	RPCMethodPortTraffic     = "port.traffic"
+	RPCMethodPanelAccess     = "panel.access"
 )
 
 // Command types the panel may send to an online agent.

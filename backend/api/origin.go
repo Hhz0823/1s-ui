@@ -142,6 +142,11 @@ func (p *OriginPolicy) BrowserCSRFMiddleware() gin.HandlerFunc {
 			c.Next()
 			return
 		}
+		path := strings.TrimRight(c.Request.URL.Path, "/")
+		if path[strings.LastIndex(path, "/")+1:] == "managed-login" {
+			c.Next()
+			return
+		}
 		if c.GetHeader("X-Requested-With") != "XMLHttpRequest" {
 			c.AbortWithStatusJSON(http.StatusForbidden, Msg{Success: false, Msg: "X-Requested-With is required"})
 			return

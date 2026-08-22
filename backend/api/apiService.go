@@ -42,6 +42,7 @@ type ApiService struct {
 	service.PortTrafficService
 	service.ServerService
 	service.AgentService
+	service.ManagedAccessService
 	service.ReverseProxyService
 	service.UpdateService
 	service.XrayInstallService
@@ -96,6 +97,7 @@ type connectLocalAgentRequest struct {
 	ConnectURL string `json:"connect_url"`
 	Address    string `json:"address"`
 	Key        string `json:"key"`
+	PublicURL  string `json:"public_url"`
 	Insecure   bool   `json:"insecure"`
 }
 
@@ -140,8 +142,45 @@ func (a *ApiService) ConnectLocalAgent(c *gin.Context) {
 	if connectURL == "" {
 		connectURL = strings.TrimSpace(request.Address) + "#" + strings.TrimSpace(request.Key)
 	}
-	result, err := a.AgentService.ConnectLocalController(connectURL, request.Insecure)
+	result, err := a.AgentService.ConnectLocalController(connectURL, request.Insecure, request.PublicURL)
 	jsonObj(c, result, err)
+}
+
+func (a *ApiService) CreateAgentPanelAccess(c *gin.Context) {
+	if err := a.SettingService.RequireControllerControl(); err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	id, err := parseAgentNodeID(c)
+	if err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	node, err := a.AgentService.Get(id)
+	if err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	if !node.Managed || !node.Controllable {
+		jsonObj(c, nil, common.NewError("managed server panel is offline or unavailable"))
+		return
+	}
+	panelURL, err := service.NormalizePanelURL(node.Report.Panel.PublicURL)
+	if err != nil {
+		jsonObj(c, nil, common.NewError("managed server has not reported a public panel address"))
+		return
+	}
+	response, err := a.AgentService.DispatchRPC(id, agent.RPCMethodPanelAccess, service.ManagedPanelAccessRequest{Actor: GetLoginUser(c)}, GetLoginUser(c))
+	if err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	var grant service.ManagedPanelAccessGrant
+	if err := json.Unmarshal(response.Payload, &grant); err != nil || strings.TrimSpace(grant.Token) == "" || grant.ExpiresAt <= time.Now().Unix() {
+		jsonObj(c, nil, common.NewError("managed server returned an invalid panel access grant"))
+		return
+	}
+	jsonObj(c, map[string]interface{}{"panel_url": panelURL, "token": grant.Token, "expires_at": grant.ExpiresAt}, nil)
 }
 
 func (a *ApiService) GetLocalAgentConnection(c *gin.Context) {
@@ -617,9 +656,8 @@ func agentConnectionResponse(connectURL string) map[string]interface{} {
 	}
 }
 
-func managedPanelInstallCommand(connectURL string) string {
-	return "bash <(curl -fsSL https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) --connect " +
-		shellQuote(connectURL) + " " + shellQuote(config.GetVersion())
+func managedPanelInstallCommand(_ string) string {
+	return "bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)"
 }
 
 func panelURLForRequest(c *gin.Context, webPath string) string {
@@ -938,6 +976,33 @@ func (a *ApiService) Setup(c *gin.Context) {
 	}
 	logger.Info("initial administrator created")
 	jsonMsg(c, "", nil)
+}
+
+func (a *ApiService) ManagedLogin(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	c.Header("Pragma", "no-cache")
+	c.Header("Referrer-Policy", "no-referrer")
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 4<<10)
+	webPath, err := a.SettingService.GetWebPath()
+	if err != nil {
+		c.Redirect(http.StatusSeeOther, "/")
+		return
+	}
+	loginPath := strings.TrimRight(webPath, "/") + "/login?managed=failed"
+	username, err := a.ManagedAccessService.Consume(strings.TrimSpace(c.PostForm("token")))
+	if err != nil {
+		c.Redirect(http.StatusSeeOther, loginPath)
+		return
+	}
+	sessionMaxAge, err := a.SettingService.GetSessionMaxAge()
+	if err != nil {
+		logger.Infof("Unable to get session's max age from DB")
+	}
+	if err := SetLoginUser(c, username, sessionMaxAge); err != nil {
+		c.Redirect(http.StatusSeeOther, loginPath)
+		return
+	}
+	c.Redirect(http.StatusSeeOther, webPath)
 }
 
 func (a *ApiService) ChangePass(c *gin.Context) {

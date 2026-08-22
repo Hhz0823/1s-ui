@@ -25,6 +25,7 @@ type CoreStatus struct {
 type PanelStatus struct {
 	Installed        bool        `json:"installed"`
 	Version          string      `json:"version,omitempty"`
+	PublicURL        string      `json:"public_url,omitempty"`
 	ControlAvailable bool        `json:"control_available"`
 	ProtocolVersion  int         `json:"protocol_version,omitempty"`
 	Capabilities     []string    `json:"capabilities,omitempty"`

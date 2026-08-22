@@ -11,6 +11,7 @@ import (
 
 	"github.com/Hhz0823/1s-ui/database"
 	"github.com/Hhz0823/1s-ui/logger"
+	"github.com/Hhz0823/1s-ui/service"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -42,11 +43,8 @@ func TestSysctlListHas(t *testing.T) {
 func TestManagedPanelInstallCommandUsesUnifiedInstaller(t *testing.T) {
 	connectURL := "https://panel.example.com/app/"
 	command := managedPanelInstallCommand(connectURL)
-	if !strings.Contains(command, " --connect '"+connectURL+"'") {
-		t.Fatalf("managed install command does not contain the public panel address: %q", command)
-	}
-	if strings.Contains(command, "#") || strings.Contains(command, "--managed-client") || strings.Contains(command, " -y ") {
-		t.Fatalf("managed install command still depends on the legacy mode selection: %q", command)
+	if command != "bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)" {
+		t.Fatalf("managed install command is not the single public installer: %q", command)
 	}
 }
 
@@ -133,5 +131,51 @@ func TestFirstRunSetupAPI(t *testing.T) {
 	}
 	if secondResult.Success {
 		t.Fatal("second setup request was accepted")
+	}
+}
+
+func TestManagedLoginAcceptsOnlyOneTimeGrant(t *testing.T) {
+	logger.InitLogger(logging.ERROR)
+	if err := database.InitDB(filepath.Join(t.TempDir(), "managed-login.db")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := (&service.UserService{}).InitializeAdmin("child-admin", "secure-password"); err != nil {
+		t.Fatal(err)
+	}
+	grant, err := (&service.ManagedAccessService{}).Issue(service.ManagedPanelAccessRequest{Actor: "controller-admin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(sessions.Sessions("s-ui", cookie.NewStore([]byte("0123456789abcdef0123456789abcdef"))))
+	policy, err := NewOriginPolicy("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	NewAPIHandler(engine.Group("/app/api"), nil, policy)
+
+	values := url.Values{"token": {grant.Token}}
+	request := httptest.NewRequest(http.MethodPost, "/app/api/managed-login", strings.NewReader(values.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	request.Header.Set("Origin", "https://controller.example")
+	request.Host = "child.example"
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusSeeOther || recorder.Header().Get("Location") != "/app/" {
+		t.Fatalf("managed login did not redirect to the child panel: status=%d location=%q", recorder.Code, recorder.Header().Get("Location"))
+	}
+	if len(recorder.Result().Cookies()) == 0 {
+		t.Fatal("managed login did not create a child-panel session")
+	}
+
+	replay := httptest.NewRequest(http.MethodPost, "/app/api/managed-login", strings.NewReader(values.Encode()))
+	replay.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	replay.Host = "child.example"
+	replayRecorder := httptest.NewRecorder()
+	engine.ServeHTTP(replayRecorder, replay)
+	if replayRecorder.Code != http.StatusSeeOther || !strings.Contains(replayRecorder.Header().Get("Location"), "managed=failed") {
+		t.Fatalf("replayed managed login token was not rejected: status=%d location=%q", replayRecorder.Code, replayRecorder.Header().Get("Location"))
 	}
 }

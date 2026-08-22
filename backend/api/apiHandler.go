@@ -25,7 +25,7 @@ func (a *APIHandler) initRouter(g *gin.RouterGroup) {
 	g.Use(func(c *gin.Context) {
 		path := c.Request.URL.Path
 		action := path[strings.LastIndex(path, "/")+1:]
-		if action != "login" && action != "logout" && action != "setup" && action != "setup-status" {
+		if action != "login" && action != "logout" && action != "setup" && action != "setup-status" && action != "managed-login" {
 			checkLogin(c)
 		}
 	})
@@ -38,6 +38,7 @@ func (a *APIHandler) initRouter(g *gin.RouterGroup) {
 	g.POST("/agents/batch-command", a.ApiService.ControlAgentsBatch)
 	g.GET("/agents/:id", a.ApiService.GetAgent)
 	g.GET("/agents/:id/port-traffic", a.ApiService.GetAgentPortTraffic)
+	g.POST("/agents/:id/panel-access", a.ApiService.CreateAgentPanelAccess)
 	g.PATCH("/agents/:id", a.ApiService.UpdateAgent)
 	g.GET("/agents/:id/inbounds", a.ApiService.GetAgentInbounds)
 	g.GET("/agents/:id/inbounds/editor", a.ApiService.GetAgentInboundEditor)
@@ -77,6 +78,8 @@ func (a *APIHandler) postHandler(c *gin.Context) {
 		a.ApiService.Login(c)
 	case "setup":
 		a.ApiService.Setup(c)
+	case "managed-login":
+		a.ApiService.ManagedLogin(c)
 	case "changePass":
 		a.ApiService.ChangePass(c)
 	case "save":

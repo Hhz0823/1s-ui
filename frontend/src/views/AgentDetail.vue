@@ -25,6 +25,15 @@
         <p dir="ltr">{{ node?.report.hostname || node?.remote_ip || '-' }}</p>
       </div>
       <div class="detail-actions">
+        <v-btn
+          v-if="canControl"
+          variant="tonal"
+          prepend-icon="mdi-open-in-new"
+          :loading="openingPanel"
+          :disabled="!canOpenPanel"
+          :title="canOpenPanel ? $t('agent.openPanel') : $t('agent.openPanelUnavailable')"
+          @click="openManagedPanel"
+        >{{ $t('agent.openPanel') }}</v-btn>
         <v-btn v-if="canControl" variant="tonal" prepend-icon="mdi-console" :disabled="!node?.controllable" @click="openTerminal">{{ $t('agent.terminal') }}</v-btn>
         <v-btn v-if="canControl" color="primary" prepend-icon="mdi-tune-vertical" :disabled="!node?.managed" @click="manageInbounds">{{ $t('agent.manageInbounds') }}</v-btn>
         <v-btn icon="mdi-refresh" variant="tonal" :loading="loading" :title="$t('actions.update')" @click="loadNode(false)" />
@@ -192,12 +201,16 @@ const theme = useTheme()
 const nodeId = Number(route.params.id)
 const node = ref<AgentNode | null>(null)
 const loading = ref(false)
+const openingPanel = ref(false)
 const errorMessage = ref('')
 const tab = ref('detail')
 const control = reactive({ loading: false, shell: '', interval: 15, lastOutput: '' })
 const term = reactive({ visible: false, connected: false, buffer: '' })
 const termEl = ref<HTMLElement | null>(null)
 const canControl = computed(() => Data().controllerMode.can_control !== false)
+const canOpenPanel = computed(() => Boolean(
+  canControl.value && node.value?.managed && node.value?.controllable && node.value?.report.panel?.public_url,
+))
 let termWs: WebSocket | null = null
 let refreshTimer: number | undefined
 
@@ -266,6 +279,36 @@ const sendCmd = async (type: string, args?: Record<string, any>) => {
 }
 const runShell = () => { if (control.shell.trim()) void sendCmd('exec', { command: control.shell.trim() }) }
 const manageInbounds = () => { if (canControl.value && node.value?.managed) void router.push(`/agents/${nodeId}/inbounds`) }
+
+const openManagedPanel = async () => {
+  if (!canOpenPanel.value || openingPanel.value) return
+  const targetName = `sui-managed-${Date.now()}`
+  const popup = window.open('about:blank', targetName)
+  if (!popup) return push.error({ message: i18n.global.t('agent.popupBlocked') })
+  popup.opener = null
+  openingPanel.value = true
+  try {
+    const grant = await api(`api/agents/${nodeId}/panel-access`, { method: 'POST', body: '{}' })
+    const form = document.createElement('form')
+    const token = document.createElement('input')
+    form.method = 'POST'
+    form.action = new URL('api/managed-login', grant.panel_url).toString()
+    form.target = targetName
+    form.hidden = true
+    token.type = 'hidden'
+    token.name = 'token'
+    token.value = grant.token
+    form.appendChild(token)
+    document.body.appendChild(form)
+    form.submit()
+    form.remove()
+  } catch (error: any) {
+    popup.close()
+    push.error({ message: error?.message || i18n.global.t('agent.openPanelFailed') })
+  } finally {
+    openingPanel.value = false
+  }
+}
 
 const openTerminal = async () => {
   if (!canControl.value || !node.value?.controllable) return push.error({ message: i18n.global.t('agent.controlNeedWs') })

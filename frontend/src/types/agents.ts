@@ -62,7 +62,7 @@ export type AgentNode = {
     ipv4?: string[]
     ipv6?: string[]
     cores?: { singbox_running?: boolean, xray_running?: boolean, xray_version?: string }
-    panel?: { installed?: boolean, version?: string, control_available?: boolean, protocol_version?: number, capabilities?: string[] }
+    panel?: { installed?: boolean, version?: string, public_url?: string, control_available?: boolean, protocol_version?: number, capabilities?: string[] }
     conn_mode?: string
   }
   history?: AgentMetricSample[]

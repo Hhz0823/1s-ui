@@ -18,6 +18,7 @@ type LocalControlService struct {
 	TlsService
 	ClientService
 	PortTrafficService
+	ManagedAccessService
 }
 
 type RemoteInboundList struct {
@@ -70,6 +71,7 @@ func (s *LocalControlService) Capabilities() agent.PanelStatus {
 			agent.CapabilityQuickAddV1,
 			agent.CapabilityRelayV1,
 			agent.CapabilityPortTrafficV1,
+			agent.CapabilityPanelAccessV1,
 		},
 	}
 }

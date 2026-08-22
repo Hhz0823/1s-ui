@@ -76,6 +76,12 @@ func (s *Server) startControlSocket() error {
 			result = local.Capabilities()
 		case agent.RPCMethodPortTraffic:
 			result, callErr = local.PortTrafficService.GetPortTraffic()
+		case agent.RPCMethodPanelAccess:
+			var payload service.ManagedPanelAccessRequest
+			callErr = decodeLocalRPCPayload(request.Payload, &payload)
+			if callErr == nil {
+				result, callErr = local.ManagedAccessService.Issue(payload)
+			}
 		case agent.RPCMethodInboundList:
 			result, callErr = local.ListInbounds()
 		case agent.RPCMethodInboundEdit:

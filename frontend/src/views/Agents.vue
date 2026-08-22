@@ -18,15 +18,12 @@
           <v-textarea :model-value="enroll.pairURL" :label="$t('agent.simpleAddress')" :hint="$t('agent.simpleAddressHint')" persistent-hint readonly dir="ltr" rows="2" auto-grow class="mb-3">
             <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enroll.pairURL)" /></template>
           </v-textarea>
-          <v-expansion-panels v-if="enroll.managedCommand || enroll.command" variant="accordion" class="enroll-commands">
+          <v-expansion-panels v-if="enroll.managedCommand" variant="accordion" class="enroll-commands">
             <v-expansion-panel>
               <v-expansion-panel-title>{{ $t('agent.installCommands') }}</v-expansion-panel-title>
               <v-expansion-panel-text>
                 <v-textarea v-if="enroll.managedCommand" :model-value="enroll.managedCommand" :label="$t('agent.managedCommand')" readonly dir="ltr" rows="3" auto-grow hide-details class="mb-3">
                   <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enroll.managedCommand)" /></template>
-                </v-textarea>
-                <v-textarea v-if="enroll.command" :model-value="enroll.command" :label="$t('agent.command')" readonly dir="ltr" rows="3" auto-grow hide-details>
-                  <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enroll.command)" /></template>
                 </v-textarea>
               </v-expansion-panel-text>
             </v-expansion-panel>
@@ -227,7 +224,7 @@ import { i18n } from '@/locales'
 import Data from '@/store/modules/data'
 import type { AgentNode, AgentUsage } from '@/types/agents'
 import { copyText } from '@/utils/clipboard'
-import { fetchBackendObject as api } from '@/utils/backend'
+import { fetchBackendObject as api, resolveFrontendUrl } from '@/utils/backend'
 
 const router = useRouter()
 const dataStore = Data()
@@ -241,7 +238,7 @@ const hostRequirements = computed(() => dataStore.hostRequirements)
 const controllerModeLoading = ref(false)
 const controllerMode = computed(() => dataStore.controllerMode)
 const canControl = computed(() => controllerMode.value.can_control !== false)
-const localConnection = reactive({ supported: false, installed: false, configured: false, running: false, panel_url: '', insecure: false })
+const localConnection = reactive({ supported: false, installed: false, configured: false, running: false, panel_url: '', public_url: '', insecure: false })
 const serverMonitoringAvailable = computed(() => controllerMode.value.enabled && hostRequirements.value?.can_enable_agents === true)
 const currentHostMemoryGiB = computed(() => {
   const value = Number(hostRequirements.value?.mem_total_bytes || 0)
@@ -359,7 +356,7 @@ const loadControllerMode = async () => {
 const loadLocalConnection = async () => {
   try {
     const result = await api('api/agents/local-connection')
-    Object.assign(localConnection, { supported: false, installed: false, configured: false, running: false, panel_url: '', insecure: false }, result || {})
+    Object.assign(localConnection, { supported: false, installed: false, configured: false, running: false, panel_url: '', public_url: '', insecure: false }, result || {})
   } catch { /* unsupported platforms remain read-only */ }
 }
 const enableControllerMode = async () => {
@@ -379,7 +376,7 @@ const connectToController = async () => {
   try {
     const result = await api('api/agents/connect-local', {
       method: 'POST',
-      body: JSON.stringify({ connect_url: connect.url.trim(), insecure: connect.insecure }),
+      body: JSON.stringify({ connect_url: connect.url.trim(), public_url: resolveFrontendUrl(), insecure: connect.insecure }),
     })
     connect.visible = false
     push.success({ message: i18n.global.t('agent.connectSuccess', { panel: result?.panel_url || '-' }) })

@@ -31,6 +31,7 @@ import (
 
 type ClientConfig struct {
 	PanelURL    string
+	PublicURL   string
 	Token       string
 	Interval    time.Duration
 	Insecure    bool
@@ -86,7 +87,7 @@ func SendOnce(ctx context.Context, cfg ClientConfig) error {
 	if err != nil {
 		return err
 	}
-	_, err = sendHeartbeat(ctx, client, endpoint, cfg.Token, cfg.LocalSocket)
+	_, err = sendHeartbeat(ctx, client, endpoint, cfg.Token, cfg.LocalSocket, cfg.PublicURL)
 	return err
 }
 
@@ -95,7 +96,7 @@ func runHTTP(ctx context.Context, cfg ClientConfig) error {
 	if err != nil {
 		return err
 	}
-	if _, err := sendHeartbeat(ctx, client, endpoint, cfg.Token, cfg.LocalSocket); err != nil {
+	if _, err := sendHeartbeat(ctx, client, endpoint, cfg.Token, cfg.LocalSocket, cfg.PublicURL); err != nil {
 		return err
 	}
 	ticker := time.NewTicker(cfg.Interval)
@@ -105,7 +106,7 @@ func runHTTP(ctx context.Context, cfg ClientConfig) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			if _, err := sendHeartbeat(ctx, client, endpoint, cfg.Token, cfg.LocalSocket); err != nil {
+			if _, err := sendHeartbeat(ctx, client, endpoint, cfg.Token, cfg.LocalSocket, cfg.PublicURL); err != nil {
 				fmt.Fprintf(os.Stderr, "agent heartbeat failed: %v\n", err)
 			}
 		}
@@ -163,7 +164,7 @@ func runWebSocket(ctx context.Context, cfg ClientConfig) error {
 	}
 
 	// Initial report
-	if err := wsSendReport(ctx, write, cfg.LocalSocket); err != nil {
+	if err := wsSendReport(ctx, write, cfg.LocalSocket, cfg.PublicURL); err != nil {
 		return err
 	}
 
@@ -349,11 +350,11 @@ func runWebSocket(ctx context.Context, cfg ClientConfig) error {
 			os.Exit(0)
 			return nil
 		case <-reportNow:
-			if err := wsSendReport(ctx, write, cfg.LocalSocket); err != nil {
+			if err := wsSendReport(ctx, write, cfg.LocalSocket, cfg.PublicURL); err != nil {
 				return err
 			}
 		case <-ticker.C:
-			if err := wsSendReport(ctx, write, cfg.LocalSocket); err != nil {
+			if err := wsSendReport(ctx, write, cfg.LocalSocket, cfg.PublicURL); err != nil {
 				return err
 			}
 		}
@@ -376,8 +377,8 @@ func numberArg(v interface{}) (int, bool) {
 	}
 }
 
-func wsSendReport(ctx context.Context, write func(interface{}) error, localSocket string) error {
-	report := CollectReportWithSocket(localSocket)
+func wsSendReport(ctx context.Context, write func(interface{}) error, localSocket, publicURL string) error {
+	report := collectReport(localSocket, publicURL)
 	report.ConnMode = "ws"
 	payload, err := json.Marshal(report)
 	if err != nil {
@@ -419,8 +420,8 @@ func newHTTPClient(cfg ClientConfig) (*http.Client, string, error) {
 	return &http.Client{Timeout: 15 * time.Second, Transport: transport}, panel.String(), nil
 }
 
-func sendHeartbeat(ctx context.Context, client *http.Client, endpoint, token, localSocket string) (*HeartbeatResponse, error) {
-	report := CollectReportWithSocket(localSocket)
+func sendHeartbeat(ctx context.Context, client *http.Client, endpoint, token, localSocket, publicURL string) (*HeartbeatResponse, error) {
+	report := collectReport(localSocket, publicURL)
 	report.ConnMode = "http"
 	payload, err := json.Marshal(report)
 	if err != nil {
@@ -462,6 +463,10 @@ func CollectReport() Report {
 }
 
 func CollectReportWithSocket(localSocket string) Report {
+	return collectReport(localSocket, "")
+}
+
+func collectReport(localSocket, publicURL string) Report {
 	report := Report{OS: runtime.GOOS, Arch: runtime.GOARCH, AgentVersion: config.GetVersion()}
 	report.Hostname, _ = os.Hostname()
 	report.Uptime, _ = host.Uptime()
@@ -489,6 +494,7 @@ func CollectReportWithSocket(localSocket string) Report {
 	report.ProcessCount, report.Cores = collectProcessStatus()
 	report.IPv4, report.IPv6 = localAddresses()
 	report.Panel = probeLocalPanel(localSocket)
+	report.Panel.PublicURL = strings.TrimSpace(publicURL)
 	applyPanelCoreStatus(&report)
 	return report
 }

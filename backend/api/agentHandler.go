@@ -28,8 +28,9 @@ func NewAgentHandler(group *gin.RouterGroup) {
 }
 
 type pairAgentRequest struct {
-	Code string `json:"code"`
-	Name string `json:"name"`
+	Code     string `json:"code"`
+	Name     string `json:"name"`
+	PanelURL string `json:"panel_url"`
 }
 
 func (h *AgentHandler) Pair(c *gin.Context) {

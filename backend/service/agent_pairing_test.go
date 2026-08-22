@@ -116,6 +116,11 @@ func TestExchangeAgentPairingPostsFragmentCode(t *testing.T) {
 			http.Error(w, "missing name", http.StatusBadRequest)
 			return
 		}
+		if payload["panel_url"] != "https://child.example/app/" {
+			t.Errorf("managed panel URL was not included: %#v", payload)
+			http.Error(w, "missing panel URL", http.StatusBadRequest)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": true,
@@ -129,13 +134,25 @@ func TestExchangeAgentPairingPostsFragmentCode(t *testing.T) {
 	defer server.Close()
 
 	connection, pairedToken, err := exchangeAgentPairing(
-		context.Background(), server.URL+"/app/agent/v1/pair#"+code, false, server.Client(),
+		context.Background(), server.URL+"/app/agent/v1/pair#"+code, false, "https://child.example/app/", server.Client(),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if connection.PanelURL != server.URL+"/app/" || connection.Version != "test" || pairedToken != token {
 		t.Fatalf("unexpected pairing result: connection=%#v token=%q", connection, pairedToken)
+	}
+}
+
+func TestNormalizePanelURL(t *testing.T) {
+	value, err := NormalizePanelURL("https://child.example:8443/app")
+	if err != nil || value != "https://child.example:8443/app/" {
+		t.Fatalf("unexpected normalized panel URL: %q err=%v", value, err)
+	}
+	for _, input := range []string{"", "ftp://child.example/app/", "https://user@child.example/app/", "https://child.example/app/?token=x"} {
+		if _, err := NormalizePanelURL(input); err == nil {
+			t.Fatalf("accepted invalid panel URL %q", input)
+		}
 	}
 }
 
@@ -168,7 +185,7 @@ func TestExchangeAgentPairingAcceptsPublicAddressOnly(t *testing.T) {
 	}))
 	defer server.Close()
 
-	connection, pairedToken, err := exchangeAgentPairing(context.Background(), server.URL+"/app/", false, server.Client())
+	connection, pairedToken, err := exchangeAgentPairing(context.Background(), server.URL+"/app/", false, "", server.Client())
 	if err != nil {
 		t.Fatal(err)
 	}

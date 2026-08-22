@@ -541,7 +541,8 @@ func validAgentRPCMethod(method string) bool {
 		agent.RPCMethodRelayGet,
 		agent.RPCMethodRelayCreate,
 		agent.RPCMethodRelayDelete,
-		agent.RPCMethodRelayExport:
+		agent.RPCMethodRelayExport,
+		agent.RPCMethodPanelAccess:
 		return true
 	default:
 		return false

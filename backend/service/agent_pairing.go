@@ -27,8 +27,9 @@ const (
 )
 
 type LocalAgentConnection struct {
-	PanelURL string `json:"panel_url"`
-	Version  string `json:"version"`
+	PanelURL  string `json:"panel_url"`
+	PublicURL string `json:"public_url,omitempty"`
+	Version   string `json:"version"`
 }
 
 type LocalAgentConnectionStatus struct {
@@ -37,6 +38,7 @@ type LocalAgentConnectionStatus struct {
 	Configured bool   `json:"configured"`
 	Running    bool   `json:"running"`
 	PanelURL   string `json:"panel_url"`
+	PublicURL  string `json:"public_url,omitempty"`
 	Insecure   bool   `json:"insecure"`
 }
 
@@ -50,7 +52,7 @@ type pairingAPIResponse struct {
 	} `json:"obj"`
 }
 
-func (s *AgentService) ConnectLocalController(rawLink string, insecure bool) (*LocalAgentConnection, error) {
+func (s *AgentService) ConnectLocalController(rawLink string, insecure bool, publicURL string) (*LocalAgentConnection, error) {
 	if runtime.GOOS != "linux" {
 		return nil, common.NewError("connecting this panel as a managed server requires Linux")
 	}
@@ -62,15 +64,22 @@ func (s *AgentService) ConnectLocalController(rawLink string, insecure bool) (*L
 		return nil, common.NewError("systemd is required to connect this managed server")
 	}
 
-	connection, token, err := exchangeAgentPairing(context.Background(), rawLink, insecure, nil)
+	if strings.TrimSpace(publicURL) != "" {
+		normalizedURL, err := NormalizePanelURL(publicURL)
+		if err != nil {
+			return nil, err
+		}
+		publicURL = normalizedURL
+	}
+	connection, token, err := exchangeAgentPairing(context.Background(), rawLink, insecure, publicURL, nil)
 	if err != nil {
 		return nil, err
 	}
 	envPath := envOrDefault("SUI_AGENT_ENV_FILE", defaultLocalAgentEnvFile)
 	controlSocket := envOrDefault("SUI_CONTROL_SOCKET", defaultLocalControlSocket)
 	content := fmt.Sprintf(
-		"SUI_AGENT_PANEL=%s\nSUI_AGENT_TOKEN=%s\nSUI_AGENT_INTERVAL=15s\nSUI_AGENT_INSECURE=%t\nSUI_AGENT_LOCAL_SOCKET=%s\n",
-		connection.PanelURL, token, insecure, controlSocket,
+		"SUI_AGENT_PANEL=%s\nSUI_AGENT_TOKEN=%s\nSUI_AGENT_INTERVAL=15s\nSUI_AGENT_INSECURE=%t\nSUI_AGENT_LOCAL_SOCKET=%s\nSUI_AGENT_PUBLIC_URL=%s\n",
+		connection.PanelURL, token, insecure, controlSocket, publicURL,
 	)
 
 	checkCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -80,6 +89,7 @@ func (s *AgentService) ConnectLocalController(rawLink string, insecure bool) (*L
 		"SUI_AGENT_PANEL="+connection.PanelURL,
 		"SUI_AGENT_TOKEN="+token,
 		fmt.Sprintf("SUI_AGENT_INSECURE=%t", insecure),
+		"SUI_AGENT_PUBLIC_URL="+publicURL,
 	)
 	if output, err := check.CombinedOutput(); err != nil {
 		return nil, common.NewErrorf("the controller accepted the connection API, but the Agent connection check failed: %s", limitedOutput(output, err))
@@ -100,6 +110,7 @@ func (s *AgentService) ConnectLocalController(rawLink string, insecure bool) (*L
 			return nil, common.NewErrorf("Agent configuration was saved, but systemd could not start it: %s", limitedOutput(output, err))
 		}
 	}
+	connection.PublicURL = publicURL
 	return connection, nil
 }
 
@@ -121,6 +132,9 @@ func (s *AgentService) GetLocalControllerStatus() (*LocalAgentConnectionStatus, 
 			status.Configured = true
 			status.PanelURL = panelURL
 			status.Insecure = strings.EqualFold(values["SUI_AGENT_INSECURE"], "true")
+			if publicURL, publicErr := NormalizePanelURL(values["SUI_AGENT_PUBLIC_URL"]); publicErr == nil {
+				status.PublicURL = publicURL
+			}
 		}
 	}
 	if status.Supported {
@@ -173,12 +187,12 @@ func parseAgentEnvironment(content []byte) map[string]string {
 	return values
 }
 
-func exchangeAgentPairing(ctx context.Context, rawLink string, insecure bool, client *http.Client) (*LocalAgentConnection, string, error) {
+func exchangeAgentPairing(ctx context.Context, rawLink string, insecure bool, publicURL string, client *http.Client) (*LocalAgentConnection, string, error) {
 	endpoint, code, err := parseAgentPairingLink(rawLink)
 	if err != nil {
 		return nil, "", err
 	}
-	payload, _ := json.Marshal(map[string]string{"code": code, "name": localAgentEnrollmentName()})
+	payload, _ := json.Marshal(map[string]string{"code": code, "name": localAgentEnrollmentName(), "panel_url": publicURL})
 	requestCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	request, err := http.NewRequestWithContext(requestCtx, http.MethodPost, endpoint, bytes.NewReader(payload))
@@ -276,19 +290,26 @@ func localAgentEnrollmentName() string {
 	return hostname
 }
 
-func validatePanelURL(value string) (string, error) {
+func NormalizePanelURL(value string) (string, error) {
 	value = strings.TrimSpace(value)
+	if len(value) == 0 || len(value) > 2048 {
+		return "", common.NewError("invalid public panel URL")
+	}
 	parsed, err := url.Parse(value)
 	if err != nil || parsed.Host == "" || parsed.User != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return "", common.NewError("controller returned an invalid panel URL")
+		return "", common.NewError("invalid public panel URL")
 	}
 	if parsed.RawQuery != "" || parsed.Fragment != "" {
-		return "", common.NewError("controller panel URL must not contain a query or fragment")
+		return "", common.NewError("public panel URL must not contain a query or fragment")
 	}
 	if !strings.HasSuffix(parsed.Path, "/") {
 		parsed.Path += "/"
 	}
 	return parsed.String(), nil
+}
+
+func validatePanelURL(value string) (string, error) {
+	return NormalizePanelURL(value)
 }
 
 func validAgentCredential(value string) bool {

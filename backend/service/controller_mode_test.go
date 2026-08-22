@@ -83,7 +83,7 @@ func TestMonitorProfileRejectsControlAtServiceLayer(t *testing.T) {
 	for _, method := range []string{
 		agent.RPCMethodInboundList, agent.RPCMethodInboundEdit, agent.RPCMethodInboundSave,
 		agent.RPCMethodInboundQuickAdd, agent.RPCMethodRelayGet, agent.RPCMethodRelayCreate,
-		agent.RPCMethodRelayDelete, agent.RPCMethodRelayExport,
+		agent.RPCMethodRelayDelete, agent.RPCMethodRelayExport, agent.RPCMethodPanelAccess,
 	} {
 		if _, err := agents.DispatchRPC(1, method, map[string]interface{}{}, "test"); err == nil || !strings.Contains(err.Error(), "only allows read-only metrics") {
 			t.Fatalf("monitor profile allowed RPC %s: %v", method, err)

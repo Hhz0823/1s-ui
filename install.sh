@@ -86,10 +86,14 @@ usage() {
     cat <<EOF
 用法: install.sh [版本号] [选项]
 
-默认安装（无需选择类型）:
-  Web 面板 + sing-box + 休眠 Agent。Agent 只有绑定主服务器后才启动。
+唯一推荐安装指令:
+  bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
 
-兼容选项:
+安装结果:
+  完整 Web 面板 + sing-box + 休眠 Agent。首次进入 Web 后，向导会设置
+  管理员、运行角色与可选主服务器连接；Agent 绑定主服务器后才启动。
+
+以下参数仅为旧版自动化兼容，新安装无需使用:
   --minimal, --simple, -m   等同默认客户端安装
   --managed-client          等同默认安装，但要求同时提供 --connect 或旧式连接参数
   --full, --complete, --server
@@ -113,19 +117,6 @@ usage() {
   --force               兼容旧命令；不能绕过全面服务端的 2核2G 硬门槛
   -h, --help            显示帮助
 
-示例:
-  # 推荐：直接安装，适合 1 核 512MB 起步
-  bash install.sh
-  bash install.sh v1.6.0
-
-  # 安装后立即绑定主服务器
-  bash install.sh --connect 'https://panel.example.com/app/agent/v1/enroll#KEY'
-
-  # 全面服务端（生产/多节点控制面）
-  bash install.sh -y --full --domain panel.example.com --email a@b.com
-
-  # 旧命令仍兼容
-  bash install.sh -y --managed-client --controller https://panel.example.com/app/ --agent-token TOKEN
 EOF
 }
 

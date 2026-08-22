@@ -15,7 +15,7 @@ func runAgent(panelURL, token, localSocket string, interval time.Duration, insec
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	// Prefer WebSocket long connection (Nezha/Komari style); HTTP heartbeat is the fallback.
-	config := monitoragent.ClientConfig{PanelURL: panelURL, Token: token, LocalSocket: localSocket, Interval: interval, Insecure: insecure, PreferWS: !once}
+	config := monitoragent.ClientConfig{PanelURL: panelURL, PublicURL: os.Getenv("SUI_AGENT_PUBLIC_URL"), Token: token, LocalSocket: localSocket, Interval: interval, Insecure: insecure, PreferWS: !once}
 	var err error
 	if once {
 		err = monitoragent.SendOnce(ctx, config)

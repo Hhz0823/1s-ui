@@ -1,8 +1,8 @@
 <div align="center">
   <img src="frontend/src/assets/logo.svg" width="92" alt="1S-UI logo">
   <h1>1S-UI</h1>
-  <p><strong>Linux-first sing-box / Xray-core proxy panel with multi-server monitoring and remote management.</strong></p>
-  <p>面向 Ubuntu / Debian 的现代代理管理面板：双内核、批量节点、IPv6 中转、TLS 自动化、服务器监控与远程控制。</p>
+  <p><strong>Linux multi-server control plane for sing-box / Xray-core.</strong></p>
+  <p>面向 Ubuntu / Debian 的代理服务器群控面板：一个主控集中纳管多台 VPS，统一监控、远程管理入站、批量创建节点与配置 IPv6 中转。</p>
 
   [![Release](https://img.shields.io/github/v/release/Hhz0823/1s-ui?label=Linux%20Release)](https://github.com/Hhz0823/1s-ui/releases/latest)
   [![Security](https://github.com/Hhz0823/1s-ui/actions/workflows/security.yml/badge.svg)](https://github.com/Hhz0823/1s-ui/actions/workflows/security.yml)
@@ -19,84 +19,93 @@
 
 **语言 Languages:** [简体中文](#简体中文) · [English](#english) · [日本語](#日本語) · [한국어](#한국어) · [Tiếng Việt](#tiếng-việt) · [فارسی](#فارسی)
 
-**导航:** [页面截图](#页面截图) · [快速安装](#快速安装) · [功能矩阵](#功能矩阵) · [服务器监控](#服务器监控) · [一键中转](#一键中转) · [Docker](#docker) · [安全](#安全与权限)
+**导航:** [页面截图](#页面截图) · [群控架构](#群控架构) · [快速部署](#快速部署) · [功能矩阵](#功能矩阵) · [群控与远程管理](#群控与远程管理) · [一键中转](#一键中转) · [安全](#安全与权限)
 
 ---
 
 ## 页面截图
 
-截图来自默认实色主题，不包含账号密码、Token、证书私钥或节点密钥。
+截图来自默认实色主题，不包含账号密码、Token、证书私钥、真实服务器 IP 或节点密钥。
 
-| 首页 Dashboard | 入站管理 Inbounds |
+| 服务器群控 Server Fleet | 节点实时指标 Live Metrics |
 | --- | --- |
-| ![1S-UI dashboard](docs/screenshots/dashboard.png) | ![1S-UI inbounds](docs/screenshots/inbounds.png) |
+| ![Server agents](docs/screenshots/agents.png) | ![Agent live metrics](docs/screenshots/agent-detail.png) |
 
-| 服务器监控 Server Agents | 连接主服务器 Connect Controller |
+| 远程入站 Remote Inbounds | 接入主控 Connect Controller |
 | --- | --- |
-| ![Server agents](docs/screenshots/agents.png) | ![Connect a child server](docs/screenshots/controller-connect.png) |
+| ![Managed client inbounds](docs/screenshots/agent-inbounds.png) | ![Connect a child server](docs/screenshots/controller-connect.png) |
 
-| 实时指标 Live Metrics | 远程入站 Remote Inbounds |
+| 首次 Web 向导 First-run Guide | 本机入站 Inbounds |
 | --- | --- |
-| ![Agent live metrics](docs/screenshots/agent-detail.png) | ![Managed client inbounds](docs/screenshots/agent-inbounds.png) |
+| ![1S-UI first-run guide](docs/screenshots/onboarding.png) | ![1S-UI inbounds](docs/screenshots/inbounds.png) |
 
 ---
 
-## 快速安装
+## 群控架构
 
-### 直接安装
+1S-UI 将单机代理面板和多服务器控制面合并在同一套安装包中。每台服务器默认先作为独立客户端运行；选择其中一台切换为主控后，即可从一个 Web 面板集中查看和管理其它服务器。
+
+| 形态 | 适用场景 | 能力 | 资源策略 |
+| --- | --- | --- | --- |
+| **完整主控制端** | 集中管理多台 VPS | 服务器列表、实时与历史指标、端口流量、远程入站 CRUD、批量建节点、IPv6 / SOCKS5 中转、命令和 PTY | 至少 2 核 2GiB |
+| **仅监控主控** | 只看服务器状态 | 在线状态、CPU、内存、磁盘、负载、进程、网络、RTT、P95、丢包和端口流量 | 至少 2 核 2GiB；后端拒绝远程控制 |
+| **受管客户端** | 被主控纳管，同时保留本机面板 | 完整 Web UI、sing-box 默认内核、可选 Xray、本机节点与主动出站 Agent | 目标 1 核 512MiB |
+
+```mermaid
+flowchart LR
+    A["管理员浏览器"] --> B["1S-UI 主控面板"]
+    B <-->|"HTTPS / WebSocket + 独立 Token"| C["子服务器 sui-agent"]
+    C --> D["系统指标与网络状态"]
+    C <-->|"root-only Unix Socket"| E["子服务器 1S-UI 面板"]
+    E --> F["sing-box / Xray-core"]
+    A -.->|"HTTPS + 60 秒一次性登录票据"| E
+```
+
+- Agent 从子服务器主动连接主控，子服务器无需额外开放 Agent 控制端口。
+- 每台子服务器拥有独立 Token；主控不会共用一个永久连接密钥。
+- 远程入站操作由子服务器本机面板校验并应用，主控不会直接写入远端 SQLite。
+- 主控可随时切换为仅监控角色，远程终端、命令、入站和中转权限会在后端统一关闭。
+- 单机用户无需启用群控角色，仍可把 1S-UI 作为完整的本地代理管理面板使用。
+
+---
+
+## 快速部署
+
+### 群控最短路径
+
+1. 在主服务器和每台子服务器执行同一个安装命令。
+2. 主服务器首次进入 Web 向导，创建管理员并选择 **完整主控制端** 或 **仅监控**。
+3. 主服务器点击 **服务器监控 → 添加子服务器**，打开 5 分钟单次连接窗口。
+4. 子服务器首次进入 Web 向导，选择默认的 **客户端**，创建本机管理员并粘贴主服务器公网面板地址。
+5. 以后可从主控节点详情点击 **打开客户端后台**，无需输入子服务器管理员密码。
+
+### 统一安装
 
 安装脚本不再要求选择类型。默认安装独立前端产物、Go API 后端、sing-box 和 Agent 文件；nginx 托管静态前端并把 API/WS 反代到 `127.0.0.1:2097`，Agent 未绑定主服务器时保持禁用，不占用后台进程。历史订阅服务继续使用 `2096`，与内部 API 端口隔离。
-首次打开面板会进入一次性初始化页面，由你在浏览器中创建管理员账号和密码；SSH 安装过程不再询问凭据，也不存在默认 Web 密码。
+首次打开面板会进入新手向导，由你在浏览器中选择运行角色、创建管理员账号，并可直接填写主服务器公网面板地址完成客户端绑定。右上角可跳过说明页并直达必要设置；管理员账号不可跳过。SSH 安装过程不再询问凭据，也不存在默认 Web 密码。
 
 安装后默认运行在 **客户端模式**：Web 面板、sing-box 和本机节点功能完整可用，但 Agent 注册、心跳与远程控制入口保持关闭。需要集中管理其它服务器时，可在 **设置 → 服务端面板 → 运行角色** 选择 **完整主控制端** 或 **仅监控**；两种服务端角色都会再次校验 2 核 CPU 与 2 GiB 内存。仅监控模式只开放 Agent 注册、心跳、指标和端口流量，后端会拒绝终端、命令、远程入站和中转操作。旧版已经管理 Agent 的面板会自动继承完整主控制端状态，不会因升级断开。
 
-| 用法 | 命令参数 | 结果 |
-| --- | --- | --- |
-| **默认安装** | 无 | Web UI + sing-box + 休眠 Agent，目标 1 核 512MB |
-| **安装并绑定** | `--connect '主服务器公网面板地址'` | 安装后立即接入已打开连接窗口的主服务器 |
-| **只监控 Agent** | `install-agent.sh` | 独立 Agent，无 Web UI |
-| **兼容旧命令** | `--minimal` / `--managed-client` / `--full` | 旧自动化脚本继续可用；`--full` 仍要求至少 2 核 2GB |
-
 ```bash
-# 推荐：直接安装，无模式选择
 bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
-
-# 指定版本
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.6.0
-
-# 低配主机仍可保留历史双内核：两者可安装，但同一时刻只运行一个
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.6.0 --with-xray
-
-# 全面服务端 + Caddy HTTPS
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.6.0 -y --full --domain panel.example.com --email admin@example.com
 ```
 
-### 30 秒接入子服务器
+这是面向新用户保留的唯一 Linux 安装指令。角色切换、Xray-core 可选安装、反向代理和主控绑定均在 Web 面板完成；脚本仍兼容旧版自动化参数，但不再把它们作为安装入口展示。
+
+### 30 秒纳管一台服务器
 
 1. 在主面板点击 **服务器监控 → 添加子服务器**，系统自动打开 5 分钟的一次性连接窗口。
-2. 在子服务器打开 **服务器监控 → 连接主服务器**，只粘贴主服务器公网面板地址，例如 `https://panel.example.com/app/`，点击 **立即连接**。
+2. 新装子服务器在首次向导最后一步粘贴主服务器公网面板地址；已初始化的子服务器在 **服务器监控 → 连接主服务器** 中填写同一地址。
+3. 主控节点详情页点击 **打开客户端后台**，会通过 Agent WebSocket 签发 60 秒、仅可使用一次的登录票据，并在新窗口进入客户端自己的 Web 面板。
 
 系统会按子服务器主机名自动登记，并为每台机器签发独立 Agent Token。无需手动填写 WebSocket 地址、节点名称或 Token：
 
 - 子服务器已经安装 1S-UI：打开 **服务器监控 → 连接主服务器**，粘贴主服务器公网面板地址即可；页面会自动补全 Agent enrollment API，无需填写 WebSocket 地址、Token、连接密钥或节点名称。
-- 全新服务器：执行同一弹窗生成的“客户端安装并绑定命令”，安装完成后自动绑定。
+- 全新服务器：执行上方同一条安装指令，首次进入 Web 向导时填写主服务器公网面板地址。
 - 每次连接窗口只允许一台子服务器接入，首次成功后立即关闭；继续添加时再次点击 **添加子服务器**。
 - 子服务器会显示当前绑定的主面板地址，可在 Web 页面安全解绑或重新绑定；本机入站和 Web 配置不会被删除。
+- 直接进入客户端后台不会共享子服务器管理员密码；一次性票据仅在内存中保存、60 秒过期且消费后立即失效。管理员浏览器需要能够访问客户端上报的公网面板地址。
 - HTTP/IP 面板也可使用复制按钮；浏览器不提供安全剪贴板 API 时会自动使用兼容复制方式。
-
-全新服务器安装完整 Web 面板并立即绑定：
-
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.6.0 \
-  --connect 'https://panel.example.com/app/'
-```
-
-只采集监控指标、不安装子服务器 Web 面板：
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-agent.sh) \
-  --connect 'https://panel.example.com/app/'
-```
 
 > 执行前必须先在主面板点击 **添加子服务器**。连接窗口有效 5 分钟且只能成功使用一次，不会永久开放匿名 Agent 注册。
 
@@ -140,32 +149,43 @@ s-ui update
 
 ### 项目定位
 
-1S-UI 以 **sing-box 为默认内核**，并允许每条入站独立选择 **Xray-core**。当前开发优先级是 Linux（Ubuntu / Debian）；Windows 暂停维护，OpenWrt Lite 暂停在 v1.5.7 且仅使用 sing-box。
+1S-UI 是面向 Linux VPS 的 **代理服务器群控面板**，同时保留每台服务器独立使用的完整 Web 管理能力。主控端集中展示服务器状态并下发管理请求，受管客户端负责在本机校验和执行；即使主控暂时离线，子服务器已有的代理入站仍可独立运行。
+
+群控层提供：
+
+- 一个主控集中管理多台 Ubuntu / Debian 服务器，并允许修改便于识别的服务器名称。
+- 实时与历史 CPU、内存、磁盘、负载、进程、网络流量和延迟指标。
+- 直接进入指定服务器的入站列表，远程新增、编辑、删除、启停和快速创建节点。
+- 在受管服务器远程创建 1–100 条节点、IPv6 出口中转或上游 SOCKS5 中转。
+- WebSocket 长连接、控制面 RTT、批量命令和交互式 PTY；仅监控角色可从后端彻底关闭这些权限。
+- 子服务器只输入主控公网地址即可绑定，主控为每台机器自动签发独立 Token。
+
+代理层以 **sing-box 为默认内核**，并允许每条入站独立选择 **Xray-core**。当前开发优先级是 Linux（Ubuntu / Debian）；Windows 暂停维护，OpenWrt Lite 暂停在 v1.5.7 且仅使用 sing-box。
 
 低配策略以“系统不因安装或启动面板发生 OOM/重启”为第一优先级：
 
 - 1 核会启用低开销运行参数，但不会单独阻止 sing-box。
-- 内存低于 1.5GB 时，安装器默认启动 Web 面板和 sing-box，并使用较低启动预算；仅显式传入 `--skip-core` 才进入纯面板模式。
-- 低配档位默认不下载、不自动启动 Xray-core，并设置 `SUI_DISABLE_XRAY=true`；之后可在 **设置 → 服务端面板 → Xray-core 内核** 主动安装，也可在安装命令中加入 `--with-xray`。
+- 内存低于 1.5GB 时，安装器默认启动 Web 面板和 sing-box，并使用较低启动预算；新安装不提供无 Web 界面的极简模式。
+- 低配档位默认不下载、不自动启动 Xray-core，并设置 `SUI_DISABLE_XRAY=true`；之后可在 **设置 → 服务端面板 → Xray-core 内核** 主动安装。
 - 物理内存或 cgroup 内存上限低于 1.5GiB 时启用“单内核运行”：启动 Xray 前先停止 sing-box，停止、禁用 Xray 或删除最后一个 Xray 入站后自动恢复 sing-box；切换失败也会回滚到原内核。
 - 设置页支持安装/更新、启用/禁用、启动/停止和卸载。禁用会保留二进制与入站；存在 Xray 入站时禁止卸载，避免节点配置被静默破坏。面板升级会保留管理员选择的启用状态。
-- 作为主服务器创建、管理 Agent 的控制面需要至少 2 核 2GB；受管客户端本身可按低配模式安装。`--force` 不会绕过主控制面的限制。
+- 作为主服务器创建、管理 Agent 的控制面需要至少 2 核 2GB；受管客户端本身可按低配模式安装，该资源门槛不能从安装流程绕过。
 - 512MB 目标包含轻量 Web 管理和 sing-box 基础代理；代理吞吐仍取决于协议、连接数和线路。
 
 ### 功能矩阵
 
 | 模块 | 能力 |
 | --- | --- |
-| 面板 | 入站、出站、端点、服务、DNS、路由、用户、管理员、订阅、日志、备份与流量统计 |
-| 双内核 | 入站级 `sing-box` / `xray` 选择，独立配置生成和运行状态 |
+| 服务器群控 | 多服务器列表、在线状态、CPU/内存/磁盘/负载/进程/网络、RTT、P95、丢包、历史曲线和一次性登录客户端后台 |
+| 远程管理 | 修改服务器名称、远程入站 CRUD、启停、1–100 快速节点、IPv6 / 上游 SOCKS5 中转、批量命令和 PTY |
 | 端口流量 | 按监听端口显示实时上下行、累计流量、活动状态和配置限速；本机与受管服务器共用同一视图 |
+| 本机面板 | 入站、出站、端点、服务、DNS、路由、用户、管理员、订阅、日志、备份与流量统计 |
+| 双内核 | 入站级 `sing-box` / `xray` 选择，独立配置生成和运行状态 |
 | 入站限速 | sing-box 单入站聚合上传/下载限速，单位 Mbps，`0` 为不限速；TCP/UDP 共用同一端口限额 |
 | 快速创建 | 一次创建 1–100 条节点，连续端口、标签、用户、TLS 和安全默认值 |
 | TLS | ACME、ECH、Reality、Pinned Certificate SHA256、证书生成与集中管理 |
 | 分享与订阅 | Clash、JSON、标准 URI；v2rayN 7.23.4 实机验证 |
 | 一键中转 | IPv6 出口池或上游 SOCKS5，自动创建入站、出站、用户和路由 |
-| 服务器监控 | 多服务器列表、CPU/内存/磁盘/负载/进程/流量、RTT、P95、丢包和历史曲线 |
-| 远程管理 | 修改服务器名称、远程入站 CRUD、1–100 快速节点、IPv6 中转、批量指令和 PTY 终端 |
 | 界面 | 默认实色；可选玻璃/清透、自定义背景、模糊、菜单布局和紧凑密度 |
 | 反向代理 | 在服务端面板查看和管理 Caddy / Nginx 状态、域名与配置应用 |
 
@@ -186,22 +206,15 @@ Shadowsocks 快速创建默认使用 `2022-blake3-aes-256-gcm`。
 
 Xray 上游已移除旧 HTTP/2 和 QUIC transport，请使用 XHTTP `stream-one` / H3。Xray Hysteria2 建议使用 Xray-core `26.7.11` 或更新版本。
 
-### 服务器监控
-
-```mermaid
-flowchart LR
-    A["管理员浏览器"] --> B["1S-UI 中心面板"]
-    B <-->|"HTTPS / WebSocket + Token"| C["远端 sui-agent"]
-    C <-->|"root-only Unix Socket"| D["远端 1S-UI 面板"]
-    D --> E["sing-box / Xray-core"]
-```
+### 群控与远程管理
 
 Agent 主动出站连接中心面板，远端无需开放 Agent 控制端口：
 
 - 主面板由已登录管理员打开 5 分钟、一次性的地址连接窗口；子服务器只需粘贴公网面板地址，主机名、节点登记和独立 Agent Token 均自动完成。
 - 连接窗口只接受首次成功请求并立即关闭，面板重启或切换回客户端角色也会撤销窗口，不会永久开放匿名 Agent 注册。
-- 历史 `地址#连接密钥` 仍可使用，保证旧版自动化升级兼容；新版界面不再显示或要求连接密钥。
+- 新版界面只要求主服务器公网面板地址；旧版连接格式仅在后端保留升级兼容，不再作为用户流程展示。
 - WebSocket 长连接负责实时指标、命令、交互终端和控制面 RTT。
+- 主控点击 **打开客户端后台** 后，通过同一条 Agent WebSocket 请求一次性登录票据；票据只存内存、60 秒过期且消费后立即删除，不会共享客户端管理员密码。
 - 运行角色可选 `client`、`full`、`monitor`；`monitor` 只保留服务器列表、详情、历史指标和端口流量，控制权限在后端统一拦截。
 - WS 暂时断开时回退到 HTTP `/agent/v1/heartbeat`，之后自动重连。
 - CPU 使用整个心跳周期的累计时间差计算，避免空闲 VPS 被 200ms 瞬时采样长期显示为 0。
@@ -226,6 +239,9 @@ IPv6 池模式只会向选定网卡添加地址，不修改系统默认路由。
 
 ### v1.6.0 更新重点
 
+- Linux 新安装统一为一条命令；SSH 不再选择安装类型或设置 Web 密码，首次 Web 向导负责管理员、运行角色和可选主控绑定。
+- 新手向导右上角可跳过说明并直达必要设置，但不能跳过首个管理员创建。
+- 主控支持从节点详情直接打开客户端后台，使用 Agent WebSocket 签发 60 秒一次性登录票据，不保存或共享客户端密码。
 - 重构客户端/主控制端运行角色：新安装默认关闭 Agent 公共入口，主控制端必须在设置中显式开启；旧控制面自动兼容。
 - 低配置服务器可在设置页按需安装或更新官方 Xray-core；下载、校验、原子安装后保持 sing-box 默认和 Xray 按需启动。
 - 增加 Xray 完整生命周期管理与入站保护；低于 1.5GiB 的主机采用 sing-box/Xray 互斥运行，并在停止或切换失败时自动恢复可用内核。
@@ -234,7 +250,7 @@ IPv6 池模式只会向选定网卡添加地址，不修改系统默认路由。
 - 修复自动生成的 HY2 TLS 证书指纹可能与实际证书不一致的问题；启动时会同步修复 TLS、出站配置和已保存的分享链接。
 - 修复批量节点与远程快速创建使用 IPv6 监听地址后，客户端无法通过原 VPS 公网 IPv4 连接的问题。
 - 主服务器新增 5 分钟单次地址连接窗口：子服务器只粘贴公网面板地址即可自动登记、获取独立 Token 并建立 WebSocket。
-- 地址窗口首次连接成功后立即关闭，同时保留旧版带密钥地址兼容，并区分“完整 Web 面板受管客户端”和“仅监控 Agent”安装方式。
+- 地址窗口首次连接成功后立即关闭；所有新装客户端均保留完整 Web 面板，旧连接格式只保留升级兼容。
 - 修复 HTTP/IP 面板中复制按钮失败的问题，在非安全上下文自动回退到兼容剪贴板方案。
 - 全新的服务器监控列表和节点详情页，提供实时指标、历史曲线、网络流量和远程控制标签页。
 - 修复低负载 Linux VPS 的 CPU 长期显示 `0.0%`，小于 1% 时显示两位小数。
@@ -242,7 +258,7 @@ IPv6 池模式只会向选定网卡添加地址，不修改系统默认路由。
 - 受管客户端支持远程入站 CRUD、1–100 快速创建和 IPv6 / 上游 SOCKS5 中转。
 - 修复 HY2、TUIC、AnyTLS、VLESS、Trojan、VMess、Naive 分享链接在 v2rayN 的转义、TLS 钉扎和传输兼容。
 - 增加服务端反向代理管理、Xray 自检与 WireGuard / Hysteria2 / Dokodemo-door 配置生成。
-- 恢复低配主机的可选双内核安装：sing-box 默认运行，显式 `--with-xray` 才下载 Xray，且低配仅按需启动。
+- 恢复低配主机的可选双内核：sing-box 默认运行，Xray 可从 Web 设置按需安装，且低配仅按需启动。
 - 设置页增加 GitHub 最新稳定版检测与受保护的 Linux 在线更新流程，更新前校验架构 Release 包和新面板二进制。
 - Linux Release 提供 `amd64`、`arm64`、`armv5`、`armv6`、`armv7`、`386`、`s390x` 七种架构包。
 - 前后端物理拆分为 `backend/` Go 模块与 `frontend/` Vue + TypeScript SPA；Node 只参与构建，VPS 运行时不需要 Node.js。
@@ -256,45 +272,32 @@ IPv6 池模式只会向选定网卡添加地址，不修改系统默认路由。
 
 ## English
 
-1S-UI is a Linux-focused proxy panel with sing-box as the default core and optional Xray-core selection per inbound.
+1S-UI is a Linux multi-server control panel for centrally operating a fleet of sing-box / Xray-core proxy servers. One controller provides monitoring and remote management, while every managed child keeps its own complete Web UI and continues running independently if the controller is unavailable.
 
 ### Highlights
 
-- Complete Web UI for inbounds, outbounds, endpoints, routing, DNS, users, subscriptions, TLS, logs, backup, and traffic.
+- Central fleet view with online state, live/history CPU, memory, disk, load, process, network, RTT, P95, loss, and per-port traffic.
+- Remote server naming, inbound CRUD and start/stop, 1–100 node quick creation, IPv6/upstream SOCKS5 relays, batch commands, and PTY terminal.
+- Full-controller and monitoring-only roles; monitoring-only mode rejects command, terminal, inbound, and relay operations in the backend.
+- Outbound Agent connections over WebSocket/HTTP, so child servers do not expose a separate Agent control port.
+- Five-minute single-use enrollment: the child pastes only the controller's public panel address and receives a unique Agent token.
+- Each managed child retains a complete local Web UI for inbounds, outbounds, routing, DNS, TLS, users, subscriptions, logs, backup, and traffic.
 - 1–100 node quick creation with safe protocol defaults and automatic used-port skipping.
-- sing-box plus Xray protocols including XHTTP, RAW, gRPC, WebSocket, Hysteria2, Dokodemo-door, and WireGuard.
+- sing-box by default, plus optional per-inbound Xray protocols including XHTTP, RAW, gRPC, WebSocket, Hysteria2, Dokodemo-door, and WireGuard.
 - IPv6 egress pools and upstream SOCKS5 relays with BitBrowser Excel/plain-text export.
-- Outbound Agent connections over WebSocket/HTTP; no inbound Agent control port is required.
-- An authenticated controller admin opens a five-minute, single-use connection window; the child pastes only the public panel address.
-- Each child is registered by hostname and receives its own Agent token. The window closes after the first successful connection.
-- Clipboard actions also work on HTTP/IP panels through a compatibility fallback when the secure Clipboard API is unavailable.
-- Live CPU, memory, disk, process, network, RTT/P95/loss metrics, history charts, remote commands, and PTY terminal.
-- Managed-server inbound CRUD, remote quick-add, and remote relay creation through a root-only Unix socket.
 - Default solid UI, responsive desktop/mobile layouts, optional backgrounds and glass/clear styles.
 
 ### Resource profiles
 
 | Profile | Minimum target | Notes |
 | --- | --- | --- |
-| Unified client | 1 vCPU / 512MB | Full Web UI + sing-box + dormant Agent; Xray is not downloaded by default |
-| Full control plane | 2 vCPU / 2GB | Hard requirement; includes Xray, Agent, and reverse proxy |
+| Managed child | 1 vCPU / 512MB | Full Web UI + sing-box + outbound Agent; Xray is not downloaded by default |
+| Full controller | 2 vCPU / 2GB | Fleet monitoring, remote control, optional Xray, and reverse proxy |
+| Monitoring controller | 2 vCPU / 2GB | Fleet metrics and port traffic without remote-control capabilities |
 
-The 2 vCPU / 2GB hard requirement applies to a panel acting as the Agent control plane. Managed child panels can use the low-resource profile and start sing-box by default; only an explicit `--skip-core` leaves proxy cores stopped. A low-resource host may install both cores, but below 1.5GiB only one runs at a time: starting Xray stops sing-box, and stopping or disabling Xray restores sing-box automatically.
+The 2 vCPU / 2GB hard requirement applies to a panel acting as the Agent control plane. Managed child panels retain a full Web UI and start sing-box by default. A low-resource host may install both cores from Web settings, but below 1.5GiB only one runs at a time: starting Xray stops sing-box, and stopping or disabling Xray restores sing-box automatically.
 
-Quick install:
-
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
-```
-
-To attach a child server, click **Server Monitoring → Add Child Server** on the controller, then paste only its public panel address into **Server Monitoring → Connect to Controller** on the child. For a fresh child with a full Web panel:
-
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.6.0 \
-  --connect 'https://panel.example.com/app/'
-```
-
-The first browser visit creates the administrator; there is no default Web password. Panel `2095` `/app/`, subscription `2096` `/sub/`, database `/usr/local/s-ui/db`.
+Use the single Linux command in [Quick Deploy](#快速部署) on both controllers and managed children. The first browser visit opens a guided setup for the administrator, role, and optional controller address; there is no default Web password. A controller can open an online child's local panel with a 60-second, single-use login grant over the existing Agent WebSocket. Panel `2095` `/app/`, subscription `2096` `/sub/`, database `/usr/local/s-ui/db`.
 
 With the full reverse-proxy profile, use `http://server-ip/app/` or `https://your-domain/app/`. Port `2095` is intentionally bound to localhost.
 
@@ -302,37 +305,37 @@ With the full reverse-proxy profile, use `http://server-ip/app/` or `https://you
 
 ## 日本語
 
-1S-UI は Ubuntu / Debian 向けのプロキシ管理パネルです。標準コアは sing-box、入站ごとに Xray-core を選択できます。v1.6.0 は 1–100 件の一括ノード作成、IPv6 出口中継、サーバー Agent 監視、履歴グラフ、遠隔操作、PTY ターミナル、Caddy / Nginx 管理に対応します。メインパネルで接続ウィンドウを開いた後、子サーバーは公開パネルアドレスだけで登録できます。
+1S-UI は Ubuntu / Debian 向けのプロキシサーバー群管理パネルです。1 台のメインコントローラーから複数の VPS の状態、履歴メトリクス、ポート通信量、入站、ノード一括作成、IPv6 / SOCKS5 中継、コマンドと PTY を集中管理できます。子サーバーは完全なローカル Web UI と sing-box を保持し、コントローラーが一時停止しても既存ノードは独立して動作します。
 
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.6.0
-```
+メインパネルで 5 分間・1 回限りの接続ウィンドウを開き、子サーバー側に公開パネルアドレスだけを入力すると、個別 Agent Token が自動発行されます。標準コアは sing-box、入站ごとに Xray-core を選択できます。
+
+Linux のインストールは上記「快速部署」にある 1 つのコマンドのみを使用します。初回 Web ウィザードで管理者、役割、コントローラー接続を設定します。
 
 Linux が主なサポート対象です。Windows は保守停止中、OpenWrt Lite は sing-box 専用 v1.5.7 を継続します。
 
 ## 한국어
 
-1S-UI는 Ubuntu/Debian 중심의 프록시 관리 패널입니다. 기본 코어는 sing-box이며 인바운드별로 Xray-core를 선택할 수 있습니다. v1.6.0은 1–100개 노드 일괄 생성, IPv6 출구 릴레이, 서버 Agent 모니터링, 기록 차트, 원격 제어, PTY 터미널 및 Caddy/Nginx 관리를 지원합니다. 메인 패널에서 연결 창을 연 뒤 자식 서버에는 공개 패널 주소만 입력하면 됩니다.
+1S-UI는 Ubuntu/Debian용 프록시 서버 통합 관제 패널입니다. 하나의 메인 컨트롤러에서 여러 VPS의 상태, 이력 지표, 포트 트래픽, 인바운드, 1–100개 노드 일괄 생성, IPv6/SOCKS5 릴레이, 명령 및 PTY를 중앙 관리할 수 있습니다. 관리 대상 서버는 완전한 로컬 Web UI와 sing-box를 유지하므로 컨트롤러가 일시적으로 중단되어도 기존 노드는 독립적으로 동작합니다.
 
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.6.0
-```
+메인 패널에서 5분 동안 한 번만 사용할 수 있는 연결 창을 연 뒤, 자식 서버에는 메인 패널의 공개 주소만 입력하면 개별 Agent Token이 자동 발급됩니다. 기본 코어는 sing-box이며 인바운드별로 Xray-core를 선택할 수 있습니다.
+
+Linux 설치는 위의 빠른 배포 섹션에 있는 하나의 명령만 사용합니다. 첫 Web 마법사에서 관리자, 역할 및 컨트롤러 연결을 설정합니다.
 
 ## Tiếng Việt
 
-1S-UI là bảng điều khiển proxy ưu tiên Ubuntu/Debian, dùng sing-box mặc định và cho phép chọn Xray-core theo từng inbound. Phiên bản v1.6.0 hỗ trợ tạo hàng loạt 1–100 node, relay IPv6, giám sát Agent, biểu đồ lịch sử, điều khiển từ xa và terminal PTY. Sau khi mở cửa sổ kết nối trên bảng điều khiển chính, máy con chỉ cần dán địa chỉ công khai của bảng điều khiển.
+1S-UI là bảng điều khiển tập trung cho nhiều máy chủ proxy Ubuntu/Debian. Một máy chủ điều khiển có thể theo dõi nhiều VPS, xem số liệu thời gian thực và lịch sử, lưu lượng theo cổng, quản lý inbound từ xa, tạo hàng loạt 1–100 node, cấu hình relay IPv6/SOCKS5, chạy lệnh và terminal PTY. Mỗi máy con vẫn giữ Web UI đầy đủ và sing-box cục bộ, nên các node hiện có tiếp tục hoạt động khi máy chủ điều khiển tạm thời ngoại tuyến.
 
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.6.0
-```
+Quản trị viên mở cửa sổ kết nối dùng một lần trong 5 phút trên bảng điều khiển chính; máy con chỉ cần nhập địa chỉ công khai của bảng điều khiển để nhận Agent Token riêng. sing-box là core mặc định và Xray-core có thể được chọn theo từng inbound.
+
+Linux chỉ dùng một lệnh trong phần triển khai nhanh ở trên. Trình hướng dẫn Web lần đầu cấu hình quản trị viên, vai trò và kết nối bộ điều khiển.
 
 ## فارسی
 
-1S-UI یک پنل مدیریت پروکسی برای Ubuntu و Debian است. هسته پیش‌فرض sing-box است و برای هر inbound می‌توان Xray-core را انتخاب کرد. نسخه v1.6.0 ساخت گروهی ۱ تا ۱۰۰ نود، خروجی IPv6، پایش Agent، نمودارهای زنده، کنترل از راه دور و ترمینال PTY را پشتیبانی می‌کند. پس از بازکردن پنجره اتصال در پنل اصلی، سرور فرزند فقط نشانی عمومی پنل را وارد می‌کند.
+1S-UI یک پنل کنترل متمرکز برای مدیریت گروهی سرورهای پروکسی Ubuntu و Debian است. از یک کنترلر اصلی می‌توان وضعیت چند VPS، شاخص‌های زنده و تاریخی، ترافیک پورت‌ها، inboundها، ساخت گروهی ۱ تا ۱۰۰ نود، رله IPv6/SOCKS5، فرمان‌ها و ترمینال PTY را مدیریت کرد. هر سرور فرزند رابط Web کامل و sing-box محلی خود را حفظ می‌کند؛ بنابراین با قطع موقت کنترلر، نودهای موجود مستقل به کار ادامه می‌دهند.
 
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) v1.6.0
-```
+مدیر در پنل اصلی یک پنجره اتصال پنج‌دقیقه‌ای و یک‌بارمصرف باز می‌کند؛ سرور فرزند فقط نشانی عمومی پنل را وارد می‌کند و Agent Token اختصاصی دریافت می‌کند. هسته پیش‌فرض sing-box است و برای هر inbound می‌توان Xray-core را انتخاب کرد.
+
+برای لینوکس فقط از یک فرمان بخش نصب سریع بالا استفاده کنید. راهنمای نخستین اجرای وب، مدیر، نقش و اتصال کنترل‌گر را تنظیم می‌کند.
 
 ---
 
@@ -429,7 +432,7 @@ windows/      Windows 脚本（暂停维护）
 | `SUI_XRAY_PATH` | `$SUI_BIN_FOLDER/xray` | Xray 二进制路径 |
 | `SUI_XRAY_CONFIG` | `$SUI_BIN_FOLDER/xray.json` | Xray 配置路径 |
 | `SUI_DISABLE_XRAY` | `false` | 禁止启动 Xray 和创建 Xray 入站；低配默认设置 |
-| `SUI_XRAY_ON_DEMAND` | `false` | 保留 Xray 但禁止自动启动；低配显式 `--with-xray` 时设置 |
+| `SUI_XRAY_ON_DEMAND` | `false` | 保留 Xray 但禁止自动启动；低配从 Web 设置安装 Xray 时启用 |
 
 数据库中的 `webListen/webPort/webPath/webDomain` 继续表示用户访问的前端入口。固定 API 路径为 `/api`、`/apiv2`、`/agent/v1`，并保留 `webPath` 下的旧别名。nginx 从 `/.well-known/1s-ui/config.js` 提供无缓存运行时配置；后端不托管 HTML、assets 或 SPA。
 
