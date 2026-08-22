@@ -1,4 +1,4 @@
-FROM golang:1.26.5-alpine AS backend-builder
+FROM golang:1.26.6-alpine AS backend-builder
 WORKDIR /src/backend
 ARG TARGETARCH
 ARG TARGETVARIANT
