@@ -16,6 +16,7 @@ func TestCompareVersions(t *testing.T) {
 		{left: "1.5.9", right: "1.5.9", want: 0},
 		{left: "v1.5.9", right: "1.5.10", want: -1},
 		{left: "1.6.0", right: "1.5.99", want: 1},
+		{left: "1.6.0-boost", right: "1.6.0", want: 0},
 	}
 	for _, test := range tests {
 		if got := compareVersions(test.left, test.right); got != test.want {
@@ -38,7 +39,7 @@ func TestVersionCheckReadsStableRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Current != "1.6.0" || info.Latest != "1.6.1" {
+	if info.Current != "1.6.0-boost" || info.Latest != "1.6.1" {
 		t.Fatalf("unexpected versions: %#v", info)
 	}
 	if !info.UpdateAvailable {

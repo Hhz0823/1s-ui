@@ -105,8 +105,8 @@
   <section class="monitor-page">
     <header class="monitor-heading">
       <div>
-        <h1>{{ $t('pages.agents') }}</h1>
-        <p>{{ $t('agent.overviewHint') }}</p>
+        <h1 class="adaptive-ink">{{ $t('pages.agents') }}</h1>
+        <p class="adaptive-ink">{{ $t('agent.overviewHint') }}</p>
       </div>
       <div class="heading-actions">
         <v-chip v-if="localConnection.configured" color="success" prepend-icon="mdi-link-variant" size="small">

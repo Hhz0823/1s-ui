@@ -6,6 +6,7 @@ import (
 
 	"github.com/Hhz0823/1s-ui/database"
 	"github.com/Hhz0823/1s-ui/database/model"
+	"github.com/Hhz0823/1s-ui/util/common"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -25,6 +26,47 @@ var onlineResources = struct {
 var statsPersistenceMu sync.Mutex
 
 type StatsService struct {
+}
+
+const maxUserTrafficRange = 90 * 24 * time.Hour
+
+type UserTrafficRankingItem struct {
+	Rank                       int    `json:"rank"`
+	Name                       string `json:"name"`
+	Group                      string `json:"group"`
+	Description                string `json:"description"`
+	Exists                     bool   `json:"exists"`
+	Enabled                    bool   `json:"enabled"`
+	Online                     bool   `json:"online"`
+	UploadBytes                int64  `json:"upload_bytes"`
+	DownloadBytes              int64  `json:"download_bytes"`
+	TotalBytes                 int64  `json:"total_bytes"`
+	AverageUploadBytesPerSec   int64  `json:"average_upload_bytes_per_sec"`
+	AverageDownloadBytesPerSec int64  `json:"average_download_bytes_per_sec"`
+	PeakUploadBytesPerSec      int64  `json:"peak_upload_bytes_per_sec"`
+	PeakDownloadBytesPerSec    int64  `json:"peak_download_bytes_per_sec"`
+	LastActive                 int64  `json:"last_active"`
+}
+
+type UserTrafficSummary struct {
+	ActiveUsers                int   `json:"active_users"`
+	UploadBytes                int64 `json:"upload_bytes"`
+	DownloadBytes              int64 `json:"download_bytes"`
+	TotalBytes                 int64 `json:"total_bytes"`
+	AverageUploadBytesPerSec   int64 `json:"average_upload_bytes_per_sec"`
+	AverageDownloadBytesPerSec int64 `json:"average_download_bytes_per_sec"`
+	PeakUploadBytesPerSec      int64 `json:"peak_upload_bytes_per_sec"`
+	PeakDownloadBytesPerSec    int64 `json:"peak_download_bytes_per_sec"`
+}
+
+type UserTrafficRankingResponse struct {
+	Enabled       bool                     `json:"enabled"`
+	Start         int64                    `json:"start"`
+	End           int64                    `json:"end"`
+	BucketSeconds int64                    `json:"bucket_seconds"`
+	RetentionDays int                      `json:"retention_days"`
+	Summary       UserTrafficSummary       `json:"summary"`
+	Items         []UserTrafficRankingItem `json:"items"`
 }
 
 func (s *StatsService) SaveStats(enableTraffic bool, bucketSeconds int64) (err error) {
@@ -132,25 +174,12 @@ func (s *StatsService) SaveStats(enableTraffic bool, bucketSeconds int64) (err e
 }
 
 func (s *StatsService) GetStats(resource string, tag string, limit int, start int64, end int64) (any, error) {
-	var err error
-	var result []model.Stats
-
 	var startTime, endTime int64
 	if start > 0 && end > start {
 		startTime, endTime = start, end
 	} else {
 		endTime = time.Now().Unix()
 		startTime = endTime - (int64(limit) * 3600)
-	}
-
-	db := database.GetDB()
-	resources := []string{resource}
-	if resource == "endpoint" {
-		resources = []string{"inbound", "outbound"}
-	}
-	err = db.Model(model.Stats{}).Where("resource in ? AND tag = ? AND date_time > ? AND date_time <= ?", resources, tag, startTime, endTime).Order("date_time ASC").Scan(&result).Error
-	if err != nil {
-		return nil, err
 	}
 
 	bucketSeconds, _ := (&SettingService{}).GetStatsBucketSeconds()
@@ -164,8 +193,232 @@ func (s *StatsService) GetStats(resource string, tag string, limit int, start in
 	if numBuckets < 1 {
 		numBuckets = 1
 	}
+	if resource == "user" {
+		return s.getAggregateUserStats(startTime, endTime, numBuckets, tag)
+	}
+
+	var result []model.Stats
+	db := database.GetDB()
+	resources := []string{resource}
+	if resource == "endpoint" {
+		resources = []string{"inbound", "outbound"}
+	}
+	err := db.Model(model.Stats{}).Where("resource in ? AND tag = ? AND date_time > ? AND date_time <= ?", resources, tag, startTime, endTime).Order("date_time ASC").Scan(&result).Error
+	if err != nil {
+		return nil, err
+	}
 
 	return s.downsampleStats(result, startTime, endTime, numBuckets), nil
+}
+
+func (s *StatsService) getAggregateUserStats(startTime, endTime int64, numBuckets int, tag string) (any, error) {
+	bucketSpan := (endTime - startTime) / int64(numBuckets)
+	if bucketSpan < 1 {
+		bucketSpan = 1
+	}
+	type bucketRow struct {
+		Bucket   int64
+		Upload   int64
+		Download int64
+	}
+	var rows []bucketRow
+	query := `SELECT CAST((date_time - ?) / ? AS INTEGER) AS bucket,
+		SUM(CASE WHEN direction = 1 THEN traffic ELSE 0 END) AS upload,
+		SUM(CASE WHEN direction = 0 THEN traffic ELSE 0 END) AS download
+		FROM stats
+		WHERE resource = 'user' AND date_time > ? AND date_time <= ?`
+	args := []any{startTime, bucketSpan, startTime, endTime}
+	if tag != "" {
+		query += ` AND tag = ?`
+		args = append(args, tag)
+	}
+	query += ` GROUP BY bucket ORDER BY bucket`
+	err := database.GetDB().Raw(query, args...).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64][]int64, len(rows))
+	for _, row := range rows {
+		bucket := row.Bucket
+		if bucket < 0 {
+			bucket = 0
+		}
+		if bucket >= int64(numBuckets) {
+			bucket = int64(numBuckets) - 1
+		}
+		if _, ok := result[bucket]; !ok {
+			result[bucket] = []int64{0, 0}
+		}
+		result[bucket][0] += row.Upload
+		result[bucket][1] += row.Download
+	}
+	return map[string]any{"stats": result, "startTime": startTime, "bucketSpan": bucketSpan, "numBuckets": numBuckets}, nil
+}
+
+func (s *StatsService) GetUserTrafficRanking(start, end int64, limit int) (*UserTrafficRankingResponse, error) {
+	start, end, err := normalizeUserTrafficWindow(start, end)
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 200 {
+		limit = 200
+	}
+	bucketSeconds, err := (&SettingService{}).GetStatsBucketSeconds()
+	if err != nil {
+		return nil, err
+	}
+	retentionDays, err := (&SettingService{}).GetTrafficAge()
+	if err != nil {
+		return nil, err
+	}
+	response := &UserTrafficRankingResponse{
+		Enabled: retentionDays > 0, Start: start, End: end,
+		BucketSeconds: bucketSeconds, RetentionDays: retentionDays,
+		Items: []UserTrafficRankingItem{},
+	}
+	if retentionDays <= 0 {
+		return response, nil
+	}
+	retentionStart := time.Now().AddDate(0, 0, -retentionDays).Unix()
+	if end <= retentionStart {
+		return response, nil
+	}
+	if start < retentionStart {
+		start = retentionStart
+		response.Start = start
+	}
+
+	type aggregateRow struct {
+		Name               string
+		Group              string
+		Description        string
+		Exists             int
+		Enabled            int
+		UploadBytes        int64
+		DownloadBytes      int64
+		PeakUploadBucket   int64
+		PeakDownloadBucket int64
+		LastActive         int64
+	}
+	var rows []aggregateRow
+	db := database.GetDB()
+	err = db.Raw(`WITH user_buckets AS (
+		SELECT tag, date_time,
+			SUM(CASE WHEN direction = 1 THEN traffic ELSE 0 END) AS upload_bytes,
+			SUM(CASE WHEN direction = 0 THEN traffic ELSE 0 END) AS download_bytes
+		FROM stats
+		WHERE resource = 'user' AND date_time >= ? AND date_time < ?
+		GROUP BY tag, date_time
+	)
+	SELECT b.tag AS name,
+		MAX(COALESCE(c."group", '')) AS "group",
+		MAX(COALESCE(c."desc", '')) AS description,
+		MAX(CASE WHEN c.id IS NULL THEN 0 ELSE 1 END) AS "exists",
+		MAX(CASE WHEN c.enable = 1 THEN 1 ELSE 0 END) AS enabled,
+		SUM(b.upload_bytes) AS upload_bytes,
+		SUM(b.download_bytes) AS download_bytes,
+		MAX(b.upload_bytes) AS peak_upload_bucket,
+		MAX(b.download_bytes) AS peak_download_bucket,
+		MAX(b.date_time) AS last_active
+	FROM user_buckets b
+	LEFT JOIN clients c ON c.name = b.tag
+	GROUP BY b.tag
+	ORDER BY (SUM(b.upload_bytes) + SUM(b.download_bytes)) DESC, b.tag ASC
+	LIMIT ?`, start, end, limit).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	type summaryRow struct {
+		ActiveUsers        int
+		UploadBytes        int64
+		DownloadBytes      int64
+		PeakUploadBucket   int64
+		PeakDownloadBucket int64
+	}
+	var summary summaryRow
+	err = db.Raw(`WITH user_buckets AS (
+		SELECT tag, date_time,
+			SUM(CASE WHEN direction = 1 THEN traffic ELSE 0 END) AS upload_bytes,
+			SUM(CASE WHEN direction = 0 THEN traffic ELSE 0 END) AS download_bytes
+		FROM stats
+		WHERE resource = 'user' AND date_time >= ? AND date_time < ?
+		GROUP BY tag, date_time
+	), global_buckets AS (
+		SELECT date_time, SUM(upload_bytes) AS upload_bytes, SUM(download_bytes) AS download_bytes
+		FROM user_buckets GROUP BY date_time
+	)
+	SELECT
+		(SELECT COUNT(DISTINCT tag) FROM user_buckets) AS active_users,
+		COALESCE(SUM(upload_bytes), 0) AS upload_bytes,
+		COALESCE(SUM(download_bytes), 0) AS download_bytes,
+		COALESCE(MAX(upload_bytes), 0) AS peak_upload_bucket,
+		COALESCE(MAX(download_bytes), 0) AS peak_download_bucket
+	FROM global_buckets`, start, end).Scan(&summary).Error
+	if err != nil {
+		return nil, err
+	}
+
+	duration := end - start
+	onlines, err := s.GetOnlines()
+	if err != nil {
+		return nil, err
+	}
+	onlineUsers := make(map[string]bool, len(onlines.User))
+	for _, name := range onlines.User {
+		onlineUsers[name] = true
+	}
+	response.Items = make([]UserTrafficRankingItem, 0, len(rows))
+	for index, row := range rows {
+		response.Items = append(response.Items, UserTrafficRankingItem{
+			Rank: index + 1, Name: row.Name, Group: row.Group, Description: row.Description,
+			Exists: row.Exists != 0, Enabled: row.Enabled != 0, Online: onlineUsers[row.Name],
+			UploadBytes: row.UploadBytes, DownloadBytes: row.DownloadBytes,
+			TotalBytes:                 row.UploadBytes + row.DownloadBytes,
+			AverageUploadBytesPerSec:   bytesPerSecond(row.UploadBytes, duration),
+			AverageDownloadBytesPerSec: bytesPerSecond(row.DownloadBytes, duration),
+			PeakUploadBytesPerSec:      bytesPerSecond(row.PeakUploadBucket, bucketSeconds),
+			PeakDownloadBytesPerSec:    bytesPerSecond(row.PeakDownloadBucket, bucketSeconds),
+			LastActive:                 row.LastActive,
+		})
+	}
+	response.Summary = UserTrafficSummary{
+		ActiveUsers: summary.ActiveUsers,
+		UploadBytes: summary.UploadBytes, DownloadBytes: summary.DownloadBytes,
+		TotalBytes:                 summary.UploadBytes + summary.DownloadBytes,
+		AverageUploadBytesPerSec:   bytesPerSecond(summary.UploadBytes, duration),
+		AverageDownloadBytesPerSec: bytesPerSecond(summary.DownloadBytes, duration),
+		PeakUploadBytesPerSec:      bytesPerSecond(summary.PeakUploadBucket, bucketSeconds),
+		PeakDownloadBytesPerSec:    bytesPerSecond(summary.PeakDownloadBucket, bucketSeconds),
+	}
+	return response, nil
+}
+
+func normalizeUserTrafficWindow(start, end int64) (int64, int64, error) {
+	now := time.Now().Unix()
+	if end <= 0 || end > now {
+		end = now
+	}
+	if start <= 0 {
+		start = end - int64(24*time.Hour/time.Second)
+	}
+	if start >= end {
+		return 0, 0, common.NewError("traffic range start must be before end")
+	}
+	if time.Duration(end-start)*time.Second > maxUserTrafficRange {
+		return 0, 0, common.NewError("traffic range cannot exceed 90 days")
+	}
+	return start, end, nil
+}
+
+func bytesPerSecond(bytes, seconds int64) int64 {
+	if bytes <= 0 || seconds <= 0 {
+		return 0
+	}
+	return bytes / seconds
 }
 
 func (s *StatsService) downsampleStats(stats []model.Stats, startTime, endTime int64, numBuckets int) any {

@@ -860,6 +860,14 @@ func (a *ApiService) GetStats(c *gin.Context) {
 	jsonObj(c, data, err)
 }
 
+func (a *ApiService) GetUserTraffic(c *gin.Context) {
+	start, _ := strconv.ParseInt(c.Query("start"), 10, 64)
+	end, _ := strconv.ParseInt(c.Query("end"), 10, 64)
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	data, err := a.StatsService.GetUserTrafficRanking(start, end, limit)
+	jsonObj(c, data, err)
+}
+
 func (a *ApiService) GetStatus(c *gin.Context) {
 	request := c.Query("r")
 	result := a.ServerService.GetStatus(request)

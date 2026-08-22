@@ -40,10 +40,12 @@
             v-for="item in group.items"
             :key="item.title"
             link
+            exact
             :to="item.path"
-            :active="router.currentRoute.value.path === item.path"
+            :active="route.path === item.path"
+            :aria-label="$t(item.title)"
             class="menu-item"
-            :class="{ 'menu-item--active': router.currentRoute.value.path === item.path }"
+            :class="{ 'menu-item--active': route.path === item.path }"
             @click="closeMobileDrawer"
           >
             <template v-slot:prepend>
@@ -57,6 +59,9 @@
               activator="parent"
               location="end"
               :text="$t(item.title)"
+              :open-delay="140"
+              :close-delay="60"
+              content-class="drawer-menu-tooltip"
             />
           </v-list-item>
         </v-list>
@@ -67,16 +72,24 @@
       <v-divider class="drawer-divider" />
       <div class="drawer-footer">
         <v-list-item
-          prepend-icon="mdi-logout"
           :title="$t('menu.logout')"
+          :aria-label="$t('menu.logout')"
           @click="Logout"
           class="menu-item menu-item--logout"
         >
+          <template v-slot:prepend>
+            <div class="menu-icon-wrap">
+              <v-icon icon="mdi-logout" size="20" />
+            </div>
+          </template>
           <v-tooltip
             v-if="!isMobile && !expanded"
             activator="parent"
             location="end"
             :text="$t('menu.logout')"
+            :open-delay="140"
+            :close-delay="60"
+            content-class="drawer-menu-tooltip"
           />
         </v-list-item>
       </div>
@@ -86,12 +99,13 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue'
-import router from '@/router'
+import { useRoute } from 'vue-router'
 import { logout } from '@/plugins/httputil'
 import Data from '@/store/modules/data'
 
 const props = defineProps(['isMobile', 'displayDrawer', 'expanded'])
 const emit = defineEmits(['toggleDrawer', 'closeDrawer'])
+const route = useRoute()
 
 const showDrawer = computed({
   get: (): boolean => props.displayDrawer,
@@ -106,6 +120,7 @@ const allMenuGroups = [
     items: [
       { title: 'pages.home', icon: 'mdi-view-dashboard-outline', path: '/' },
       { title: 'pages.portTraffic', icon: 'mdi-chart-timeline-variant', path: '/port-traffic' },
+      { title: 'pages.userTraffic', icon: 'mdi-trophy-outline', path: '/user-traffic' },
     ],
   },
   {
@@ -280,9 +295,17 @@ const closeMobileDrawer = () => {
 
 .menu-item {
   border-radius: 10px !important;
-  margin: 1px 4px;
-  min-height: 40px;
+  box-sizing: border-box;
+  min-height: 44px;
+  height: 44px;
+  margin: 2px 4px;
+  border: 1px solid transparent;
   transition: all 0.2s ease;
+}
+
+.menu-item :deep(.v-list-item__overlay),
+.menu-item :deep(.v-list-item__underlay) {
+  opacity: 0 !important;
 }
 
 .menu-item:hover {
@@ -309,11 +332,12 @@ const closeMobileDrawer = () => {
   width: 32px;
   height: 32px;
   border-radius: 8px;
+  background: transparent !important;
   transition: all 0.2s ease;
 }
 
 .menu-item--active .menu-icon-wrap {
-  background: rgba(var(--v-theme-primary), 0.15);
+  background: transparent !important;
 }
 
 .menu-title {
@@ -339,7 +363,12 @@ const closeMobileDrawer = () => {
 }
 
 .v-navigation-drawer--rail .menu-item {
-  margin: 1px 2px;
+  grid-template-columns: minmax(0, 1fr) 0 0 !important;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  margin: 2px auto;
+  padding: 0 !important;
 }
 
 .v-navigation-drawer--rail .menu-title,
@@ -348,7 +377,23 @@ const closeMobileDrawer = () => {
 }
 
 .v-navigation-drawer--rail :deep(.v-list-item__prepend) {
+  display: flex;
+  justify-content: center;
+  width: 100%;
   margin-inline-end: 0;
+}
+
+.v-navigation-drawer--rail :deep(.v-list-item__prepend > .v-list-item__spacer) {
+  display: none;
+}
+
+.v-navigation-drawer--rail .drawer-menu,
+.v-navigation-drawer--rail .drawer-footer {
+  padding-inline: 0;
+}
+
+.v-navigation-drawer--rail .menu-group {
+  margin-bottom: 0;
 }
 
 .v-navigation-drawer--rail .drawer-header {
@@ -365,5 +410,105 @@ const closeMobileDrawer = () => {
 .v-navigation-drawer--rail .drawer-brand {
   max-width: 0;
   opacity: 0;
+}
+
+</style>
+
+<style>
+/* Explicit mode selectors must stay unscoped so they can match body state. */
+body.ui-style--solid .app-drawer.v-navigation-drawer.v-navigation-drawer--active {
+  background: rgb(var(--v-theme-surface)) !important;
+  border-right: 1px solid rgba(var(--v-theme-on-surface), 0.08) !important;
+  box-shadow: 1px 0 0 rgba(var(--v-theme-on-surface), 0.03), 3px 0 12px rgba(15, 23, 42, 0.05) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.ui-style--glass .app-drawer.v-navigation-drawer.v-navigation-drawer--active {
+  background:
+    radial-gradient(180px circle at var(--glass-pointer-x, 50%) var(--glass-pointer-y, 18%), rgba(255, 255, 255, 0.34), transparent 72%),
+    linear-gradient(105deg, rgba(255, 255, 255, 0.16), transparent 46%, rgba(var(--v-theme-primary), 0.08)),
+    rgba(var(--v-theme-surface), 0.28) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow:
+    inset -1px 0 0 rgba(var(--v-theme-on-surface), 0.05),
+    inset 1px 0 0 rgba(255, 255, 255, 0.24),
+    8px 0 30px rgba(15, 23, 42, 0.1) !important;
+  backdrop-filter: blur(18px) saturate(190%) contrast(102%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(190%) contrast(102%) !important;
+}
+
+body.ui-style--clear .app-drawer.v-navigation-drawer.v-navigation-drawer--active {
+  background:
+    linear-gradient(105deg, rgba(255, 255, 255, 0.12), transparent 56%),
+    rgba(var(--v-theme-surface), 0.16) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.18), 6px 0 24px rgba(15, 23, 42, 0.07) !important;
+  backdrop-filter: blur(28px) saturate(185%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(185%) !important;
+}
+
+body.ui-style--glass .app-drawer .menu-item {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.ui-style--glass .app-drawer .menu-item.menu-item--active {
+  border-color: rgba(var(--v-theme-primary), 0.3) !important;
+  background:
+    radial-gradient(100px circle at var(--glass-pointer-x, 50%) var(--glass-pointer-y, 50%), rgba(255, 255, 255, 0.3), transparent 72%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.2), transparent 52%),
+    rgba(var(--v-theme-primary), 0.11) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    0 7px 18px rgba(var(--v-theme-primary), 0.12) !important;
+  backdrop-filter: blur(12px) saturate(175%) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(175%) !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  body.ui-style--glass .app-drawer .menu-item:not(.menu-item--active):hover {
+    backdrop-filter: blur(10px) saturate(170%) !important;
+    -webkit-backdrop-filter: blur(10px) saturate(170%) !important;
+  }
+}
+
+body.ui-style--glass .app-drawer.v-navigation-drawer--rail .menu-item:hover {
+  transform: translateY(-1px) !important;
+}
+
+body.ui-style--glass .app-drawer.v-navigation-drawer--rail .menu-item .menu-icon-wrap {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+@media (max-width: 960px) {
+  body.ui-style--glass .app-drawer.v-navigation-drawer--temporary.v-navigation-drawer--active {
+    background:
+      linear-gradient(110deg, rgba(255, 255, 255, 0.18), transparent 52%),
+      rgba(var(--v-theme-surface), 0.7) !important;
+    backdrop-filter: blur(28px) saturate(190%) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(190%) !important;
+  }
+}
+
+.drawer-menu-tooltip {
+  padding: 6px 10px !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  pointer-events: none !important;
+}
+
+body.ui-style--glass .drawer-menu-tooltip {
+  color: rgb(var(--v-theme-on-surface)) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.2), transparent 55%),
+    rgba(var(--v-theme-surface), 0.72) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 8px 20px rgba(15, 23, 42, 0.16) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
 }
 </style>

@@ -11,7 +11,7 @@
   [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8)](backend/go.mod)
   [![Vue](https://img.shields.io/badge/Vue-3-42b883)](frontend/package.json)
 
-  **[Linux v1.6.0](https://github.com/Hhz0823/1s-ui/releases/tag/v1.6.0)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
+  **[Linux v1.6.0-boost](https://github.com/Hhz0823/1s-ui/releases/tag/v1.6.0-boost)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
 </div>
 
 > 1S-UI 基于 [alireza0/s-ui](https://github.com/alireza0/s-ui) 二次开发，仅用于学习、研究与技术交流。请遵守当地法律法规。
@@ -179,6 +179,7 @@ s-ui update
 | 服务器群控 | 多服务器列表、在线状态、CPU/内存/磁盘/负载/进程/网络、RTT、P95、丢包、历史曲线和一次性登录客户端后台 |
 | 远程管理 | 修改服务器名称、远程入站 CRUD、启停、1–100 快速节点、IPv6 / 上游 SOCKS5 中转、批量命令和 PTY |
 | 端口流量 | 按监听端口显示实时上下行、累计流量、活动状态和配置限速；本机与受管服务器共用同一视图 |
+| 用户流量排行 | 按 1/6/24 小时、7/30 天或自定义时间统计每个用户的上下行流量、平均带宽、采样峰值和活跃排名；可切换综合、折线趋势和排行视图 |
 | 本机面板 | 入站、出站、端点、服务、DNS、路由、用户、管理员、订阅、日志、备份与流量统计 |
 | 双内核 | 入站级 `sing-box` / `xray` 选择，独立配置生成和运行状态 |
 | 入站限速 | sing-box 单入站聚合上传/下载限速，单位 Mbps，`0` 为不限速；TCP/UDP 共用同一端口限额 |
@@ -237,6 +238,15 @@ IPv6 池模式只会向选定网卡添加地址，不修改系统默认路由。
 
 实现参考 [help660vip/auto-add-ipv6](https://github.com/help660vip/auto-add-ipv6) 的流程，但 1S-UI 使用内置 Go 逻辑，不执行第三方远程脚本。
 
+### v1.6.0-boost 更新重点
+
+- 增加用户流量与带宽排行：支持 1/6/24 小时、7/30 天和自定义时间，提供总流量、平均带宽、采样峰值、搜索排序及折线趋势。
+- 流量排行直接聚合现有 SQLite 时间桶，不增加常驻采集进程，继续面向 1 核 512MiB 的受管客户端优化。
+- 完成液态玻璃侧栏统一：图标与选中背景居中，按钮边缘不再被挤压，收起状态悬停显示功能名称。
+- 增加背景感知文字：浅色背景使用黑字、深色背景使用白字，跨明暗图片时生成黑白渐变；支持透明 PNG 和加载失败回退。
+- 保留一条命令安装与首次 Web 向导，客户端只需粘贴主面板公网地址即可安全绑定，主控可通过一次性票据打开客户端后台。
+- 保持 sing-box 默认内核、可选 Xray-core、远程入站、IPv6 中转、端口流量与限速等现有能力兼容。
+
 ### v1.6.0 更新重点
 
 - Linux 新安装统一为一条命令；SSH 不再选择安装类型或设置 Web 密码，首次 Web 向导负责管理员、运行角色和可选主控绑定。
@@ -277,6 +287,7 @@ IPv6 池模式只会向选定网卡添加地址，不修改系统默认路由。
 ### Highlights
 
 - Central fleet view with online state, live/history CPU, memory, disk, load, process, network, RTT, P95, loss, and per-port traffic.
+- Per-user traffic and bandwidth ranking for preset or custom periods, including upload/download totals, average rate, sampled peak, search, and sorting.
 - Remote server naming, inbound CRUD and start/stop, 1–100 node quick creation, IPv6/upstream SOCKS5 relays, batch commands, and PTY terminal.
 - Full-controller and monitoring-only roles; monitoring-only mode rejects command, terminal, inbound, and relay operations in the backend.
 - Outbound Agent connections over WebSocket/HTTP, so child servers do not expose a separate Agent control port.

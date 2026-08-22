@@ -20,9 +20,9 @@
       <div class="detail-identity">
         <div class="identity-title">
           <i class="status-dot" :class="node?.online ? 'dot-online' : 'dot-offline'" />
-          <h1>{{ node?.name || ('#' + nodeId) }}</h1>
+          <h1 class="adaptive-ink">{{ node?.name || ('#' + nodeId) }}</h1>
         </div>
-        <p dir="ltr">{{ node?.report.hostname || node?.remote_ip || '-' }}</p>
+        <p class="adaptive-ink" dir="ltr">{{ node?.report.hostname || node?.remote_ip || '-' }}</p>
       </div>
       <div class="detail-actions">
         <v-btn

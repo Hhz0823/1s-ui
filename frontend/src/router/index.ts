@@ -37,6 +37,11 @@ const routes = [
         component: () => import('@/components/PortTraffic.vue'),
       },
       {
+        path: '/user-traffic',
+        name: 'pages.userTraffic',
+        component: () => import('@/views/UserTraffic.vue'),
+      },
+      {
         path: '/clients',
         name: 'pages.clients',
         component: () => import('@/views/Clients.vue'),

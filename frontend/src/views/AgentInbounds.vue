@@ -86,8 +86,8 @@
   <header class="remote-header">
     <v-btn icon="mdi-arrow-left" variant="text" :title="$t('agent.backDetail')" @click="router.push(`/agents/${nodeId}`)" />
     <div class="remote-title">
-      <h1>{{ $t('agent.remoteInbounds') }}</h1>
-      <div>{{ node?.name || ('#' + nodeId) }} · <span dir="ltr">{{ connectionHost || '-' }}</span></div>
+      <h1 class="adaptive-ink">{{ $t('agent.remoteInbounds') }}</h1>
+      <div class="adaptive-ink">{{ node?.name || ('#' + nodeId) }} · <span dir="ltr">{{ connectionHost || '-' }}</span></div>
     </div>
     <div class="remote-actions">
       <v-btn variant="tonal" prepend-icon="mdi-refresh" :loading="loading" @click="loadAll">{{ $t('actions.update') }}</v-btn>

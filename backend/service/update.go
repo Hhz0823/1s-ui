@@ -108,7 +108,7 @@ func (s *UpdateService) StartUpdate() (UpdateStatus, error) {
 	}
 	panelUpdateState.value = UpdateStatus{
 		State:   "downloading",
-		Version: normalizeVersion(release.TagName),
+		Version: releaseVersion(release.TagName),
 		Message: "downloading release asset",
 		Started: time.Now().Unix(),
 	}
@@ -119,8 +119,8 @@ func (s *UpdateService) StartUpdate() (UpdateStatus, error) {
 
 func buildVersionInfo(release githubRelease) VersionInfo {
 	asset := linuxReleaseAsset(release)
-	current := normalizeVersion(config.GetVersion())
-	latest := normalizeVersion(release.TagName)
+	current := releaseVersion(config.GetVersion())
+	latest := releaseVersion(release.TagName)
 	canUpdate, capability := updateCapability()
 	assetAvailable := asset.Name != "" && asset.BrowserDownloadURL != "" && asset.Size <= maxReleaseSize
 	if !assetAvailable && capability == "ready" {
@@ -284,7 +284,7 @@ func runPanelUpdate(release githubRelease, asset releaseAsset) {
 		finishPanelUpdate("failed", fmt.Sprintf("panel restart failed: %v", err))
 		return
 	}
-	finishPanelUpdate("success", fmt.Sprintf("updated to %s", normalizeVersion(release.TagName)))
+	finishPanelUpdate("success", fmt.Sprintf("updated to %s", releaseVersion(release.TagName)))
 }
 
 func downloadReleaseAsset(asset releaseAsset) (string, error) {
@@ -533,9 +533,13 @@ func isUpdateRunning(state string) bool {
 	}
 }
 
-func normalizeVersion(value string) string {
+func releaseVersion(value string) string {
 	value = strings.TrimSpace(value)
-	value = strings.TrimPrefix(value, "v")
+	return strings.TrimPrefix(value, "v")
+}
+
+func normalizeVersion(value string) string {
+	value = releaseVersion(value)
 	if index := strings.IndexAny(value, "+-"); index >= 0 {
 		value = value[:index]
 	}

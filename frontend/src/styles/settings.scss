@@ -1855,6 +1855,34 @@ body,
   }
 }
 
+/* Text directly over image-backed surfaces follows the sampled backdrop:
+   light becomes black, dark becomes white, and mixed areas blend between both. */
+body.ui-style--glass .adaptive-ink,
+body.ui-style--clear .adaptive-ink {
+  color: var(--adaptive-ink-fallback, #111) !important;
+  background-color: var(--adaptive-ink-fallback, #111) !important;
+  background-image: var(--adaptive-ink-map, none) !important;
+  background-repeat: no-repeat !important;
+  background-position: var(--adaptive-ink-position, center) !important;
+  background-size: var(--adaptive-ink-size, cover) !important;
+  background-attachment: fixed !important;
+  background-clip: text !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: none !important;
+  mix-blend-mode: normal;
+  filter: none;
+}
+
+@media (forced-colors: active) {
+  .adaptive-ink {
+    color: CanvasText !important;
+    -webkit-text-fill-color: CanvasText !important;
+    mix-blend-mode: normal !important;
+    filter: none !important;
+  }
+}
+
 /* ===== Liquid Glass Interaction System ===== */
 .ui-style--glass {
   --glass-surface: rgba(var(--v-theme-surface), 0.46);
