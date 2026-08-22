@@ -1,6 +1,6 @@
 <template>
   <v-main class="app-main">
-    <div class="app-page">
+    <div class="app-page" :class="{ 'app-page--route-enter': routeAnimating }">
       <v-alert
         v-if="showHostWarning"
         type="error"
@@ -30,11 +30,25 @@
 </template>
 
 <script lang="ts" setup>
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import Data from '@/store/modules/data'
 import { i18n } from '@/locales'
 
 const hostReq = computed(() => Data().hostRequirements)
+const route = useRoute()
+const routeAnimating = ref(false)
+let routeAnimationTimer = 0
+
+watch(() => route.path, async () => {
+  routeAnimating.value = false
+  await nextTick()
+  routeAnimating.value = true
+  window.clearTimeout(routeAnimationTimer)
+  routeAnimationTimer = window.setTimeout(() => { routeAnimating.value = false }, 360)
+})
+
+onBeforeUnmount(() => window.clearTimeout(routeAnimationTimer))
 // Only warn when used as cluster control plane (has agents) and under 2c/2G.
 const showHostWarning = computed(() => {
   const r = hostReq.value

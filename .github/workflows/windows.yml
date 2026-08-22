@@ -13,44 +13,12 @@ permissions:
   contents: write
 
 env:
-  NODE_VERSION: "25"
   TAGS: "with_quic,with_grpc,with_utls,with_acme,with_gvisor,with_naive_outbound,with_purego,badlinkname,tfogo_checklinkname0,with_tailscale"
   LIBCRONET_BASE_URL: "https://github.com/SagerNet/cronet-go/releases/latest/download"
   XRAY_BASE_URL: "https://github.com/XTLS/Xray-core/releases/latest/download"
 
 jobs:
-  build-frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - name: 检出仓库
-        uses: actions/checkout@v6.0.2
-        with:
-          submodules: recursive
-          fetch-depth: 1
-
-      - name: 设置 Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          registry-url: "https://registry.npmjs.org"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: 构建前端
-        run: |
-          cd frontend
-          npm ci
-          npm run build
-
-      - name: 上传前端构建产物
-        uses: actions/upload-artifact@v7
-        with:
-          name: frontend-dist
-          path: frontend/dist
-          retention-days: 1
-
   build-windows:
-    needs: build-frontend
     name: 构建-windows-${{ matrix.arch }}
     strategy:
       fail-fast: false
@@ -63,17 +31,11 @@ jobs:
       - name: 检出仓库
         uses: actions/checkout@v6.0.2
 
-      - name: 下载前端构建产物
-        uses: actions/download-artifact@v8
-        with:
-          name: frontend-dist
-          path: web/html
-
       - name: 设置 Go
         uses: actions/setup-go@v6
         with:
           cache: false
-          go-version-file: go.mod
+          go-version-file: backend/go.mod
 
       - name: 为 Windows 安装 zip
         if: matrix.arch == 'amd64'
@@ -97,7 +59,7 @@ jobs:
           go version
           go env GOOS GOARCH
 
-          go build -ldflags="-w -s -checklinkname=0" -tags "${{ env.TAGS }}" -o sui.exe main.go
+          (cd backend && go build -ldflags="-w -s -checklinkname=0" -tags "${{ env.TAGS }}" -o ../sui.exe .)
           file sui.exe
 
           mkdir s-ui-windows

@@ -23,6 +23,9 @@ Environment=GOMEMLIMIT=400MiB
 Environment=GOGC=50
 # Default runtime starts sing-box. Low-resource installs disable Xray separately.
 Environment=SUI_SKIP_CORE=false
+# The backend is API-only; nginx owns the persisted public listen/port/path.
+Environment=SUI_API_LISTEN=127.0.0.1
+Environment=SUI_API_PORT=2097
 
 # Do NOT set MemoryMax here.
 LimitNOFILE=1048576

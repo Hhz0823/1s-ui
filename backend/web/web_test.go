@@ -1,0 +1,103 @@
+package web
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"testing"
+
+	"github.com/Hhz0823/1s-ui/api"
+	"github.com/Hhz0823/1s-ui/database"
+	"github.com/Hhz0823/1s-ui/logger"
+	"github.com/gin-gonic/gin"
+	"github.com/op/go-logging"
+)
+
+func initWebTestDB(t *testing.T) {
+	t.Helper()
+	logger.InitLogger(logging.CRITICAL)
+	if err := database.InitDB(filepath.Join(t.TempDir(), "web.db")); err != nil {
+		t.Fatal(err)
+	}
+	gin.SetMode(gin.TestMode)
+}
+
+func TestRouterProvidesCanonicalAndLegacyAPIRoutes(t *testing.T) {
+	initWebTestDB(t)
+	server := NewServer()
+	engine, err := server.initRouter()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, route := range []string{"/api/setup-status", "/app/api/setup-status"} {
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, route, nil))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("GET %s status = %d, body = %q", route, recorder.Code, recorder.Body.String())
+		}
+		var result api.Msg
+		if err := json.Unmarshal(recorder.Body.Bytes(), &result); err != nil || !result.Success {
+			t.Fatalf("GET %s returned %#v, error %v", route, result, err)
+		}
+	}
+
+	for _, route := range []string{"/agent/v1/ws", "/app/agent/v1/ws"} {
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, route, nil))
+		if recorder.Code == http.StatusNotFound {
+			t.Fatalf("legacy/canonical Agent route %s was not registered", route)
+		}
+	}
+	for _, route := range []string{"/apiv2/status", "/app/apiv2/status"} {
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, route, nil))
+		if recorder.Code == http.StatusNotFound {
+			t.Fatalf("legacy/canonical API v2 route %s was not registered", route)
+		}
+	}
+}
+
+func TestNoRouteIsJSON404(t *testing.T) {
+	initWebTestDB(t)
+	server := NewServer()
+	engine, err := server.initRouter()
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder := httptest.NewRecorder()
+	engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/app/login", nil))
+	if recorder.Code != http.StatusNotFound || recorder.Header().Get("Content-Type") != "application/json; charset=utf-8" {
+		t.Fatalf("NoRoute = %d %q, body %q", recorder.Code, recorder.Header().Get("Content-Type"), recorder.Body.String())
+	}
+}
+
+func TestServerStartsWithoutFrontendFiles(t *testing.T) {
+	initWebTestDB(t)
+	t.Chdir(t.TempDir())
+	t.Setenv("SUI_API_LISTEN", "127.0.0.1")
+	t.Setenv("SUI_API_PORT", "0")
+	t.Setenv("SUI_CONTROL_SOCKET", filepath.Join(t.TempDir(), "control.sock"))
+
+	server := NewServer()
+	if err := server.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = server.Stop() })
+	response, err := http.Get("http://" + server.listener.Addr().String() + "/api/setup-status")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("API status = %d", response.StatusCode)
+	}
+}
+
+func TestRoutePathsDeduplicatesRootLegacyAlias(t *testing.T) {
+	paths := routePaths("/", "api")
+	if len(paths) != 1 || paths[0] != "/api" {
+		t.Fatalf("routePaths = %#v", paths)
+	}
+}

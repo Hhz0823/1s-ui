@@ -2,11 +2,10 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${VERSION:-$(tr -d '\r\n' < "$ROOT_DIR/config/version")}"
+VERSION="${VERSION:-$(tr -d '\r\n' < "$ROOT_DIR/backend/config/version")}"
 PKG_RELEASE="${PKG_RELEASE:-1}"
 OUT_DIR="${OUT_DIR:-$ROOT_DIR/dist/openwrt-lite}"
 BUILD_DIR="${BUILD_DIR:-$ROOT_DIR/dist/build/openwrt-lite}"
-SKIP_FRONTEND="${SKIP_FRONTEND:-0}"
 TAGS="${SUI_LITE_TAGS:-openwrt_lite,with_quic,with_utls,badlinkname,tfogo_checklinkname0}"
 LDFLAGS="${SUI_LITE_LDFLAGS:-}"
 if [[ -z "$LDFLAGS" ]]; then
@@ -29,7 +28,7 @@ DEFAULT_TARGETS=(
 usage() {
 	cat <<'EOF'
 Usage:
-  scripts/build-openwrt-lite.sh [--skip-frontend] [target ...]
+  scripts/build-openwrt-lite.sh [target ...]
   scripts/build-openwrt-lite.sh all
 
 Targets:
@@ -49,7 +48,7 @@ targets=()
 while (($#)); do
 	case "$1" in
 		--skip-frontend)
-			SKIP_FRONTEND=1
+			echo "warning: --skip-frontend is obsolete; OpenWrt Lite is API-only" >&2
 			;;
 		-h|--help)
 			usage
@@ -68,31 +67,6 @@ done
 if ((${#targets[@]} == 0)); then
 	targets=(x86_64)
 fi
-
-prepare_frontend() {
-	if [[ "$SKIP_FRONTEND" == "1" ]]; then
-		if [[ -f "$ROOT_DIR/web/html/index.html" ]]; then
-			return
-		fi
-		if [[ -f "$ROOT_DIR/frontend/dist/index.html" ]]; then
-			rm -rf "$ROOT_DIR/web/html"
-			mkdir -p "$ROOT_DIR/web/html"
-			cp -R "$ROOT_DIR/frontend/dist/." "$ROOT_DIR/web/html/"
-			return
-		fi
-		echo "web/html is missing; run without --skip-frontend or provide frontend/dist" >&2
-		exit 1
-	fi
-
-	(
-		cd "$ROOT_DIR/frontend"
-		npm install
-		VITE_OPENWRT_LITE=true npm run build
-	)
-	rm -rf "$ROOT_DIR/web/html"
-	mkdir -p "$ROOT_DIR/web/html"
-	cp -R "$ROOT_DIR/frontend/dist/." "$ROOT_DIR/web/html/"
-}
 
 set_target_env() {
 	OPENWRT_ARCH="$1"
@@ -170,8 +144,8 @@ build_binary() {
 
 	echo "==> Building $OPENWRT_ARCH ($GOOS/$GOARCH${GOARM:+/arm$GOARM}${GOMIPS:+/$GOMIPS})"
 	(
-		cd "$ROOT_DIR"
-		go build -trimpath -buildvcs=false -tags "$TAGS" -ldflags "$LDFLAGS" -o "$bin_path" main.go
+		cd "$ROOT_DIR/backend"
+		go build -trimpath -buildvcs=false -tags "$TAGS" -ldflags "$LDFLAGS" -o "$bin_path" .
 	)
 	strip "$bin_path" 2>/dev/null || true
 }
@@ -255,7 +229,6 @@ make_ipk() {
 	echo "==> Wrote $ipk"
 }
 
-prepare_frontend
 mkdir -p "$OUT_DIR" "$BUILD_DIR"
 
 for target in "${targets[@]}"; do

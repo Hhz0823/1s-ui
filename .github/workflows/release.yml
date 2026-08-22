@@ -9,7 +9,7 @@ on:
       tag:
         description: "发布标签"
         required: true
-        default: "v1.5.9"
+        default: "v1.6.0"
         type: string
 
 permissions:
@@ -44,16 +44,18 @@ jobs:
           npm ci
           npm run build
 
+      - name: 打包独立前端
+        run: tar -C frontend/dist -czf s-ui-frontend.tar.gz .
+
       - name: 上传前端构建产物
         uses: actions/upload-artifact@v7
         with:
-          name: frontend-dist
-          path: frontend/dist/
+          name: s-ui-frontend
+          path: s-ui-frontend.tar.gz
           retention-days: 1
 
   build-linux:
     name: 构建-${{ matrix.platform }}
-    needs: build-frontend
     strategy:
       fail-fast: false
       matrix:
@@ -70,17 +72,11 @@ jobs:
       - name: 检出仓库
         uses: actions/checkout@v6.0.2
 
-      - name: 下载前端构建产物
-        uses: actions/download-artifact@v8
-        with:
-          name: frontend-dist
-          path: web/html
-
       - name: 设置 Go
         uses: actions/setup-go@v6
         with:
           cache: false
-          go-version-file: go.mod
+          go-version-file: backend/go.mod
 
       - name: 克隆 cronet-go（naive 平台）
         if: matrix.naive
@@ -152,8 +148,8 @@ jobs:
           set -e
           BUILD_TAGS="with_quic,with_grpc,with_utls,with_acme,with_gvisor,badlinkname,tfogo_checklinkname0,with_tailscale"
           [ "${{ matrix.naive }}" = "true" ] && BUILD_TAGS="${BUILD_TAGS},with_naive_outbound,with_musl"
-          go build -ldflags="-w -s -checklinkname=0 -linkmode external -extldflags '-static'" -tags "$BUILD_TAGS" -o sui main.go
-          CGO_ENABLED=0 go build -trimpath -ldflags="-w -s" -o sui-agent ./cmd/sui-agent
+          (cd backend && go build -ldflags="-w -s -checklinkname=0 -linkmode external -extldflags '-static'" -tags "$BUILD_TAGS" -o ../sui .)
+          (cd backend && CGO_ENABLED=0 go build -trimpath -ldflags="-w -s" -o ../sui-agent ./cmd/sui-agent)
           file sui
           file sui-agent
           ldd sui 2>/dev/null || echo "已确认静态二进制文件"
@@ -178,7 +174,7 @@ jobs:
 
   publish-linux:
     name: 发布 Linux 产物
-    needs: build-linux
+    needs: [build-linux, build-frontend]
     runs-on: ubuntu-latest
     steps:
       - name: 规范化发布标签
@@ -199,6 +195,12 @@ jobs:
           pattern: s-ui-linux-*
           path: release-assets
           merge-multiple: true
+
+      - name: 下载独立前端产物
+        uses: actions/download-artifact@v8
+        with:
+          name: s-ui-frontend
+          path: release-assets
 
       - name: 发布到当前仓库 Release
         uses: softprops/action-gh-release@v3

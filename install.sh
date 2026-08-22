@@ -9,16 +9,37 @@ plain='\033[0m'
 cur_dir=$(pwd)
 
 # Decision flags
-INSTALL_KIND=""              # minimal | managed | full
+INSTALL_KIND=""              # client | full (minimal/managed remain aliases)
 INSTALL_PANEL=1
 INSTALL_XRAY=0
-DISABLE_XRAY=0              # 1 = low-resource runtime is sing-box only
+DISABLE_XRAY=0              # 1 = low-resource runtime cannot use Xray
+XRAY_ON_DEMAND=0            # 1 = Xray is installed but never auto-started
 INSTALL_PROXY=0
-INSTALL_AGENT=0              # copy sui-agent binary + unit
+INSTALL_AGENT=1              # Agent files ship with every panel installation
+CONFIGURE_AGENT=0            # bind/start Agent only when connection data is supplied
+AGENT_WAS_ACTIVE=0
+AGENT_WAS_ENABLED=0
+AGENT_STATE="installed"
+AGENT_ENV_FILE="/etc/default/1s-ui-agent"
+AGENT_BINARY="/usr/local/s-ui/sui-agent"
+AGENT_UNIT_FILE="/etc/systemd/system/s-ui-agent.service"
 PROXY_ENGINE=""              # caddy | nginx | ""
 PROXY_DOMAIN=""
 PROXY_EMAIL=""
 PROXY_READY=0                # 1 = reverse proxy was configured and is active
+FRONTEND_ROOT="/usr/local/s-ui/frontend"
+FRONTEND_RUNTIME_CONFIG="/usr/local/s-ui/frontend-runtime/config.js"
+NGINX_FRONTEND_CONFIG="/etc/nginx/sites-available/s-ui-frontend.conf"
+NGINX_PUBLIC_CONFIG="/etc/nginx/sites-available/s-ui-public.conf"
+FRONTEND_LISTEN=""
+FRONTEND_PORT=2095
+FRONTEND_PATH="/app/"
+FRONTEND_DOMAIN=""
+SUBSCRIPTION_PORT=2096
+API_LISTEN="127.0.0.1"
+API_PORT=2097
+FRONTEND_TARBALL=""
+FRONTEND_INSTALL_PENDING=0
 INSTALL_MODE="fresh"         # fresh | upgrade
 PROFILE="standard"           # low | standard | high
 MEM_TOTAL_MB=0
@@ -65,22 +86,25 @@ usage() {
     cat <<EOF
 用法: install.sh [版本号] [选项]
 
-安装模式（三选一，推荐显式指定）:
-  --minimal, --simple, -m   轻量 Web 面板（完整 Web UI + sing-box，无 Xray/反代/Agent）
-  --managed-client          受管客户端（完整 Web UI + sing-box + Agent，低配 VPS）
+默认安装（无需选择类型）:
+  Web 面板 + sing-box + 休眠 Agent。Agent 只有绑定主服务器后才启动。
+
+兼容选项:
+  --minimal, --simple, -m   等同默认客户端安装
+  --managed-client          等同默认安装，但要求同时提供 --connect 或旧式连接参数
   --full, --complete, --server
-                            全面服务端（面板 + Xray + 反代 + Agent + 自动启内核）
+                            旧版全面安装入口（面板 + Xray + 反代）
 
 通用选项:
-  -y, --yes             自动确认安装（未指定模式时默认 --minimal）
-  --with-xray           额外安装 Xray-core（低配档位会忽略此项并只用 sing-box）
+  -y, --yes             兼容旧命令；默认安装本身不再询问安装类型
+  --with-xray           额外安装 Xray-core（低配也支持，但只按需启动）
   --no-xray             跳过 Xray-core
   --with-proxy          安装反代（Caddy/Nginx）
   --no-proxy            不安装反代
   --domain DOMAIN       反代域名（HTTPS，多用于全面安装）
   --email EMAIL         ACME 邮箱（Caddy 可选）
-  --controller URL      受管客户端连接的中心面板 URL（包含面板路径）
-  --agent-token TOKEN   中心面板生成的 Agent 注册密钥
+  --controller URL      旧式中心面板 URL（需同时提供 --agent-token）
+  --agent-token TOKEN   旧式 Agent 注册密钥（需同时提供 --controller）
   --connect URL         主面板生成的连接 API 或一次性连接地址（推荐）
   --agent-insecure      Agent 连接中心时跳过 TLS 证书校验
   --start-core          安装后自动启动代理内核
@@ -89,25 +113,19 @@ usage() {
   --force               兼容旧命令；不能绕过全面服务端的 2核2G 硬门槛
   -h, --help            显示帮助
 
-对比:
-  轻量  = 完整 Web UI + sing-box（低配友好）
-  全面  = 面板 + Xray + 反代 + Agent 二进制 + 自动启内核
-          要求 ≥${CLUSTER_CPU_CORES} 核 / ≥${CLUSTER_MEM_MB}MB（硬门槛）
-
 示例:
-  # 轻量 Web 面板（推荐日常/小机器）
-  bash install.sh -y --minimal
-  bash install.sh v1.5.9 -y -m
+  # 推荐：直接安装，适合 1 核 512MB 起步
+  bash install.sh
+  bash install.sh v1.6.0
+
+  # 安装后立即绑定主服务器
+  bash install.sh --connect 'https://panel.example.com/app/agent/v1/enroll#KEY'
 
   # 全面服务端（生产/多节点控制面）
   bash install.sh -y --full --domain panel.example.com --email a@b.com
 
-  # 受管客户端（完整 Web 面板，可从中心管理入站）
-  bash install.sh -y --managed-client --connect 'https://panel.example.com/app/agent/v1/enroll#KEY'
+  # 旧命令仍兼容
   bash install.sh -y --managed-client --controller https://panel.example.com/app/ --agent-token TOKEN
-
-  # 交互选择模式
-  bash install.sh
 EOF
 }
 
@@ -120,15 +138,20 @@ parse_args() {
             shift
             ;;
         --minimal | --simple | -m)
-            INSTALL_KIND="minimal"
+            INSTALL_KIND="client"
             shift
             ;;
         --full | --complete | --server)
             INSTALL_KIND="full"
             shift
             ;;
-        --managed-client | --managed | --client)
-            INSTALL_KIND="managed"
+        --managed-client | --managed)
+            INSTALL_KIND="client"
+            CONFIGURE_AGENT=1
+            shift
+            ;;
+        --client)
+            INSTALL_KIND="client"
             shift
             ;;
         --with-xray)
@@ -157,14 +180,17 @@ parse_args() {
             ;;
         --controller)
             CONTROLLER_URL="${2:-}"
+            CONFIGURE_AGENT=1
             shift 2
             ;;
         --agent-token)
             AGENT_TOKEN="${2:-}"
+            CONFIGURE_AGENT=1
             shift 2
             ;;
         --connect)
             CONNECT_URL="${2:-}"
+            CONFIGURE_AGENT=1
             shift 2
             ;;
         --agent-insecure)
@@ -357,45 +383,62 @@ detect_resources() {
     done
 }
 
-choose_install_kind() {
-    if [[ -n "$INSTALL_KIND" ]]; then
-        return 0
-    fi
-    if [[ "$AUTO_YES" -eq 1 ]]; then
-        INSTALL_KIND="minimal"
-        echo -e "${yellow}未指定模式且 -y：默认 ${green}轻量 Web 面板 (--minimal)${plain}"
-        return 0
-    fi
-    echo -e "${blue}========== 选择安装模式 ==========${plain}"
-    echo -e "  ${green}1) 轻量 Web 面板${plain}  —— 完整 Web UI + sing-box"
-    echo -e "                 不装 Xray / 反代 / Agent，流程短、低配友好"
-    echo -e "  ${green}2) 全面服务端${plain} —— 面板 + Xray + 反代 + Agent + 自动启内核"
-    echo -e "                 适合生产 / 多节点集群控制面（要求 ≥2核2G）"
-    echo -e "  ${green}3) 受管客户端${plain} —— 完整 Web UI + sing-box + Agent"
-    echo -e "                 适合由中心面板管理的 1核512MB VPS"
-    echo -e "${blue}=================================${plain}"
-    read -r -p "请选择 [1/2/3]，默认 1: " kind_ans
-    case "${kind_ans}" in
-    2 | full | Full | FULL | f | F)
-        INSTALL_KIND="full"
+resolve_install_profile() {
+    [[ -n "$INSTALL_KIND" ]] || INSTALL_KIND="client"
+    case "$INSTALL_KIND" in
+    minimal | managed)
+        INSTALL_KIND="client"
         ;;
-    3 | managed | Managed | MANAGED | c | C)
-        INSTALL_KIND="managed"
+    client | full)
         ;;
     *)
-        INSTALL_KIND="minimal"
+        echo -e "${red}未知安装方案: ${INSTALL_KIND}${plain}"
+        return 1
         ;;
     esac
+}
+
+validate_agent_connection() {
+    [[ "$CONFIGURE_AGENT" -eq 1 ]] || return 0
+    if [[ -n "$CONNECT_URL" ]]; then
+        local endpoint code
+        endpoint="${CONNECT_URL%%#*}"
+        code="${CONNECT_URL#*#}"
+        if [[ ! "$endpoint" =~ ^https?://[^[:space:]\'\"\\]+/agent/v1/(pair|enroll)$ ]] || [[ ! "$code" =~ ^[A-Za-z0-9_-]{32,128}$ ]]; then
+            echo -e "${red}主服务器连接 API 或一次性地址格式无效。${plain}"
+            return 1
+        fi
+        return 0
+    fi
+    if [[ ! "$CONTROLLER_URL" =~ ^https?://[^[:space:]\'\"\\]+$ ]]; then
+        echo -e "${red}自动绑定需要 --connect，或有效的 --controller URL。${plain}"
+        return 1
+    fi
+    if [[ ! "$AGENT_TOKEN" =~ ^[A-Za-z0-9_-]{32,128}$ ]]; then
+        echo -e "${red}自动绑定需要 --connect，或有效的 --agent-token。${plain}"
+        return 1
+    fi
 }
 
 # Apply component defaults from INSTALL_KIND, then honor FORCE_* overrides.
 apply_kind_defaults() {
     local xray_reason="" proxy_reason="" core_reason=""
 
+    # Preserve a component choice made later in the Web panel. Upgrades must
+    # not silently disable or remove an installed on-demand Xray runtime.
+    local web_xray_enabled=0
+    if [[ "$INSTALL_MODE" == "upgrade" && -f /usr/local/s-ui/db/.xray_enabled ]]; then
+        web_xray_enabled=1
+    fi
+
     DISABLE_XRAY=0
+    XRAY_ON_DEMAND=0
     if [[ "$PROFILE" == "low" ]]; then
         DISABLE_XRAY=1
     fi
+
+    INSTALL_AGENT=1
+    validate_agent_connection || return 1
 
     if [[ "$INSTALL_KIND" == "full" ]]; then
         INSTALL_XRAY=1
@@ -408,53 +451,20 @@ apply_kind_defaults() {
         # Full server/Agent control plane is a hard 2c2G gate.
         if [[ "$CPU_CORES" -lt "$CLUSTER_CPU_CORES" || "$MEM_TOTAL_MB" -lt "$CLUSTER_MEM_MB" ]]; then
             echo -e "${red}全面服务端要求至少 ${CLUSTER_CPU_CORES} 核 / ${CLUSTER_MEM_MB}MB，当前 ${CPU_CORES} 核 / ${MEM_TOTAL_MB}MB。${plain}"
-            echo -e "${yellow}该配置只能安装轻量 Web 面板：bash install.sh -y --minimal${plain}"
+            echo -e "${yellow}该配置请直接使用默认客户端安装：bash install.sh${plain}"
             if [[ "$FORCE_INSTALL" -eq 1 ]]; then
                 echo -e "${yellow}--force 不会绕过服务器监控的 2核2G 门槛。${plain}"
             fi
             return 1
         fi
-    elif [[ "$INSTALL_KIND" == "managed" ]]; then
-        INSTALL_XRAY=0
-        INSTALL_PROXY=0
-        INSTALL_AGENT=1
-        SKIP_CORE=0
-        core_reason="受管客户端：启动面板与轻量 sing-box（低配档位禁用 Xray）"
-        xray_reason="受管客户端默认 sing-box（可用 --with-xray）"
-        proxy_reason="受管客户端默认不安装反代（可按需启用）"
-        if [[ -z "$CONNECT_URL" && -z "$CONTROLLER_URL" && "$AUTO_YES" -ne 1 ]]; then
-            read -r -p "粘贴主服务器连接 API 或一次性地址（推荐，直接回车可用旧方式）: " CONNECT_URL
-        fi
-        if [[ -z "$CONNECT_URL" ]]; then
-            if [[ -z "$CONTROLLER_URL" && "$AUTO_YES" -ne 1 ]]; then
-                read -r -p "中心面板 URL（例如 https://panel.example.com/app/）: " CONTROLLER_URL
-            fi
-            if [[ -z "$AGENT_TOKEN" && "$AUTO_YES" -ne 1 ]]; then
-                read -r -s -p "Agent 注册密钥: " AGENT_TOKEN
-                echo
-            fi
-            if [[ ! "$CONTROLLER_URL" =~ ^https?://[^[:space:]\'\"\\]+$ ]]; then
-                echo -e "${red}受管客户端需要 --connect，或有效的 --controller URL。${plain}"
-                return 1
-            fi
-            if [[ ! "$AGENT_TOKEN" =~ ^[A-Za-z0-9_-]{32,128}$ ]]; then
-                echo -e "${red}受管客户端需要 --connect，或有效的 --agent-token。${plain}"
-                return 1
-            fi
-        elif [[ "$CONNECT_URL" != http://* && "$CONNECT_URL" != https://* ]] || [[ "$CONNECT_URL" != *"#"* ]]; then
-            echo -e "${red}主服务器连接 API 或一次性地址格式无效。${plain}"
-            return 1
-        fi
     else
-        # minimal — 1.4.10-style: panel + sing-box only
-        INSTALL_KIND="minimal"
+        INSTALL_KIND="client"
         INSTALL_XRAY=0
         INSTALL_PROXY=0
-        INSTALL_AGENT=0
         SKIP_CORE=0
-        core_reason="轻量模式：启动面板时加载轻量 sing-box"
-        xray_reason="轻量模式：不装 Xray（可用 --with-xray）"
-        proxy_reason="轻量模式：不装反代（可用 --with-proxy --domain ...）"
+        core_reason="默认客户端：启动 Web 面板与轻量 sing-box"
+        xray_reason="默认使用 sing-box（可用 --with-xray 安装按需 Xray）"
+        proxy_reason="默认不安装反代，可稍后在面板设置中启用"
     fi
 
     # Explicit core flags win over kind defaults
@@ -470,9 +480,23 @@ apply_kind_defaults() {
     if [[ "$FORCE_XRAY" == "1" ]]; then
         INSTALL_XRAY=1
         xray_reason="用户指定 --with-xray"
+        # Preserve the old dual-core installation option without making a
+        # 512MB VPS start two proxy processes at boot.
+        if [[ "$PROFILE" == "low" || "$MEM_TOTAL_MB" -lt 1500 ]]; then
+            DISABLE_XRAY=0
+            XRAY_ON_DEMAND=1
+            xray_reason="用户指定 --with-xray；低配仅按需启动，默认使用 sing-box"
+        fi
     elif [[ "$FORCE_XRAY" == "0" ]]; then
         INSTALL_XRAY=0
         xray_reason="用户指定 --no-xray"
+    fi
+
+    if [[ "$web_xray_enabled" -eq 1 && "$FORCE_XRAY" != "0" ]]; then
+        INSTALL_XRAY=0
+        DISABLE_XRAY=0
+        XRAY_ON_DEMAND=1
+        xray_reason="保留面板中启用的现有 Xray-core（按需启动）"
     fi
     if [[ -z "$(xray_asset)" && "$INSTALL_XRAY" -eq 1 ]]; then
         INSTALL_XRAY=0
@@ -517,9 +541,12 @@ apply_kind_defaults() {
         proxy_reason="用户指定 --no-proxy"
     fi
     if [[ "$MEM_TOTAL_MB" -lt 1500 ]]; then
-        if [[ "$INSTALL_XRAY" -eq 1 ]]; then
+        if [[ "$INSTALL_XRAY" -eq 1 && "$FORCE_XRAY" != "1" ]]; then
             INSTALL_XRAY=0
-            xray_reason="内存 <1.5G：安装期强制延后 Xray，避免 OOM"
+            xray_reason="内存 <1.5G：默认不下载 Xray；如需双内核请显式 --with-xray"
+        elif [[ "$INSTALL_XRAY" -eq 1 ]]; then
+            XRAY_ON_DEMAND=1
+            xray_reason="内存 <1.5G：已安装 Xray，但仅允许面板手动启动"
         fi
         if [[ "$INSTALL_PROXY" -eq 1 ]]; then
             INSTALL_PROXY=0
@@ -543,32 +570,23 @@ apply_kind_defaults() {
     echo -e "档位：${PROFILE} | 面板：${INSTALL_MODE}"
     if [[ "$INSTALL_KIND" == "full" ]]; then
         echo -e "模式：${green}全面服务端 (--full)${plain}"
-    elif [[ "$INSTALL_KIND" == "managed" ]]; then
-        echo -e "模式：${green}受管客户端 (--managed-client)${plain}"
     else
-        echo -e "模式：${green}轻量 Web 面板 (--minimal)${plain}"
+        echo -e "模式：${green}统一客户端（默认）${plain}"
     fi
-    echo -e "组件：Xray=$(xray_summary_label)  反代=$([ "$INSTALL_PROXY" -eq 1 ] && echo "是(${PROXY_ENGINE:-?})" || echo 否)  Agent=$([ "$INSTALL_AGENT" -eq 1 ] && echo 是 || echo 否)  自动启内核=$([ "$SKIP_CORE" -eq 1 ] && echo 否 || echo 是)"
+    echo -e "组件：Xray=$(xray_summary_label)  反代=$([ "$INSTALL_PROXY" -eq 1 ] && echo "是(${PROXY_ENGINE:-?})" || echo 否)  Agent=$([ "$CONFIGURE_AGENT" -eq 1 ] && echo 安装并绑定 || echo 安装但休眠)  自动启内核=$([ "$SKIP_CORE" -eq 1 ] && echo 否 || echo 是)"
     echo -e "  Xray：${xray_reason}"
     echo -e "  反代：${proxy_reason}"
     echo -e "  内核：${core_reason}"
     echo -e "${blue}==============================${plain}"
 
-    if [[ "$AUTO_YES" -ne 1 ]]; then
-        read -r -p "确认按此方案安装？[Y/n]: " confirm
-        if [[ "${confirm}" == "n" || "${confirm}" == "N" ]]; then
-            echo "已取消。"
-            exit 0
-        fi
-        if [[ "$INSTALL_KIND" == "full" && -z "$PROXY_DOMAIN" && "$INSTALL_PROXY" -eq 1 ]]; then
-            echo -e "${yellow}反代将先使用服务器 IP 的 HTTP:80。安装后请在「面板设置 → 服务端面板」配置域名。${plain}"
-        fi
+    if [[ "$INSTALL_KIND" == "full" && -z "$PROXY_DOMAIN" && "$INSTALL_PROXY" -eq 1 ]]; then
+        echo -e "${yellow}反代将先使用服务器 IP 的 HTTP:80。安装后请在「面板设置 → 服务端面板」配置域名。${plain}"
     fi
 }
 
 analyze_vps() {
     detect_resources
-    choose_install_kind
+    resolve_install_profile || return 1
     apply_kind_defaults || return 1
 }
 
@@ -583,6 +601,7 @@ apply_systemd_optimize() {
     mkdir -p /etc/systemd/system/s-ui.service.d
     local skip_line="Environment=SUI_SKIP_CORE=false"
     local xray_line="Environment=SUI_DISABLE_XRAY=false"
+    local xray_mode_line="Environment=SUI_XRAY_ON_DEMAND=false"
     local go_mem_lines=""
     if [[ "$SKIP_CORE" -eq 1 ]]; then
         skip_line="Environment=SUI_SKIP_CORE=true"
@@ -599,6 +618,28 @@ apply_systemd_optimize() {
         chmod 644 /usr/local/s-ui/db/.disable_xray
     else
         rm -f /usr/local/s-ui/db/.disable_xray
+    fi
+    if [[ "$XRAY_ON_DEMAND" -eq 1 ]]; then
+        xray_mode_line="Environment=SUI_XRAY_ON_DEMAND=true"
+        mkdir -p /usr/local/s-ui/db
+        touch /usr/local/s-ui/db/.xray_on_demand
+        chmod 644 /usr/local/s-ui/db/.xray_on_demand
+    else
+        rm -f /usr/local/s-ui/db/.xray_on_demand
+    fi
+
+    # Installer owns optimize.conf. The later 99-xray-runtime.conf is owned by
+    # the Web component manager and intentionally takes precedence.
+    if [[ "$INSTALL_MODE" == "fresh" ]]; then
+        rm -f /etc/systemd/system/s-ui.service.d/99-xray-runtime.conf
+        rm -f /usr/local/s-ui/db/.xray_enabled
+    fi
+    if [[ "$INSTALL_KIND" == "full" ]]; then
+        mkdir -p /usr/local/s-ui/db
+        touch /usr/local/s-ui/db/.controller_mode
+        chmod 600 /usr/local/s-ui/db/.controller_mode
+    elif [[ "$INSTALL_MODE" == "fresh" ]]; then
+        rm -f /usr/local/s-ui/db/.controller_mode
     fi
 
     # Cap Go heap so panel web UI does not balloon toward total RAM.
@@ -618,6 +659,9 @@ OOMScoreAdjust=800
 Nice=10
 ${skip_line}
 ${xray_line}
+${xray_mode_line}
+Environment=SUI_API_LISTEN=${API_LISTEN}
+Environment=SUI_API_PORT=${API_PORT}
 ${go_mem_lines}
 EOF
 
@@ -629,6 +673,8 @@ EOF
     fi
     if [[ "$DISABLE_XRAY" -eq 1 ]]; then
         echo -e "${green}低配档位仅启用 sing-box；Xray-core 不下载、不启动${plain}"
+    elif [[ "$XRAY_ON_DEMAND" -eq 1 ]]; then
+        echo -e "${yellow}低配双内核：默认使用 sing-box；Xray-core 仅在面板中手动启动${plain}"
     fi
     [[ -n "$go_mem_lines" ]] && echo -e "${green}已限制面板 Go 内存（GOMEMLIMIT），降低 OOM 风险${plain}"
 }
@@ -737,6 +783,8 @@ write_caddy_config() {
     local email="$2"
     local panel_port="${3:-2095}"
     mkdir -p /etc/caddy
+    local tmp
+    tmp=$(mktemp "/etc/caddy/.Caddyfile.s-ui.XXXXXX") || return 1
     {
         echo "# BEGIN 1S-UI MANAGED REVERSE PROXY"
         if [[ -n "$domain" && -n "$email" ]]; then
@@ -759,23 +807,22 @@ write_caddy_config() {
 }
 EOF
         echo "# END 1S-UI MANAGED REVERSE PROXY"
-    } >/etc/caddy/Caddyfile
+    } >"$tmp"
+    chmod 0644 "$tmp"
+    mv -f "$tmp" /etc/caddy/Caddyfile
 }
 
 write_nginx_config() {
     local domain="$1"
     local panel_port="${2:-2095}"
-    local conf_dir="/etc/nginx/conf.d"
-    mkdir -p "$conf_dir" /etc/nginx/sites-available /etc/nginx/sites-enabled 2>/dev/null || true
-    local conf_file="${conf_dir}/s-ui.conf"
-    # Prefer sites-available when present (Debian style)
-    if [[ -d /etc/nginx/sites-available ]]; then
-        conf_file="/etc/nginx/sites-available/s-ui.conf"
-    fi
+    mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled 2>/dev/null || true
+    local conf_file="$NGINX_PUBLIC_CONFIG"
     local server_name="_"
     [[ -n "$domain" ]] && server_name="$domain"
 
-    cat >"$conf_file" <<EOF
+    local tmp
+    tmp=$(mktemp "/etc/nginx/sites-available/.s-ui-public.XXXXXX") || return 1
+    cat >"$tmp" <<EOF
 # BEGIN 1S-UI MANAGED REVERSE PROXY
 server {
     listen 80;
@@ -786,7 +833,7 @@ server {
 
     location / {
         proxy_http_version 1.1;
-        proxy_set_header Host \$host;
+        proxy_set_header Host \$http_host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
@@ -797,8 +844,10 @@ server {
 }
 # END 1S-UI MANAGED REVERSE PROXY
 EOF
+    chmod 0644 "$tmp"
+    mv -f "$tmp" "$conf_file"
     if [[ -d /etc/nginx/sites-enabled ]]; then
-        ln -sfn "$conf_file" /etc/nginx/sites-enabled/s-ui.conf
+        ln -sfn "$conf_file" /etc/nginx/sites-enabled/s-ui-public.conf
         # Disable default site if it would catch all traffic
         rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
     fi
@@ -810,7 +859,7 @@ bind_panel_localhost() {
     if [[ -n "$domain" ]]; then
         local scheme="http"
         [[ "$PROXY_ENGINE" == "caddy" ]] && scheme="https"
-        uri="${scheme}://${domain}/app/"
+        uri="${scheme}://${domain}${FRONTEND_PATH}"
         /usr/local/s-ui/sui setting -listen 127.0.0.1 -domain "$domain" -uri "$uri" >/dev/null 2>&1 || true
     else
         /usr/local/s-ui/sui setting -listen 127.0.0.1 -domain - -uri - >/dev/null 2>&1 || true
@@ -822,16 +871,16 @@ panel_access_url() {
     if [[ "$PROXY_READY" -eq 1 ]]; then
         if [[ -n "$PROXY_DOMAIN" ]]; then
             if [[ "$PROXY_ENGINE" == "caddy" ]]; then
-                printf 'https://%s/app/' "$PROXY_DOMAIN"
+                printf 'https://%s%s' "$PROXY_DOMAIN" "$FRONTEND_PATH"
             else
-                printf 'http://%s/app/' "$PROXY_DOMAIN"
+                printf 'http://%s%s' "$PROXY_DOMAIN" "$FRONTEND_PATH"
             fi
         else
-            printf 'http://服务器IP/app/'
+            printf 'http://服务器IP%s' "$FRONTEND_PATH"
         fi
         return
     fi
-    printf 'http://服务器IP:2095/app/'
+    printf 'http://服务器IP:%s%s' "$FRONTEND_PORT" "$FRONTEND_PATH"
 }
 
 proxy_summary_label() {
@@ -846,12 +895,29 @@ proxy_summary_label() {
 
 xray_summary_label() {
     if [[ "$INSTALL_XRAY" -eq 1 ]]; then
-        echo "是"
+        [[ "$XRAY_ON_DEMAND" -eq 1 ]] && echo "是（按需）" || echo "是"
     elif [[ "$DISABLE_XRAY" -eq 1 ]]; then
         echo "否（低配仅 sing-box）"
     else
         echo "否"
     fi
+}
+
+agent_summary_label() {
+    case "$AGENT_STATE" in
+    connected)
+        printf '已连接主服务器'
+        ;;
+    restored)
+        printf '已恢复原连接'
+        ;;
+    configured)
+        printf '已配置（未启动）'
+        ;;
+    *)
+        printf '已安装（未绑定休眠）'
+        ;;
+    esac
 }
 
 install_reverse_proxy() {
@@ -861,37 +927,48 @@ install_reverse_proxy() {
         return 0
     fi
 
-    local panel_port=2095
-    if [[ -x /usr/local/s-ui/sui ]]; then
-        local p
-        p=$(/usr/local/s-ui/sui setting -show 2>/dev/null | awk -F'\t' '/Panel port/ {print $NF}' | tr -d ' ')
-        [[ "$p" =~ ^[0-9]+$ ]] && panel_port="$p"
-    fi
+    local panel_port="$FRONTEND_PORT"
 
     echo -e "${yellow}正在配置反向代理（引擎: ${PROXY_ENGINE}）...${plain}"
     bind_panel_localhost "$PROXY_DOMAIN"
-    systemctl try-restart s-ui 2>/dev/null || true
-    sleep 1
+    FRONTEND_LISTEN="127.0.0.1"
+    FRONTEND_DOMAIN="$PROXY_DOMAIN"
+    if ! configure_frontend_gateway; then
+        echo -e "${red}前端网关切换本机监听失败，已停止公网反代配置${plain}"
+        return 1
+    fi
 
     if [[ "$PROXY_ENGINE" == "caddy" ]]; then
         if ! install_caddy_pkg; then
             echo -e "${yellow}Caddy 安装失败，回退 Nginx${plain}"
             PROXY_ENGINE="nginx"
         else
+            local caddy_backup="/tmp/s-ui-caddy.public.backup"
+            rm -f "$caddy_backup"
+            [[ -f /etc/caddy/Caddyfile ]] && cp -f /etc/caddy/Caddyfile "$caddy_backup"
             write_caddy_config "$PROXY_DOMAIN" "$PROXY_EMAIL" "$panel_port"
+            if ! caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>&1; then
+                [[ -f "$caddy_backup" ]] && cp -f "$caddy_backup" /etc/caddy/Caddyfile || rm -f /etc/caddy/Caddyfile
+                echo -e "${yellow}Caddy 配置校验失败，回退 Nginx${plain}"
+                PROXY_ENGINE="nginx"
+            else
             systemctl enable caddy >/dev/null 2>&1 || true
             if systemctl restart caddy && systemctl is-active --quiet caddy; then
+                rm -f "$caddy_backup"
                 PROXY_READY=1
                 echo -e "${green}Caddy 反代已启动${plain}"
                 if [[ -n "$PROXY_DOMAIN" ]]; then
-                    echo -e "面板地址：${green}https://${PROXY_DOMAIN}/app/${plain}"
+                    echo -e "面板地址：${green}https://${PROXY_DOMAIN}${FRONTEND_PATH}${plain}"
                 else
-                    echo -e "面板地址：${green}http://服务器IP/app/${plain}（80 端口）"
+                    echo -e "面板地址：${green}http://服务器IP${FRONTEND_PATH}${plain}（80 端口）"
                 fi
                 return 0
             fi
+            [[ -f "$caddy_backup" ]] && cp -f "$caddy_backup" /etc/caddy/Caddyfile || rm -f /etc/caddy/Caddyfile
+            systemctl try-restart caddy >/dev/null 2>&1 || true
             echo -e "${yellow}Caddy 启动失败，回退 Nginx${plain}"
             PROXY_ENGINE="nginx"
+            fi
         fi
     fi
 
@@ -899,28 +976,47 @@ install_reverse_proxy() {
         if ! install_package nginx; then
             echo -e "${red}Nginx 安装失败，跳过反代${plain}"
             /usr/local/s-ui/sui setting -listen - >/dev/null 2>&1 || true
-            systemctl try-restart s-ui 2>/dev/null || true
+            FRONTEND_LISTEN=""
+            FRONTEND_DOMAIN=""
+            configure_frontend_gateway || true
             return 1
         fi
+        local nginx_public_backup="/tmp/s-ui-nginx.public.backup"
+        rm -f "$nginx_public_backup"
+        [[ -f "$NGINX_PUBLIC_CONFIG" ]] && cp -f "$NGINX_PUBLIC_CONFIG" "$nginx_public_backup"
         write_nginx_config "$PROXY_DOMAIN" "$panel_port"
-        nginx -t 2>/dev/null || true
+        if ! nginx -t; then
+            [[ -f "$nginx_public_backup" ]] && cp -f "$nginx_public_backup" "$NGINX_PUBLIC_CONFIG" || {
+                rm -f "$NGINX_PUBLIC_CONFIG" /etc/nginx/sites-enabled/s-ui-public.conf
+            }
+            nginx -t >/dev/null 2>&1 && systemctl reload nginx >/dev/null 2>&1 || true
+            echo -e "${red}Nginx 公网入口校验失败，已回滚${plain}"
+            return 1
+        fi
         systemctl enable nginx >/dev/null 2>&1 || true
         if systemctl restart nginx && systemctl is-active --quiet nginx; then
+            rm -f "$nginx_public_backup"
             PROXY_READY=1
             # Caddy fallback changes the public scheme from HTTPS to HTTP.
             bind_panel_localhost "$PROXY_DOMAIN"
             echo -e "${green}Nginx 反代已启动${plain}"
             if [[ -n "$PROXY_DOMAIN" ]]; then
-                echo -e "HTTP：${green}http://${PROXY_DOMAIN}/app/${plain}"
+                echo -e "HTTP：${green}http://${PROXY_DOMAIN}${FRONTEND_PATH}${plain}"
                 echo -e "${yellow}提示：可用 certbot --nginx -d ${PROXY_DOMAIN} 配置 HTTPS${plain}"
             else
-                echo -e "面板地址：${green}http://服务器IP/app/${plain}（80 端口）"
+                echo -e "面板地址：${green}http://服务器IP${FRONTEND_PATH}${plain}（80 端口）"
             fi
             return 0
         fi
+        [[ -f "$nginx_public_backup" ]] && cp -f "$nginx_public_backup" "$NGINX_PUBLIC_CONFIG" || {
+            rm -f "$NGINX_PUBLIC_CONFIG" /etc/nginx/sites-enabled/s-ui-public.conf
+        }
+        nginx -t >/dev/null 2>&1 && systemctl reload nginx >/dev/null 2>&1 || true
         echo -e "${red}Nginx 启动失败，已恢复面板监听全部网卡${plain}"
         /usr/local/s-ui/sui setting -listen - >/dev/null 2>&1 || true
-        systemctl try-restart s-ui 2>/dev/null || true
+        FRONTEND_LISTEN=""
+        FRONTEND_DOMAIN=""
+        configure_frontend_gateway || true
         return 1
     fi
 }
@@ -929,7 +1025,7 @@ install_xray() {
     if [[ "$INSTALL_XRAY" -ne 1 ]]; then
         echo -e "${yellow}按预检结果跳过 Xray-core 安装（面板默认使用 sing-box）。${plain}"
         if [[ "$DISABLE_XRAY" -eq 1 ]]; then
-            echo -e "${yellow}当前低配档位已禁用 Xray；升级 CPU/内存并重新检测为非低配后才可安装。${plain}"
+            echo -e "${yellow}当前低配默认不下载 Xray；如需保留历史双内核方案，请重新执行并加 --with-xray。${plain}"
         else
             echo -e "${yellow}之后可在资源充足时重新执行安装脚本并加 --with-xray。${plain}"
         fi
@@ -991,45 +1087,6 @@ install_xray() {
     fi
 }
 
-config_after_install() {
-    # migrate is done once by install_s-ui before this; avoid double-loading 90MB binary.
-    echo -e "${yellow}安装/更新完成！出于安全考虑，建议修改面板设置 ${plain}"
-    read -r -p "是否继续修改设置 [y/n]？: " config_confirm
-    if [[ "${config_confirm}" == "y" || "${config_confirm}" == "Y" ]]; then
-        echo -e "请输入${yellow}面板端口${plain}（留空则使用现有/默认值）："
-        read -r config_port
-        echo -e "请输入${yellow}面板路径${plain}（留空则使用现有/默认值）："
-        read -r config_path
-        echo -e "请输入${yellow}订阅端口${plain}（留空则使用现有/默认值）："
-        read -r config_subPort
-        echo -e "请输入${yellow}订阅路径${plain}（留空则使用现有/默认值）："
-        read -r config_subPath
-
-        echo -e "${yellow}正在初始化，请稍候...${plain}"
-        params=""
-        [ -z "$config_port" ] || params="$params -port $config_port"
-        [ -z "$config_path" ] || params="$params -path $config_path"
-        [ -z "$config_subPort" ] || params="$params -subPort $config_subPort"
-        [ -z "$config_subPath" ] || params="$params -subPath $config_subPath"
-        # shellcheck disable=SC2086
-        GOMEMLIMIT=200MiB GOGC=40 /usr/local/s-ui/sui setting ${params}
-
-        read -r -p "是否修改管理员账号密码 [y/n]？: " admin_confirm
-        if [[ "${admin_confirm}" == "y" || "${admin_confirm}" == "Y" ]]; then
-            read -r -p "请设置用户名：" config_account
-            read -r -p "请设置密码：" config_password
-            echo -e "${yellow}正在初始化，请稍候...${plain}"
-            GOMEMLIMIT=200MiB GOGC=40 /usr/local/s-ui/sui admin -username "${config_account}" -password "${config_password}"
-        else
-            echo -e "${yellow}当前管理员账号密码：${plain}"
-            GOMEMLIMIT=200MiB GOGC=40 /usr/local/s-ui/sui admin -show
-        fi
-    else
-        echo -e "${yellow}跳过自定义。默认管理员：admin / admin（请尽快修改）${plain}"
-        echo -e "${yellow}忘记密码可执行： s-ui → 重置管理员${plain}"
-    fi
-}
-
 prepare_services() {
     if [[ -f "/etc/systemd/system/sing-box.service" ]]; then
         echo -e "${yellow}正在停止 sing-box 服务... ${plain}"
@@ -1042,6 +1099,17 @@ prepare_services() {
         echo -e "###############################################################"
     fi
     systemctl daemon-reload
+}
+
+capture_agent_service_state() {
+    AGENT_WAS_ACTIVE=0
+    AGENT_WAS_ENABLED=0
+    if systemctl is-active --quiet s-ui-agent 2>/dev/null; then
+        AGENT_WAS_ACTIVE=1
+    fi
+    if systemctl is-enabled --quiet s-ui-agent 2>/dev/null; then
+        AGENT_WAS_ENABLED=1
+    fi
 }
 
 resolve_managed_connection() {
@@ -1074,11 +1142,11 @@ configure_managed_agent() {
     [[ "$INSTALL_AGENT" -eq 1 ]] || return 0
     resolve_managed_connection || return 1
     [[ -n "$CONTROLLER_URL" && -n "$AGENT_TOKEN" ]] || return 0
-    if [[ ! -x /usr/local/s-ui/sui-agent || ! -f /etc/systemd/system/s-ui-agent.service ]]; then
+    if [[ ! -x "$AGENT_BINARY" || ! -f "$AGENT_UNIT_FILE" ]]; then
         echo -e "${red}受管客户端缺少 Agent 二进制或 systemd 服务。${plain}"
         return 1
     fi
-    mkdir -p /etc/default
+    mkdir -p "$(dirname "$AGENT_ENV_FILE")"
     umask 077
     {
         printf 'SUI_AGENT_PANEL=%s\n' "$CONTROLLER_URL"
@@ -1086,14 +1154,15 @@ configure_managed_agent() {
         printf 'SUI_AGENT_INTERVAL=15s\n'
         printf 'SUI_AGENT_INSECURE=%s\n' "$([ "$AGENT_INSECURE" -eq 1 ] && echo true || echo false)"
         printf 'SUI_AGENT_LOCAL_SOCKET=/run/s-ui/control.sock\n'
-    } > /etc/default/1s-ui-agent
-    chmod 0600 /etc/default/1s-ui-agent
+    } >"$AGENT_ENV_FILE"
+    chmod 0600 "$AGENT_ENV_FILE"
     systemctl daemon-reload
     if [[ "$START_SERVICE" -ne 1 ]]; then
+        AGENT_STATE="configured"
         echo -e "${yellow}Agent 已配置但未启动；稍后执行 systemctl enable --now s-ui-agent${plain}"
         return 0
     fi
-    local check=(/usr/local/s-ui/sui-agent --panel "$CONTROLLER_URL" --token "$AGENT_TOKEN" --local-socket /run/s-ui/control.sock --interval 15s --once)
+    local check=("$AGENT_BINARY" --panel "$CONTROLLER_URL" --token "$AGENT_TOKEN" --local-socket /run/s-ui/control.sock --interval 15s --once)
     [[ "$AGENT_INSECURE" -eq 1 ]] && check+=(--insecure)
     echo -e "${yellow}验证中心面板连接和本机 Web 面板控制通道...${plain}"
     if [[ ! -S /run/s-ui/control.sock ]]; then
@@ -1106,7 +1175,37 @@ configure_managed_agent() {
     fi
     systemctl enable --now s-ui-agent
     systemctl is-active --quiet s-ui-agent || return 1
+    AGENT_STATE="connected"
     echo -e "${green}受管客户端已连接中心面板，本地 Web 面板保持可独立使用。${plain}"
+}
+
+restore_agent_service_state() {
+    if [[ "$CONFIGURE_AGENT" -eq 1 ]]; then
+        configure_managed_agent
+        return $?
+    fi
+    if [[ ! -f "$AGENT_ENV_FILE" ]]; then
+        AGENT_STATE="installed"
+        return 0
+    fi
+    if [[ ! -x "$AGENT_BINARY" || ! -f "$AGENT_UNIT_FILE" ]]; then
+        echo -e "${yellow}检测到旧 Agent 配置，但当前发布包缺少 Agent 文件，跳过恢复。${plain}"
+        AGENT_STATE="configured"
+        return 0
+    fi
+    if [[ "$AGENT_WAS_ENABLED" -eq 1 ]]; then
+        systemctl enable s-ui-agent >/dev/null 2>&1 || true
+    fi
+    if [[ "$START_SERVICE" -eq 1 && "$AGENT_WAS_ACTIVE" -eq 1 ]]; then
+        if ! systemctl start s-ui-agent; then
+            echo -e "${red}原有 Agent 连接恢复失败，请检查：journalctl -u s-ui-agent -n 80${plain}"
+            return 1
+        fi
+        AGENT_STATE="restored"
+        echo -e "${green}已恢复升级前的 Agent 连接。${plain}"
+        return 0
+    fi
+    AGENT_STATE="configured"
 }
 
 # Reclaimable + swap free, in MB (best-effort).
@@ -1148,7 +1247,7 @@ require_mem_budget() {
 core_start_budget_mb() {
     if [[ "$SKIP_CORE" -eq 1 ]]; then
         echo 384
-    elif [[ "$DISABLE_XRAY" -eq 1 || "$INSTALL_XRAY" -eq 0 ]]; then
+    elif [[ "$DISABLE_XRAY" -eq 1 || "$INSTALL_XRAY" -eq 0 || "$XRAY_ON_DEMAND" -eq 1 ]]; then
         echo 512
     else
         echo 768
@@ -1319,8 +1418,264 @@ download_release() {
     DOWNLOAD_TARBALL="$out"
 }
 
+download_frontend_release() {
+    local version="$1"
+    local url="https://github.com/Hhz0823/1s-ui/releases/download/${version}/s-ui-frontend.tar.gz"
+    local out="/tmp/s-ui-frontend.tar.gz"
+    FRONTEND_TARBALL=""
+    rm -f "$out"
+    echo -e "下载独立前端：${url}"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fL --retry 3 --retry-delay 2 --connect-timeout 20 -o "$out" "$url" || return 1
+    else
+        wget -q --no-check-certificate -O "$out" "$url" || return 1
+    fi
+    local sz
+    sz=$(stat -c%s "$out" 2>/dev/null || stat -f%z "$out" 2>/dev/null || echo 0)
+    if [[ "${sz:-0}" -lt 10000 ]] || ! tar tzf "$out" >/dev/null 2>&1; then
+        echo -e "${red}独立前端压缩包无效或下载不完整${plain}"
+        rm -f "$out"
+        return 1
+    fi
+    if tar tzf "$out" | awk '/(^|\/)\.\.($|\/)|^\// { bad=1 } END { exit bad ? 0 : 1 }'; then
+        echo -e "${red}独立前端压缩包包含不安全路径${plain}"
+        rm -f "$out"
+        return 1
+    fi
+    FRONTEND_TARBALL="$out"
+}
+
+capture_frontend_entry() {
+    FRONTEND_LISTEN=""
+    FRONTEND_PORT=2095
+	FRONTEND_PATH="/app/"
+	FRONTEND_DOMAIN=""
+	SUBSCRIPTION_PORT=2096
+	[[ -x /usr/local/s-ui/sui && -f /usr/local/s-ui/db/s-ui.db ]] || return 0
+
+    local output value
+    output=$(GOMEMLIMIT=200MiB GOGC=40 /usr/local/s-ui/sui setting -show 2>/dev/null || true)
+    value=$(awk -F'\t' '/Panel port/ {gsub(/[[:space:]]/, "", $NF); print $NF; exit}' <<<"$output")
+    [[ "$value" =~ ^[0-9]+$ && "$value" -ge 1 && "$value" -le 65535 ]] && FRONTEND_PORT="$value"
+    value=$(awk -F'\t' '/Panel path/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $NF); print $NF; exit}' <<<"$output")
+    [[ -n "$value" ]] && FRONTEND_PATH="$value"
+    value=$(awk -F'\t' '/Panel IP/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $NF); print $NF; exit}' <<<"$output")
+    [[ -n "$value" ]] && FRONTEND_LISTEN="$value"
+	value=$(awk -F'\t' '/Panel Domain/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $NF); print $NF; exit}' <<<"$output")
+	[[ -n "$value" ]] && FRONTEND_DOMAIN="$value"
+	value=$(awk -F'\t' '/Sub port/ {gsub(/[[:space:]]/, "", $NF); print $NF; exit}' <<<"$output")
+	[[ "$value" =~ ^[0-9]+$ && "$value" -ge 1 && "$value" -le 65535 ]] && SUBSCRIPTION_PORT="$value"
+}
+
+validate_frontend_entry() {
+    [[ "$FRONTEND_PORT" =~ ^[0-9]+$ && "$FRONTEND_PORT" -ge 1 && "$FRONTEND_PORT" -le 65535 ]] || return 1
+    [[ "$FRONTEND_PATH" == /* ]] || FRONTEND_PATH="/${FRONTEND_PATH}"
+    [[ "$FRONTEND_PATH" == */ ]] || FRONTEND_PATH="${FRONTEND_PATH}/"
+    [[ "$FRONTEND_PATH" =~ ^/[A-Za-z0-9._~%/-]*/$ && "$FRONTEND_PATH" != *//* ]] || return 1
+	[[ "$FRONTEND_LISTEN" =~ ^[A-Fa-f0-9:.]*$ ]] || return 1
+	[[ "$FRONTEND_DOMAIN" =~ ^[A-Za-z0-9.-]*$ ]] || return 1
+	[[ "$SUBSCRIPTION_PORT" =~ ^[0-9]+$ && "$SUBSCRIPTION_PORT" -ge 1 && "$SUBSCRIPTION_PORT" -le 65535 ]] || return 1
+}
+
+select_api_port() {
+	API_PORT=2097
+	while [[ "$API_PORT" -le 2197 ]] && { [[ "$FRONTEND_PORT" -eq "$API_PORT" ]] || [[ "$SUBSCRIPTION_PORT" -eq "$API_PORT" ]] || port_in_use "$API_PORT"; }; do
+		API_PORT=$((API_PORT + 1))
+	done
+	[[ "$API_PORT" -le 2197 ]] || return 1
+}
+
+install_frontend_files() {
+    local stage="/usr/local/s-ui/frontend.new"
+    local previous="/usr/local/s-ui/frontend.previous"
+    rm -rf "$stage" "$previous"
+    mkdir -p "$stage"
+    tar xzf "$FRONTEND_TARBALL" -C "$stage"
+    [[ -f "$stage/index.html" ]] || {
+        echo -e "${red}独立前端产物缺少 index.html${plain}"
+        rm -rf "$stage"
+        return 1
+    }
+    [[ -d "$FRONTEND_ROOT" ]] && mv "$FRONTEND_ROOT" "$previous"
+    mv "$stage" "$FRONTEND_ROOT"
+    FRONTEND_INSTALL_PENDING=1
+    rm -f "$FRONTEND_TARBALL"
+}
+
+write_frontend_runtime_config() {
+    local runtime_dir
+    runtime_dir=$(dirname "$FRONTEND_RUNTIME_CONFIG")
+    mkdir -p "$runtime_dir"
+    local tmp
+    tmp=$(mktemp "${runtime_dir}/.config.js.XXXXXX") || return 1
+    printf 'window.__SUI_CONFIG__ = Object.freeze({"basePath":"%s","backendUrl":""});\n' "$FRONTEND_PATH" >"$tmp"
+    chmod 0644 "$tmp"
+    mv -f "$tmp" "$FRONTEND_RUNTIME_CONFIG"
+}
+
+write_frontend_api_location() {
+    local prefix="$1"
+    cat <<EOF
+    location ^~ ${prefix} {
+        proxy_http_version 1.1;
+        proxy_set_header Host \$http_host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$http_x_forwarded_proto;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 3600s;
+        proxy_pass http://${API_LISTEN}:${API_PORT};
+    }
+EOF
+}
+
+write_frontend_gateway_config() {
+    mkdir -p /etc/nginx/sites-available /etc/nginx/sites-enabled
+    local tmp
+    tmp=$(mktemp "/etc/nginx/sites-available/.s-ui-frontend.XXXXXX") || return 1
+    local listen_lines server_name="_"
+    [[ -n "$FRONTEND_DOMAIN" ]] && server_name="$FRONTEND_DOMAIN"
+    if [[ -z "$FRONTEND_LISTEN" || "$FRONTEND_LISTEN" == "0.0.0.0" || "$FRONTEND_LISTEN" == "::" ]]; then
+        listen_lines=$'    listen '"${FRONTEND_PORT}"$';\n    listen [::]:'"${FRONTEND_PORT}"';'
+    elif [[ "$FRONTEND_LISTEN" == *:* ]]; then
+        listen_lines="    listen [${FRONTEND_LISTEN//[\[\]]/}]:${FRONTEND_PORT};"
+    else
+        listen_lines="    listen ${FRONTEND_LISTEN}:${FRONTEND_PORT};"
+    fi
+
+    {
+        echo "# BEGIN 1S-UI MANAGED FRONTEND GATEWAY"
+        echo "server {"
+        printf '%s\n' "$listen_lines"
+        echo "    server_name ${server_name};"
+        echo "    client_max_body_size 32m;"
+        cat <<EOF
+
+    location = /.well-known/1s-ui/config.js {
+        alias ${FRONTEND_RUNTIME_CONFIG};
+        default_type application/javascript;
+        add_header Cache-Control "no-store" always;
+    }
+
+EOF
+        write_frontend_api_location "/api/"
+        write_frontend_api_location "/apiv2/"
+        write_frontend_api_location "/agent/v1/"
+        if [[ "$FRONTEND_PATH" != "/" ]]; then
+            write_frontend_api_location "${FRONTEND_PATH}api/"
+            write_frontend_api_location "${FRONTEND_PATH}apiv2/"
+            write_frontend_api_location "${FRONTEND_PATH}agent/v1/"
+            echo "    location = ${FRONTEND_PATH%/} { return 308 ${FRONTEND_PATH}; }"
+        fi
+        cat <<EOF
+    location ^~ ${FRONTEND_PATH} {
+        alias ${FRONTEND_ROOT}/;
+        try_files \$uri \$uri/ ${FRONTEND_PATH}index.html;
+    }
+}
+# END 1S-UI MANAGED FRONTEND GATEWAY
+EOF
+    } >"$tmp"
+    chmod 0644 "$tmp"
+    mv -f "$tmp" "$NGINX_FRONTEND_CONFIG"
+    ln -sfn "$NGINX_FRONTEND_CONFIG" /etc/nginx/sites-enabled/s-ui-frontend.conf
+}
+
+rollback_frontend_gateway() {
+    local config_backup="$1"
+    local runtime_backup="$2"
+    local legacy_public_moved="${3:-}"
+    [[ -f "$config_backup" ]] && cp -f "$config_backup" "$NGINX_FRONTEND_CONFIG" || {
+        rm -f "$NGINX_FRONTEND_CONFIG" /etc/nginx/sites-enabled/s-ui-frontend.conf
+    }
+    [[ -f "$runtime_backup" ]] && cp -f "$runtime_backup" "$FRONTEND_RUNTIME_CONFIG" || rm -f "$FRONTEND_RUNTIME_CONFIG"
+    if [[ -n "$legacy_public_moved" && -f "$NGINX_PUBLIC_CONFIG" ]]; then
+        mv "$NGINX_PUBLIC_CONFIG" "$legacy_public_moved"
+        rm -f /etc/nginx/sites-enabled/s-ui-public.conf
+        [[ "$legacy_public_moved" == /etc/nginx/sites-available/* ]] &&
+            ln -sfn "$legacy_public_moved" /etc/nginx/sites-enabled/s-ui.conf
+    fi
+    if [[ -d /usr/local/s-ui/frontend.previous ]]; then
+        rm -rf "$FRONTEND_ROOT"
+        mv /usr/local/s-ui/frontend.previous "$FRONTEND_ROOT"
+    elif [[ "$FRONTEND_INSTALL_PENDING" -eq 1 ]]; then
+        rm -rf "$FRONTEND_ROOT"
+    fi
+    nginx -t >/dev/null 2>&1 && systemctl reload nginx >/dev/null 2>&1 || true
+}
+
+configure_frontend_gateway() {
+    if ! command -v nginx >/dev/null 2>&1 && ! install_package nginx; then
+        echo -e "${red}nginx 安装失败，无法提供独立前端入口${plain}"
+        if [[ -d /usr/local/s-ui/frontend.previous ]]; then
+            rm -rf "$FRONTEND_ROOT"
+            mv /usr/local/s-ui/frontend.previous "$FRONTEND_ROOT"
+        elif [[ "$FRONTEND_INSTALL_PENDING" -eq 1 ]]; then
+            rm -rf "$FRONTEND_ROOT"
+        fi
+        return 1
+    fi
+    local config_backup="/tmp/s-ui-frontend.conf.backup"
+    local runtime_backup="/tmp/s-ui-config.js.backup"
+    local legacy_public_moved=""
+    rm -f "$config_backup" "$runtime_backup"
+    [[ -f "$NGINX_FRONTEND_CONFIG" ]] && cp -f "$NGINX_FRONTEND_CONFIG" "$config_backup"
+    [[ -f "$FRONTEND_RUNTIME_CONFIG" ]] && cp -f "$FRONTEND_RUNTIME_CONFIG" "$runtime_backup"
+    if [[ -f "$NGINX_FRONTEND_CONFIG" ]] && ! grep -q '^# BEGIN 1S-UI MANAGED FRONTEND GATEWAY$' "$NGINX_FRONTEND_CONFIG"; then
+        echo -e "${red}${NGINX_FRONTEND_CONFIG} 是自定义配置，安装器不会覆盖${plain}"
+        rollback_frontend_gateway "$config_backup" "$runtime_backup"
+        return 1
+    fi
+    if [[ ! -f "$NGINX_PUBLIC_CONFIG" ]]; then
+        local legacy_public
+        for legacy_public in /etc/nginx/sites-available/s-ui.conf /etc/nginx/conf.d/s-ui.conf; do
+            [[ -f "$legacy_public" ]] || continue
+            if grep -q '^# BEGIN 1S-UI MANAGED REVERSE PROXY$' "$legacy_public" &&
+                grep -q 'proxy_pass http://127.0.0.1:' "$legacy_public"; then
+                mv "$legacy_public" "$NGINX_PUBLIC_CONFIG"
+                legacy_public_moved="$legacy_public"
+                rm -f /etc/nginx/sites-enabled/s-ui.conf
+                ln -sfn "$NGINX_PUBLIC_CONFIG" /etc/nginx/sites-enabled/s-ui-public.conf
+                break
+            fi
+        done
+    fi
+    if ! write_frontend_runtime_config || ! write_frontend_gateway_config; then
+        rollback_frontend_gateway "$config_backup" "$runtime_backup" "$legacy_public_moved"
+        return 1
+    fi
+    if ! nginx -t; then
+        rollback_frontend_gateway "$config_backup" "$runtime_backup" "$legacy_public_moved"
+        echo -e "${red}nginx 前端网关校验失败，已回滚${plain}"
+        return 1
+    fi
+    systemctl enable nginx >/dev/null 2>&1 || true
+    if systemctl is-active --quiet nginx; then
+        if ! systemctl reload nginx; then
+            rollback_frontend_gateway "$config_backup" "$runtime_backup" "$legacy_public_moved"
+            return 1
+        fi
+    else
+        if ! systemctl start nginx; then
+            rollback_frontend_gateway "$config_backup" "$runtime_backup" "$legacy_public_moved"
+            return 1
+        fi
+    fi
+    rm -rf /usr/local/s-ui/frontend.previous
+    FRONTEND_INSTALL_PENDING=0
+    rm -f "$config_backup" "$runtime_backup" /usr/local/s-ui/db/.frontend_apply_required
+    return 0
+}
+
 install_s-ui() {
     cd /tmp/ || exit 1
+
+	capture_frontend_entry
+	if ! validate_frontend_entry; then
+		echo -e "${red}现有前端 listen/port/webPath/webDomain 无法安全迁移${plain}"
+		exit 1
+    fi
 
     # ------------------------------------------------------------------
     # OOM root-cause controls (see docs/oom-reboot-analysis.md):
@@ -1330,8 +1685,15 @@ install_s-ui() {
     # ------------------------------------------------------------------
 
     echo -e "${yellow}安装前停止旧服务并准备 Swap（防 OOM 重启）...${plain}"
-    systemctl stop s-ui 2>/dev/null || true
-    systemctl stop s-ui-agent 2>/dev/null || true
+	capture_agent_service_state
+	systemctl stop s-ui 2>/dev/null || true
+	systemctl stop s-ui-agent 2>/dev/null || true
+	if ! select_api_port; then
+		echo -e "${red}未找到与面板、订阅及现有服务隔离的内部 API 端口${plain}"
+		systemctl start s-ui 2>/dev/null || true
+		restore_agent_service_state
+		exit 1
+	fi
     free -h 2>/dev/null || true
     swapon --show 2>/dev/null || true
     require_install_disk_budget 384 || exit 1
@@ -1358,19 +1720,20 @@ install_s-ui() {
         exit 1
     fi
     local tarball="$DOWNLOAD_TARBALL"
+    if ! download_frontend_release "$last_version"; then
+        echo -e "${red}下载独立前端 s-ui-frontend.tar.gz 失败，未继续升级${plain}"
+        rm -f "$tarball"
+        exit 1
+    fi
 
     systemctl stop s-ui 2>/dev/null || true
     rm -rf /tmp/s-ui-extract
     mkdir -p /tmp/s-ui-extract
 
-    # Selective extract: panel files always; agent only for full server.
-    local members=(s-ui/sui s-ui/s-ui.service s-ui/s-ui.sh)
-    if [[ "$INSTALL_AGENT" -eq 1 ]]; then
-        members+=(s-ui/sui-agent s-ui/s-ui-agent.service)
-        echo -e "${yellow}解压面板 + Agent...${plain}"
-    else
-        echo -e "${yellow}选择性解压（轻量 Web 面板：sui + Web UI + service）...${plain}"
-    fi
+    # Every panel receives the same base package. Agent stays dormant until a
+    # controller connection is configured, so idle installs add no process.
+    local members=(s-ui/sui s-ui/s-ui.service s-ui/s-ui.sh s-ui/sui-agent s-ui/s-ui-agent.service)
+    echo -e "${yellow}解压统一客户端基础包（Web + sing-box + 休眠 Agent）...${plain}"
     local extract_ok=0
     if tar xzf "$tarball" -C /tmp/s-ui-extract "${members[@]}" 2>/dev/null; then
         extract_ok=1
@@ -1382,6 +1745,12 @@ install_s-ui() {
     rm -f "$tarball"
     if [[ "$extract_ok" -ne 1 ]]; then
         echo -e "${red}解压失败${plain}"
+        rm -rf /tmp/s-ui-extract
+        exit 1
+    fi
+
+    if ! install_frontend_files; then
+        echo -e "${red}独立前端安装失败${plain}"
         rm -rf /tmp/s-ui-extract
         exit 1
     fi
@@ -1408,13 +1777,20 @@ install_s-ui() {
     elif [[ -f /tmp/s-ui-extract/s-ui.service ]]; then
         cp -f /tmp/s-ui-extract/s-ui.service /etc/systemd/system/s-ui.service
     fi
-    if [[ "$INSTALL_AGENT" -eq 1 && -f "$src_dir/sui-agent" ]]; then
-        cp -f "$src_dir/sui-agent" /usr/local/s-ui/sui-agent
-        chmod +x /usr/local/s-ui/sui-agent
-        [[ -f "$src_dir/s-ui-agent.service" ]] && cp -f "$src_dir/s-ui-agent.service" /etc/systemd/system/
-        echo -e "${green}已安装 sui-agent 二进制${plain}"
+    if [[ -f "$src_dir/sui-agent" ]]; then
+        cp -f "$src_dir/sui-agent" "$AGENT_BINARY"
+        chmod +x "$AGENT_BINARY"
+        [[ -f "$src_dir/s-ui-agent.service" ]] && cp -f "$src_dir/s-ui-agent.service" "$AGENT_UNIT_FILE"
+        echo -e "${green}已安装 sui-agent；未绑定主服务器时不会启动${plain}"
+    else
+        echo -e "${yellow}当前发布包不含 sui-agent，面板仍可独立运行${plain}"
     fi
     rm -rf /tmp/s-ui-extract
+
+    if ! configure_frontend_gateway; then
+        echo -e "${red}独立前端网关配置失败，后端未启动${plain}"
+        exit 1
+    fi
 
     # systemd: SUI_SKIP_CORE + GOMEMLIMIT before first start
     apply_systemd_optimize
@@ -1426,7 +1802,7 @@ install_s-ui() {
     # ---- CLI policy (critical) ----
     # Fresh install: DO NOT run `sui migrate` or `sui admin`.
     #   migrate() exits immediately when DB missing, but still loads ~90MB RSS.
-    #   InitDB on first service start creates admin/admin.
+    #   The first browser visit creates the administrator through Web setup.
     # Upgrade: run migrate ONCE only if DB already exists.
     if [[ "$has_db" -eq 1 ]]; then
         echo -e "${yellow}检测到已有数据库：升级路径，执行一次 migrate...${plain}"
@@ -1438,15 +1814,7 @@ install_s-ui() {
         fi
     else
         echo -e "${green}全新安装：跳过 migrate/admin CLI（避免无意义的 90MB 进程峰值）${plain}"
-        echo -e "${yellow}默认登录：admin / admin（登录后请立即修改）${plain}"
-    fi
-
-    # Interactive settings only when user is present AND memory allows an extra CLI.
-    # Skip on -y / low RAM to keep critical path = single service start.
-    if [[ "$AUTO_YES" -ne 1 && "$MEM_TOTAL_MB" -ge 1500 ]]; then
-        config_after_install
-    elif [[ "$AUTO_YES" -ne 1 ]]; then
-        echo -e "${yellow}低内存：跳过交互式 setting CLI；可用面板 Web 或稍后 s-ui 菜单修改${plain}"
+        echo -e "${yellow}首次打开面板将在 Web 页面创建管理员账号和密码。${plain}"
     fi
 
     systemctl daemon-reload
@@ -1481,10 +1849,11 @@ install_s-ui() {
             echo -e "${green}面板与代理内核已启动${plain}"
         fi
 
-        # Never install Xray/proxy in the same critical window on tiny hosts.
+        # Optional components are prepared only after the panel has started;
+        # low-resource Xray remains on-demand and is never started here.
         if [[ "$INSTALL_XRAY" -eq 1 ]]; then
-            if [[ "$MEM_TOTAL_MB" -lt 1500 ]]; then
-                echo -e "${yellow}内存 <1.5G：拒绝安装期装 Xray（面板稳定后用 --with-xray）${plain}"
+            if [[ "$MEM_TOTAL_MB" -lt 1500 && "$FORCE_XRAY" != "1" ]]; then
+                echo -e "${yellow}内存 <1.5G：默认跳过 Xray；需要双内核请显式 --with-xray${plain}"
             else
                 install_xray || echo -e "${yellow}Xray-core 未安装${plain}"
             fi
@@ -1500,29 +1869,24 @@ install_s-ui() {
         echo -e "${yellow}已按 --no-start 跳过启动。稍后：systemctl start s-ui${plain}"
     fi
 
-    if [[ "$INSTALL_KIND" == "managed" ]]; then
-        configure_managed_agent || exit 1
-    fi
+    restore_agent_service_state || exit 1
 
     echo -e "${green}s-ui ${last_version}${plain} 安装完成"
-    local kind_label="轻量 Web 面板"
+    local kind_label="统一客户端"
     [[ "$INSTALL_KIND" == "full" ]] && kind_label="全面服务端"
-    [[ "$INSTALL_KIND" == "managed" ]] && kind_label="受管客户端"
     echo -e "安装摘要：方案=${green}${kind_label}${plain} 升级=${INSTALL_MODE} 档位=${PROFILE}"
-    echo -e "  Xray=$(xray_summary_label) 反代=$(proxy_summary_label) Agent=$([ "$INSTALL_AGENT" -eq 1 ] && echo 是 || echo 否) 自动启内核=$([ "$SKIP_CORE" -eq 1 ] && echo 否 || echo 是) Swap=${SWAP_MB}MB"
-    echo -e "访问：浏览器打开 ${green}$(panel_access_url)${plain}（默认 admin/admin）"
+    echo -e "  Xray=$(xray_summary_label) 反代=$(proxy_summary_label) Agent=$(agent_summary_label) 自动启内核=$([ "$SKIP_CORE" -eq 1 ] && echo 否 || echo 是) Swap=${SWAP_MB}MB"
+    echo -e "访问：浏览器打开 ${green}$(panel_access_url)${plain}（首次访问创建管理员）"
     if [[ "$PROXY_READY" -eq 1 ]]; then
-        echo -e "${yellow}安全说明：2095 仅监听本机，请勿使用公网 IP:2095；公网入口由 ${PROXY_ENGINE} 提供。${plain}"
+        echo -e "${yellow}安全说明：${FRONTEND_PORT} 仅监听本机，请勿使用公网 IP:${FRONTEND_PORT}；公网入口由 ${PROXY_ENGINE} 提供。${plain}"
     fi
     if [[ "$SKIP_CORE" -eq 1 ]]; then
         echo -e "${yellow}安全模式：配置入站后在面板内重启内核再启用代理。${plain}"
     fi
-    if [[ "$INSTALL_KIND" == "minimal" ]]; then
-        echo -e "${yellow}当前为轻量 Web 面板，已包含完整可视化界面。若需全面服务端可重新执行：${plain}"
-        echo -e "  bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) -y --full --domain 你的域名"
-    fi
-    if [[ "$INSTALL_KIND" == "managed" ]]; then
+    if [[ "$AGENT_STATE" == "connected" || "$AGENT_STATE" == "restored" ]]; then
         echo -e "${yellow}当前服务器既可从中心管理，也可直接登录本机 Web 面板操作。${plain}"
+    else
+        echo -e "${yellow}稍后可在「服务器监控 → 连接主服务器」粘贴连接 API 完成绑定。${plain}"
     fi
     echo -e ""
     echo -e "${yellow}若仍关机： free -h; swapon --show; dmesg | grep -iE 'oom|kill' | tail -30; journalctl -u s-ui -n 80 --no-pager${plain}"

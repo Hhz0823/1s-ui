@@ -5,31 +5,36 @@
       <v-divider />
       <v-card-text>
         <v-alert type="info" variant="tonal" density="compact" class="mb-3">{{ $t('agent.note') }}</v-alert>
-        <template v-if="!enroll.command">
-          <v-btn color="primary" variant="tonal" block prepend-icon="mdi-api" :loading="enroll.apiLoading" @click="createEnrollmentAPI">
+        <template v-if="!enroll.pairURL">
+          <v-progress-linear v-if="enroll.apiLoading" indeterminate color="primary" class="mb-3" />
+          <v-btn v-else color="primary" variant="tonal" block prepend-icon="mdi-refresh" @click="createEnrollmentAPI">
             {{ $t('agent.generateConnectionAPI') }}
           </v-btn>
-          <div class="enroll-choice"><span>{{ $t('agent.oneTimeOption') }}</span></div>
-          <v-text-field v-model="enroll.name" :label="$t('agent.name')" maxlength="80" hide-details />
         </template>
         <template v-else>
-          <v-alert :type="enroll.reusable ? 'info' : 'warning'" variant="tonal" density="compact" class="mb-3">
-            {{ enroll.reusable ? $t('agent.connectionAPIWarning') : $t('agent.pairSingleUse') }} {{ pairExpiryText }}
+          <v-alert type="warning" variant="tonal" density="compact" class="mb-3">
+            {{ $t('agent.pairSingleUse') }} {{ pairExpiryText }}
           </v-alert>
-          <v-textarea :model-value="enroll.pairURL" :label="enroll.reusable ? $t('agent.connectionAPI') : $t('agent.connectURL')" :hint="enroll.reusable ? $t('agent.connectionAPIHint') : $t('agent.connectURLHint')" persistent-hint readonly dir="ltr" rows="2" auto-grow class="mb-3">
+          <v-textarea :model-value="enroll.pairURL" :label="$t('agent.simpleAddress')" :hint="$t('agent.simpleAddressHint')" persistent-hint readonly dir="ltr" rows="2" auto-grow class="mb-3">
             <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enroll.pairURL)" /></template>
           </v-textarea>
-          <v-textarea :model-value="enroll.managedCommand" :label="$t('agent.managedCommand')" readonly dir="ltr" rows="3" auto-grow hide-details class="mb-3">
-            <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enroll.managedCommand)" /></template>
-          </v-textarea>
-          <v-textarea :model-value="enroll.command" :label="$t('agent.command')" readonly dir="ltr" rows="3" auto-grow hide-details>
-            <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enroll.command)" /></template>
-          </v-textarea>
+          <v-expansion-panels v-if="enroll.managedCommand || enroll.command" variant="accordion" class="enroll-commands">
+            <v-expansion-panel>
+              <v-expansion-panel-title>{{ $t('agent.installCommands') }}</v-expansion-panel-title>
+              <v-expansion-panel-text>
+                <v-textarea v-if="enroll.managedCommand" :model-value="enroll.managedCommand" :label="$t('agent.managedCommand')" readonly dir="ltr" rows="3" auto-grow hide-details class="mb-3">
+                  <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enroll.managedCommand)" /></template>
+                </v-textarea>
+                <v-textarea v-if="enroll.command" :model-value="enroll.command" :label="$t('agent.command')" readonly dir="ltr" rows="3" auto-grow hide-details>
+                  <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enroll.command)" /></template>
+                </v-textarea>
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+          </v-expansion-panels>
         </template>
       </v-card-text>
       <v-card-actions class="justify-center">
         <v-btn variant="outlined" @click="closeEnrollment">{{ $t('actions.close') }}</v-btn>
-        <v-btn v-if="!enroll.command" color="primary" variant="tonal" prepend-icon="mdi-link-plus" :loading="enroll.loading" :disabled="!enroll.name.trim()" @click="createNode">{{ $t('actions.add') }}</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -39,11 +44,16 @@
       <v-card-title class="text-center">{{ $t('agent.connectController') }}</v-card-title>
       <v-divider />
       <v-card-text>
-        <v-alert type="info" variant="tonal" density="compact" class="mb-3">{{ $t('agent.connectControllerHint') }}</v-alert>
-        <v-textarea v-model="connect.url" :label="$t('agent.connectInput')" :hint="$t('agent.connectInputHint')" persistent-hint rows="3" auto-grow dir="ltr" autofocus />
+        <v-alert v-if="localConnection.configured" type="success" variant="tonal" density="compact" class="mb-3">
+          <strong>{{ $t('agent.localConnected') }}</strong>
+          <div dir="ltr" class="mt-1">{{ localConnection.panel_url }}</div>
+        </v-alert>
+        <v-alert type="info" variant="tonal" density="compact" class="mb-3">{{ $t('agent.connectSimpleHint') }}</v-alert>
+        <v-textarea v-model="connect.url" :label="$t('agent.connectInput')" :hint="$t('agent.connectInputHint')" persistent-hint rows="2" auto-grow dir="ltr" autofocus />
         <v-checkbox v-model="connect.insecure" :label="$t('agent.allowInsecure')" :hint="$t('agent.allowInsecureHint')" persistent-hint density="compact" hide-details="auto" />
       </v-card-text>
       <v-card-actions class="justify-center">
+        <v-btn v-if="localConnection.configured" color="warning" variant="tonal" :loading="connect.loading" @click="disconnectController">{{ $t('agent.disconnectController') }}</v-btn>
         <v-btn variant="outlined" @click="connect.visible = false">{{ $t('actions.close') }}</v-btn>
         <v-btn color="primary" variant="tonal" prepend-icon="mdi-link-variant-plus" :loading="connect.loading" :disabled="!connect.url.trim()" @click="connectToController">{{ $t('agent.connectNow') }}</v-btn>
       </v-card-actions>
@@ -102,13 +112,28 @@
         <p>{{ $t('agent.overviewHint') }}</p>
       </div>
       <div class="heading-actions">
+        <v-chip v-if="localConnection.configured" color="success" prepend-icon="mdi-link-variant" size="small">
+          {{ $t('agent.localConnected') }}
+        </v-chip>
         <v-btn variant="tonal" prepend-icon="mdi-link-variant-plus" @click="openLocalConnect">{{ $t('agent.connectController') }}</v-btn>
-        <v-btn color="primary" prepend-icon="mdi-server-plus" :disabled="!serverMonitoringAvailable" :title="serverMonitoringAvailable ? '' : serverRequirementText" @click="openEnrollment">{{ $t('agent.enroll') }}</v-btn>
+        <v-btn
+          v-if="controllerMode.profile === 'client'"
+          color="primary"
+          prepend-icon="mdi-server-network"
+          :loading="controllerModeLoading"
+          :disabled="!controllerMode.can_enable"
+          :title="controllerMode.can_enable ? '' : serverRequirementText"
+          @click="enableControllerMode"
+        >{{ $t('setting.roleEnable') }}</v-btn>
+        <v-btn v-else color="primary" prepend-icon="mdi-server-plus" :disabled="!serverMonitoringAvailable" :title="serverMonitoringAvailable ? '' : serverRequirementText" @click="openEnrollment">{{ $t('agent.enroll') }}</v-btn>
         <v-btn icon="mdi-refresh" variant="tonal" :loading="loading" :title="$t('actions.update')" @click="loadNodes" />
       </div>
     </header>
 
-    <v-alert v-if="hostRequirements && !serverMonitoringAvailable" type="error" variant="tonal" density="comfortable" class="mb-4" border="start" icon="mdi-server-off">
+    <v-alert v-if="!controllerMode.enabled" type="info" variant="tonal" density="comfortable" class="mb-4" border="start" icon="mdi-server-outline">
+      {{ $t('agent.controllerDisabledHint') }}
+    </v-alert>
+    <v-alert v-else-if="hostRequirements && !serverMonitoringAvailable" type="error" variant="tonal" density="comfortable" class="mb-4" border="start" icon="mdi-server-off">
       {{ serverRequirementText }}
     </v-alert>
 
@@ -139,11 +164,11 @@
       <v-text-field v-model="query" prepend-inner-icon="mdi-magnify" :placeholder="$t('agent.searchServers')" density="compact" hide-details clearable class="search-field" />
       <v-select v-model="sortKey" :items="sortOptions" item-title="title" item-value="value" density="compact" hide-details class="sort-field" />
       <v-btn :icon="sortDesc ? 'mdi-sort-descending' : 'mdi-sort-ascending'" variant="tonal" :title="$t('agent.sortDirection')" @click="sortDesc = !sortDesc" />
-      <v-btn variant="tonal" prepend-icon="mdi-checkbox-multiple-marked" @click="selectAllControllable">{{ $t('agent.selectOnline') }}</v-btn>
-      <v-btn v-if="selected.length" variant="text" @click="selected = []">{{ $t('agent.clearSelection') }}</v-btn>
+      <v-btn v-if="canControl" variant="tonal" prepend-icon="mdi-checkbox-multiple-marked" @click="selectAllControllable">{{ $t('agent.selectOnline') }}</v-btn>
+      <v-btn v-if="canControl && selected.length" variant="text" @click="selected = []">{{ $t('agent.clearSelection') }}</v-btn>
     </div>
 
-    <div v-if="selected.length" class="batch-bar">
+    <div v-if="canControl && selected.length" class="batch-bar">
       <strong>{{ $t('agent.batchSelected', { n: selected.length }) }}</strong>
       <v-btn size="small" variant="tonal" :loading="batch.loading" @click="batchCmd('report_now')">{{ $t('agent.cmdReportNow') }}</v-btn>
       <v-btn size="small" variant="tonal" :loading="batch.loading" @click="batchCmd('ping')">{{ $t('agent.cmdPing') }}</v-btn>
@@ -158,7 +183,7 @@
     <div v-else class="server-grid">
       <article v-for="node in filteredNodes" :key="node.id" class="server-row" :class="{ 'server-row--offline': !node.online }" @click="openDetail(node)">
         <div class="server-select" @click.stop>
-          <v-checkbox-btn :model-value="selected.includes(node.id)" :disabled="!node.controllable" @update:model-value="toggleSelect(node.id, $event)" />
+          <v-checkbox-btn v-if="canControl" :model-value="selected.includes(node.id)" :disabled="!node.controllable" @update:model-value="toggleSelect(node.id, $event)" />
         </div>
         <div class="server-identity">
           <i class="status-dot" :class="node.online ? 'dot-online' : 'dot-offline'" />
@@ -180,10 +205,12 @@
             <template #activator="{ props }"><v-btn v-bind="props" icon="mdi-dots-vertical" size="small" variant="text" :title="$t('actions.action')" /></template>
             <v-list density="compact">
               <v-list-item prepend-icon="mdi-information-outline" :title="$t('agent.detail')" @click="openDetail(node)" />
-              <v-list-item prepend-icon="mdi-tune-vertical" :title="$t('agent.manageInbounds')" :disabled="!node.managed" @click="manageInbounds(node)" />
-              <v-list-item prepend-icon="mdi-pencil-outline" :title="$t('agent.editNode')" @click="openEdit(node)" />
-              <v-list-item prepend-icon="mdi-key-change" :title="$t('agent.rotate')" @click="rotateNode(node)" />
-              <v-list-item prepend-icon="mdi-delete-outline" :title="$t('actions.del')" base-color="error" @click="askDelete(node)" />
+              <template v-if="canControl">
+                <v-list-item prepend-icon="mdi-tune-vertical" :title="$t('agent.manageInbounds')" :disabled="!node.managed" @click="manageInbounds(node)" />
+                <v-list-item prepend-icon="mdi-pencil-outline" :title="$t('agent.editNode')" @click="openEdit(node)" />
+                <v-list-item prepend-icon="mdi-key-change" :title="$t('agent.rotate')" @click="rotateNode(node)" />
+                <v-list-item prepend-icon="mdi-delete-outline" :title="$t('actions.del')" base-color="error" @click="askDelete(node)" />
+              </template>
             </v-list>
           </v-menu>
         </div>
@@ -200,6 +227,7 @@ import { i18n } from '@/locales'
 import Data from '@/store/modules/data'
 import type { AgentNode, AgentUsage } from '@/types/agents'
 import { copyText } from '@/utils/clipboard'
+import { fetchBackendObject as api } from '@/utils/backend'
 
 const router = useRouter()
 const dataStore = Data()
@@ -210,7 +238,11 @@ const sortKey = ref('default')
 const sortDesc = ref(false)
 const selected = ref<number[]>([])
 const hostRequirements = computed(() => dataStore.hostRequirements)
-const serverMonitoringAvailable = computed(() => hostRequirements.value?.can_enable_agents === true)
+const controllerModeLoading = ref(false)
+const controllerMode = computed(() => dataStore.controllerMode)
+const canControl = computed(() => controllerMode.value.can_control !== false)
+const localConnection = reactive({ supported: false, installed: false, configured: false, running: false, panel_url: '', insecure: false })
+const serverMonitoringAvailable = computed(() => controllerMode.value.enabled && hostRequirements.value?.can_enable_agents === true)
 const currentHostMemoryGiB = computed(() => {
   const value = Number(hostRequirements.value?.mem_total_bytes || 0)
   return value > 0 ? (value / (1024 ** 3)).toFixed(2) : '?'
@@ -220,7 +252,7 @@ const serverRequirementText = computed(() => i18n.global.t('agent.hostRequiremen
   memory: currentHostMemoryGiB.value,
 }))
 
-const enroll = reactive({ visible: false, loading: false, apiLoading: false, reusable: false, name: '', pairURL: '', pairExpiresAt: 0, command: '', managedCommand: '' })
+const enroll = reactive({ visible: false, apiLoading: false, pairURL: '', pairExpiresAt: 0, command: '', managedCommand: '' })
 const connect = reactive({ visible: false, loading: false, url: '', insecure: false })
 const edit = reactive({ visible: false, loading: false, id: 0, name: '', publicHost: '' })
 const removeDialog = reactive<{ visible: boolean, loading: boolean, node?: AgentNode }>({ visible: false, loading: false })
@@ -230,21 +262,6 @@ let refreshTimer: number | undefined
 const pairExpiryText = computed(() => enroll.pairExpiresAt
   ? i18n.global.t('agent.pairExpires', { time: new Date(enroll.pairExpiresAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })
   : '')
-
-const apiURL = (path: string) => {
-  const base = (document.querySelector('base')?.getAttribute('href') || (window as any).BASE_URL || '/').replace(/\/?$/, '/')
-  return `${base}${path.replace(/^\//, '')}`
-}
-const api = async (path: string, options?: RequestInit) => {
-  const response = await fetch(apiURL(path), {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...(options?.headers || {}) },
-    ...options,
-  })
-  const result = await response.json()
-  if (!response.ok || !result.success) throw new Error(result.msg || response.statusText)
-  return result.obj
-}
 
 const sortOptions = computed(() => [
   { title: i18n.global.t('agent.sortDefault'), value: 'default' },
@@ -295,7 +312,7 @@ const loadNodes = async () => {
   loading.value = true
   try {
     nodes.value = await api('api/agents') || []
-    selected.value = selected.value.filter(id => nodes.value.some(node => node.id === id && node.controllable))
+    selected.value = canControl.value ? selected.value.filter(id => nodes.value.some(node => node.id === id && node.controllable)) : []
   } catch (error: any) {
     push.error({ message: error?.message || i18n.global.t('agent.loadFailed') })
   } finally { loading.value = false }
@@ -303,44 +320,30 @@ const loadNodes = async () => {
 const handleVisibilityChange = () => { if (!document.hidden) void loadNodes() }
 
 const openEnrollment = () => {
+  if (!controllerMode.value.enabled) return push.error({ message: i18n.global.t('agent.controllerDisabledHint') })
   if (!serverMonitoringAvailable.value) return push.error({ message: serverRequirementText.value })
-  Object.assign(enroll, { visible: true, loading: false, apiLoading: false, reusable: false, name: '', pairURL: '', pairExpiresAt: 0, command: '', managedCommand: '' })
+  Object.assign(enroll, { visible: true, apiLoading: false, pairURL: '', pairExpiresAt: 0, command: '', managedCommand: '' })
+  void createEnrollmentAPI()
 }
-const closeEnrollment = () => { enroll.visible = false; if (enroll.command) void loadNodes() }
+const closeEnrollment = () => { enroll.visible = false; if (enroll.pairURL) void loadNodes() }
 const createEnrollmentAPI = async () => {
   enroll.apiLoading = true
   try {
     const result = await api('api/agents/enrollment-link', { method: 'POST', body: '{}' })
-    enroll.reusable = true
-    enroll.pairURL = result.connect_url || ''
-    enroll.pairExpiresAt = 0
+    enroll.pairURL = result.simple_address || result.connect_url || ''
+    enroll.pairExpiresAt = Number(result.pair_expires_at || 0)
     enroll.command = result.command || ''
     enroll.managedCommand = result.managed_command || ''
   } catch (error: any) { push.error({ message: error?.message || i18n.global.t('agent.createFailed') }) }
   finally { enroll.apiLoading = false }
-}
-const createNode = async () => {
-  enroll.loading = true
-  try {
-    const result = await api('api/agents', { method: 'POST', body: JSON.stringify({ name: enroll.name.trim() }) })
-    enroll.reusable = false
-    enroll.pairURL = result.connect_url || result.pair_url || ''
-    enroll.pairExpiresAt = Number(result.pair_expires_at || 0)
-    enroll.command = result.command
-    enroll.managedCommand = result.managed_command || ''
-  } catch (error: any) { push.error({ message: error?.message || i18n.global.t('agent.createFailed') }) }
-  finally { enroll.loading = false }
 }
 const rotateNode = async (node: AgentNode) => {
   try {
     const result = await api(`api/agents/${node.id}/rotate`, { method: 'POST', body: '{}' })
     Object.assign(enroll, {
       visible: true,
-      loading: false,
       apiLoading: false,
-      reusable: false,
-      name: node.name,
-      pairURL: result.pair_url || '',
+      pairURL: result.simple_address || result.connect_url || result.pair_url || '',
       pairExpiresAt: Number(result.pair_expires_at || 0),
       command: result.command,
       managedCommand: result.managed_command || '',
@@ -348,8 +351,30 @@ const rotateNode = async (node: AgentNode) => {
   } catch (error: any) { push.error({ message: error?.message || i18n.global.t('agent.rotateFailed') }) }
 }
 const openLocalConnect = () => Object.assign(connect, { visible: true, loading: false, url: '', insecure: false })
+const loadControllerMode = async () => {
+  controllerModeLoading.value = true
+  await dataStore.loadControllerMode(true)
+  controllerModeLoading.value = false
+}
+const loadLocalConnection = async () => {
+  try {
+    const result = await api('api/agents/local-connection')
+    Object.assign(localConnection, { supported: false, installed: false, configured: false, running: false, panel_url: '', insecure: false }, result || {})
+  } catch { /* unsupported platforms remain read-only */ }
+}
+const enableControllerMode = async () => {
+  controllerModeLoading.value = true
+  try {
+    const result = await api('api/controller-mode', { method: 'POST', body: JSON.stringify({ profile: 'full' }) })
+    dataStore.assignControllerMode(result)
+    push.success({ message: i18n.global.t('setting.roleUpdated') })
+  } catch (error: any) {
+    push.error({ message: error?.message || serverRequirementText.value })
+  } finally { controllerModeLoading.value = false }
+}
 const connectToController = async () => {
   if (connect.loading) return
+  if (localConnection.configured && !window.confirm(i18n.global.t('agent.reconnectConfirm'))) return
   connect.loading = true
   try {
     const result = await api('api/agents/connect-local', {
@@ -358,6 +383,19 @@ const connectToController = async () => {
     })
     connect.visible = false
     push.success({ message: i18n.global.t('agent.connectSuccess', { panel: result?.panel_url || '-' }) })
+    await loadLocalConnection()
+  } catch (error: any) {
+    push.error({ message: error?.message || i18n.global.t('agent.connectFailed') })
+  } finally { connect.loading = false }
+}
+const disconnectController = async () => {
+  if (!window.confirm(i18n.global.t('agent.disconnectConfirm'))) return
+  connect.loading = true
+  try {
+    const result = await api('api/agents/disconnect-local', { method: 'POST', body: '{}' })
+    Object.assign(localConnection, result || { configured: false, running: false, panel_url: '' })
+    connect.visible = false
+    push.success({ message: i18n.global.t('agent.disconnectSuccess') })
   } catch (error: any) {
     push.error({ message: error?.message || i18n.global.t('agent.connectFailed') })
   } finally { connect.loading = false }
@@ -386,14 +424,14 @@ const deleteNode = async () => {
 }
 
 const openDetail = (node: AgentNode) => void router.push(`/agents/${node.id}`)
-const manageInbounds = (node: AgentNode) => { if (node.managed) void router.push(`/agents/${node.id}/inbounds`) }
+const manageInbounds = (node: AgentNode) => { if (canControl.value && node.managed) void router.push(`/agents/${node.id}/inbounds`) }
 const toggleSelect = (id: number, enabled: boolean | null) => {
   if (enabled && !selected.value.includes(id)) selected.value.push(id)
   if (!enabled) selected.value = selected.value.filter(value => value !== id)
 }
 const selectAllControllable = () => { selected.value = nodes.value.filter(node => node.controllable).map(node => node.id) }
 const batchCmd = async (type: string, args?: Record<string, any>) => {
-  if (!selected.value.length) return
+  if (!canControl.value || !selected.value.length) return
   batch.loading = true
   try {
     batch.results = await api('api/agents/batch-command', { method: 'POST', body: JSON.stringify({ ids: selected.value, type, args: args || {} }) }) || []
@@ -436,7 +474,7 @@ const copy = async (value: string) => {
 }
 
 onMounted(() => {
-  void loadNodes()
+  void Promise.all([loadControllerMode(), loadLocalConnection(), loadNodes()])
   document.addEventListener('visibilitychange', handleVisibilityChange)
   refreshTimer = window.setInterval(() => { if (!document.hidden) void loadNodes() }, 10000)
 })
@@ -451,8 +489,6 @@ onBeforeUnmount(() => {
 .monitor-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .monitor-heading h1 { margin: 0; font-size: 1.35rem; line-height: 1.4; letter-spacing: 0; }
 .monitor-heading p { margin: 4px 0 0; color: rgba(var(--v-theme-on-surface), 0.62); font-size: 0.9rem; }
-.enroll-choice { display: flex; align-items: center; gap: 10px; margin: 18px 0 12px; color: rgba(var(--v-theme-on-surface), 0.58); font-size: 0.78rem; }
-.enroll-choice::before, .enroll-choice::after { content: ''; height: 1px; flex: 1; background: rgba(var(--v-border-color), var(--v-border-opacity)); }
 .heading-actions, .monitor-controls, .batch-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .summary-item { position: relative; min-height: 92px; padding: 16px 18px; border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); border-radius: 8px; background: rgb(var(--v-theme-surface)); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); display: flex; flex-direction: column; justify-content: center; gap: 4px; }

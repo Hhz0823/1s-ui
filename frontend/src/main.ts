@@ -47,8 +47,8 @@ app.provide('loading', loading)
 registerPlugins(app)
 
 app
-  .use(router)
   .use(store)
+  .use(router)
   .use(i18n)
   .use(notivue)
   .component('DatePicker', Vue3PersianDatetimePicker)

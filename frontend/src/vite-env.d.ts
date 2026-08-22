@@ -1,7 +1,17 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
+  readonly VITE_BACKEND_URL?: string
+  readonly VITE_BASE_PATH?: string
+  readonly VITE_DEV_PROXY_TARGET?: string
   readonly VITE_OPENWRT_LITE?: string
+}
+
+interface Window {
+  __SUI_CONFIG__?: {
+    backendUrl?: string
+    basePath?: string
+  }
 }
 
 declare module 'moment/locale/ru'

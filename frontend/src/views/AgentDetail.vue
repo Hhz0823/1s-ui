@@ -25,8 +25,8 @@
         <p dir="ltr">{{ node?.report.hostname || node?.remote_ip || '-' }}</p>
       </div>
       <div class="detail-actions">
-        <v-btn variant="tonal" prepend-icon="mdi-console" :disabled="!node?.controllable" @click="openTerminal">{{ $t('agent.terminal') }}</v-btn>
-        <v-btn color="primary" prepend-icon="mdi-tune-vertical" :disabled="!node?.managed" @click="manageInbounds">{{ $t('agent.manageInbounds') }}</v-btn>
+        <v-btn v-if="canControl" variant="tonal" prepend-icon="mdi-console" :disabled="!node?.controllable" @click="openTerminal">{{ $t('agent.terminal') }}</v-btn>
+        <v-btn v-if="canControl" color="primary" prepend-icon="mdi-tune-vertical" :disabled="!node?.managed" @click="manageInbounds">{{ $t('agent.manageInbounds') }}</v-btn>
         <v-btn icon="mdi-refresh" variant="tonal" :loading="loading" :title="$t('actions.update')" @click="loadNode(false)" />
       </div>
     </header>
@@ -82,7 +82,8 @@
       <v-tabs v-model="tab" align-tabs="center" color="primary" class="detail-tabs">
         <v-tab value="detail" :aria-label="$t('agent.realtime')">{{ $t('agent.realtime') }}</v-tab>
         <v-tab value="network" :aria-label="$t('agent.network')">{{ $t('agent.network') }}</v-tab>
-        <v-tab value="control" :aria-label="$t('agent.control')">{{ $t('agent.control') }}</v-tab>
+        <v-tab value="traffic" :aria-label="$t('pages.portTraffic')">{{ $t('pages.portTraffic') }}</v-tab>
+        <v-tab v-if="canControl" value="control" :aria-label="$t('agent.control')">{{ $t('agent.control') }}</v-tab>
       </v-tabs>
 
       <v-window v-model="tab">
@@ -120,7 +121,11 @@
           </section>
         </v-window-item>
 
-        <v-window-item value="control">
+        <v-window-item value="traffic">
+          <PortTraffic v-if="tab === 'traffic'" :agent-id="nodeId" embedded class="mt-4" />
+        </v-window-item>
+
+        <v-window-item v-if="canControl" value="control">
           <section class="control-panel">
             <v-alert v-if="!node.controllable" type="warning" variant="tonal" density="compact" class="mb-3">{{ $t('agent.controlNeedWs') }}</v-alert>
             <div class="control-actions">
@@ -175,6 +180,9 @@ import {
 } from 'chart.js'
 import { i18n } from '@/locales'
 import type { AgentNode, AgentUsage } from '@/types/agents'
+import { fetchBackendObject as api, resolveBackendWebSocketUrl } from '@/utils/backend'
+import Data from '@/store/modules/data'
+import PortTraffic from '@/components/PortTraffic.vue'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
 
@@ -189,23 +197,10 @@ const tab = ref('detail')
 const control = reactive({ loading: false, shell: '', interval: 15, lastOutput: '' })
 const term = reactive({ visible: false, connected: false, buffer: '' })
 const termEl = ref<HTMLElement | null>(null)
+const canControl = computed(() => Data().controllerMode.can_control !== false)
 let termWs: WebSocket | null = null
 let refreshTimer: number | undefined
 
-const apiURL = (path: string) => {
-  const base = (document.querySelector('base')?.getAttribute('href') || (window as any).BASE_URL || '/').replace(/\/?$/, '/')
-  return `${base}${path.replace(/^\//, '')}`
-}
-const api = async (path: string, options?: RequestInit) => {
-  const response = await fetch(apiURL(path), {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...(options?.headers || {}) },
-    ...options,
-  })
-  const result = await response.json()
-  if (!response.ok || !result.success) throw new Error(result.msg || response.statusText)
-  return result.obj
-}
 const loadNode = async (silent = true) => {
   if (loading.value) return
   loading.value = true
@@ -256,7 +251,7 @@ const countChartOptions = computed(() => baseChartOptions.value)
 const networkChartOptions = computed(() => ({ ...baseChartOptions.value, scales: { ...baseChartOptions.value.scales, y: { ...baseChartOptions.value.scales.y, ticks: { ...baseChartOptions.value.scales.y.ticks, callback: (value: any) => rate(Number(value)) } } } }))
 
 const sendCmd = async (type: string, args?: Record<string, any>) => {
-  if (!node.value) return
+  if (!canControl.value || !node.value) return
   control.loading = true
   try {
     const result = await api(`api/agents/${nodeId}/command`, { method: 'POST', body: JSON.stringify({ type, args: args || {} }) })
@@ -270,21 +265,16 @@ const sendCmd = async (type: string, args?: Record<string, any>) => {
   } finally { control.loading = false }
 }
 const runShell = () => { if (control.shell.trim()) void sendCmd('exec', { command: control.shell.trim() }) }
-const manageInbounds = () => { if (node.value?.managed) void router.push(`/agents/${nodeId}/inbounds`) }
+const manageInbounds = () => { if (canControl.value && node.value?.managed) void router.push(`/agents/${nodeId}/inbounds`) }
 
-const wsURL = (path: string) => {
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const base = (document.querySelector('base')?.getAttribute('href') || (window as any).BASE_URL || '/').replace(/\/?$/, '/')
-  return `${proto}//${location.host}${base}${path.replace(/^\//, '')}`
-}
 const openTerminal = async () => {
-  if (!node.value?.controllable) return push.error({ message: i18n.global.t('agent.controlNeedWs') })
+  if (!canControl.value || !node.value?.controllable) return push.error({ message: i18n.global.t('agent.controlNeedWs') })
   closeTerminal()
   term.visible = true
   term.buffer = ''
   await nextTick()
   focusTerm()
-  termWs = new WebSocket(wsURL(`api/agents/${nodeId}/terminal?cols=100&rows=30`))
+  termWs = new WebSocket(resolveBackendWebSocketUrl(`api/agents/${nodeId}/terminal?cols=100&rows=30`))
   termWs.onopen = () => { term.connected = true }
   termWs.onclose = () => { term.connected = false }
   termWs.onerror = () => { term.connected = false; term.buffer += '\r\n[connection error]\r\n' }

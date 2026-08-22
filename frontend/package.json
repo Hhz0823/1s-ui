@@ -1,12 +1,13 @@
 {
   "name": "1s-ui-frontend",
-  "version": "1.5.9",
+  "version": "1.6.0",
   "private": true,
   "scripts": {
     "dev": "vite --host",
-    "build": "vue-tsc --noEmit && vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "build": "npm run typecheck && vite build",
     "preview": "vite preview",
-    "lint": "eslint . --fix --ignore-path .gitignore"
+    "lint": "npm run typecheck"
   },
   "dependencies": {
     "@mdi/font": "7.4.47",
@@ -31,7 +32,6 @@
     "@babel/types": "^7.29.0",
     "@types/node": "^25.5.0",
     "@vitejs/plugin-vue": "^6.0.5",
-    "eslint-plugin-vue": "^10.8.0",
     "material-design-icons-iconfont": "^6.7.0",
     "postcss": "8.5.23",
     "sass": "^1.98.0",
@@ -44,6 +44,7 @@
     "brace-expansion": "5.0.8",
     "form-data": "4.0.6",
     "immutable": "5.1.9",
-    "moment-jalaali": "0.10.4"
+    "moment-jalaali": "0.10.4",
+    "nanoid": "3.3.18"
   }
 }

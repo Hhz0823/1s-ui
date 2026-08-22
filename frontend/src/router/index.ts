@@ -1,13 +1,20 @@
 // Composables
 import { createRouter, createWebHistory } from 'vue-router'
 import Login from '@/views/Login.vue'
+import Setup from '@/views/Setup.vue'
 import Data from '@/store/modules/data'
+import { fetchBackendObject, runtimeConfig } from '@/utils/backend'
 
 const routes = [
   {
     path: '/login',
     name: 'pages.login',
     component: Login,
+  },
+  {
+    path: '/setup',
+    name: 'pages.setup',
+    component: Setup,
   },
   {
     path: '/',
@@ -23,6 +30,11 @@ const routes = [
         path: '/inbounds',
         name: 'pages.inbounds',
         component: () => import('@/views/Inbounds.vue'),
+      },
+      {
+        path: '/port-traffic',
+        name: 'pages.portTraffic',
+        component: () => import('@/components/PortTraffic.vue'),
       },
       {
         path: '/clients',
@@ -94,8 +106,9 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory((window as any).BASE_URL),
+  history: createWebHistory(runtimeConfig.basePath),
   routes,
+  scrollBehavior: (_to, _from, savedPosition) => savedPosition ?? { left: 0, top: 0 },
 })
 
 const DATA_REFRESH_MS = 15000
@@ -105,17 +118,41 @@ const refreshData = () => {
   if (!document.hidden) void Data().loadData()
 }
 
-router.beforeEach((to) => {
-  // The server and API own authentication. The session cookie is HttpOnly and
-  // intentionally unavailable to client-side routing.
-  if (to.path !== '/login') {
-    loadDataInterval()
-  } else {
-    if (intervalId) {
-      clearInterval(intervalId)
-      intervalId = undefined
-    }
+const monitorRouteAllowed = (path: string) =>
+  path === '/' || path === '/agents' || /^\/agents\/[^/]+$/.test(path) || path === '/settings' || path === '/admins'
+
+const stopDataInterval = () => {
+  if (!intervalId) return
+  clearInterval(intervalId)
+  intervalId = undefined
+}
+
+router.beforeEach(async (to) => {
+  let access: { required: boolean; authenticated: boolean }
+  try {
+    access = await fetchBackendObject('api/setup-status')
+  } catch {
+    stopDataInterval()
+    if (to.path !== '/login') return '/login'
+    return
   }
+
+  if (access.required) {
+    stopDataInterval()
+    if (to.path !== '/setup') return '/setup'
+    return
+  }
+  if (!access.authenticated) {
+    stopDataInterval()
+    if (to.path !== '/login') return '/login'
+    return
+  }
+  if (to.path === '/login' || to.path === '/setup') return '/'
+
+  const data = Data()
+  await data.loadControllerMode()
+  loadDataInterval()
+  if (data.controllerMode.profile === 'monitor' && !monitorRouteAllowed(to.path)) return '/agents'
 })
 
 const loadDataInterval = () => {

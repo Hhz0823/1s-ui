@@ -7,6 +7,7 @@ OpenWrt Lite is a small package variant of 1S-UI for routers and low-memory devi
 - Default sing-box build tags: `with_quic`, `with_utls`
 - Omitted heavy build tags: standard gRPC, ACME, naive outbound, gVisor, Tailscale
 - Package format: `.ipk` with a procd init script
+- UI: not bundled; the Lite package is an API-only backend and does not copy `frontend/dist`
 
 ## Build
 
@@ -47,6 +48,7 @@ Useful paths:
 - Service: `/etc/init.d/s-ui-lite`
 - Database: `/etc/s-ui/db/s-ui.db`
 - Runtime bin folder: `/usr/lib/s-ui`
+- API listen: `0.0.0.0:2095` (fixed and legacy API routes; no embedded SPA)
 
 ## Targets
 

@@ -36,6 +36,37 @@
               <v-text-field v-model="inbound.tag" :label="$t('objects.tag')" hide-details></v-text-field>
             </v-col>
           </v-row>
+          <v-row v-if="inbound.listen_port && inbound.type !== inTypes.Tun">
+            <v-col cols="12" sm="6">
+              <v-text-field
+                v-model.number="uploadLimitMbps"
+                type="number"
+                min="0"
+                step="0.1"
+                suffix="Mbps"
+                :label="$t('in.uploadLimit')"
+                :hint="$t('in.speedLimitHint')"
+                persistent-hint
+                :disabled="isXray"
+              />
+            </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field
+                v-model.number="downloadLimitMbps"
+                type="number"
+                min="0"
+                step="0.1"
+                suffix="Mbps"
+                :label="$t('in.downloadLimit')"
+                :hint="$t('in.speedLimitHint')"
+                persistent-hint
+                :disabled="isXray"
+              />
+            </v-col>
+          </v-row>
+          <v-alert v-if="isXray && inbound.listen_port && inbound.type !== inTypes.Tun" type="info" variant="tonal" density="compact" class="mb-3">
+            {{ $t('in.speedLimitUnsupported') }}
+          </v-alert>
           <v-tabs
             v-if="HasInData.includes(inbound.type)"
             v-model="side"
@@ -215,6 +246,10 @@ export default {
         ? await this.dataSource.loadInbounds([id])
         : await Data().loadInbounds([id])
       this.inbound = inboundArray[0]
+      if (this.inbound.core_type == CoreTypes.Xray) {
+        this.inbound.upload_limit = 0
+        this.inbound.download_limit = 0
+      }
       if (this.HasInData.includes(this.inbound.type) && this.inbound.out_json == null) {
         this.inbound.out_json = {}
       }
@@ -246,6 +281,10 @@ export default {
     },
     changeCore() {
       if (!this.inbound.listen_port) this.inbound.listen_port = RandomUtil.randomIntRange(10000, 60000)
+      if (this.isXray) {
+        this.inbound.upload_limit = 0
+        this.inbound.download_limit = 0
+      }
       if (this.isXray && !this.xrayTypeItems.some((item) => item.value == this.inbound.type)) {
         this.inbound.type = InTypes.VLESS
       }
@@ -256,7 +295,15 @@ export default {
       // Tag change only in add inbound
       const tag = this.$props.id > 0 ? this.inbound.tag : this.inbound.type + "-" + this.inbound.listen_port
       // Use previous data
-      const prevConfig = { id: this.inbound.id, core_type: this.inbound.core_type, tag: tag, listen: this.inbound.listen?? "::", listen_port: this.inbound.listen_port }
+      const prevConfig = {
+        id: this.inbound.id,
+        core_type: this.inbound.core_type,
+        tag,
+        listen: this.inbound.listen ?? "::",
+        listen_port: this.inbound.listen_port,
+        upload_limit: this.inbound.upload_limit || 0,
+        download_limit: this.inbound.download_limit || 0,
+      }
       this.inbound = createInbound(this.inbound.type, this.inbound.type != this.inTypes.Tun ? prevConfig : { tag: tag }, this.effectiveHost)
       if (this.HasInData.includes(this.inbound.type)){
         this.inbound.addrs = []
@@ -276,6 +323,10 @@ export default {
     },
     async saveChanges() {
       if (!this.$props.visible) return
+      if (this.isXray) {
+        this.inbound.upload_limit = 0
+        this.inbound.download_limit = 0
+      }
       // check duplicate tag
       const isDuplicatedTag = this.dataSource?.checkTag
         ? this.dataSource.checkTag(this.inbound.id, this.inbound.tag)
@@ -305,6 +356,22 @@ export default {
     },
   },
   computed: {
+    uploadLimitMbps: {
+      get(): number {
+        return Number(((Number(this.inbound.upload_limit) || 0) * 8 / 1_000_000).toFixed(2))
+      },
+      set(value: number) {
+        this.inbound.upload_limit = Math.round(Math.max(0, Number(value) || 0) * 125_000)
+      },
+    },
+    downloadLimitMbps: {
+      get(): number {
+        return Number(((Number(this.inbound.download_limit) || 0) * 8 / 1_000_000).toFixed(2))
+      },
+      set(value: number) {
+        this.inbound.download_limit = Math.round(Math.max(0, Number(value) || 0) * 125_000)
+      },
+    },
     validate() {
       if (this.inbound == undefined) return false
       if (this.inbound.tag == "") return false

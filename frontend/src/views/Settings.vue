@@ -28,6 +28,300 @@
     </v-row>
     <v-window v-model="tab">
       <v-window-item value="t0">
+        <section class="role-section">
+          <div class="role-header">
+            <div>
+              <div class="text-subtitle-1 font-weight-bold">{{ $t('setting.runtimeRoleTitle') }}</div>
+              <div class="text-body-2 text-medium-emphasis">{{ $t('setting.runtimeRoleHint') }}</div>
+            </div>
+            <v-chip
+              :color="controllerMode.profile === 'full' ? 'primary' : controllerMode.profile === 'monitor' ? 'info' : 'default'"
+              :prepend-icon="controllerMode.profile === 'monitor' ? 'mdi-monitor-eye' : controllerMode.profile === 'full' ? 'mdi-server-network' : 'mdi-server-outline'"
+            >
+              {{ controllerProfileLabel }}
+            </v-chip>
+          </div>
+          <v-alert
+            :type="controllerMode.profile === 'client' ? 'success' : 'info'"
+            variant="tonal"
+            density="compact"
+            class="mt-3"
+          >
+            {{ controllerProfileHint }}
+          </v-alert>
+          <div class="role-capacity">
+            <span>{{ controllerMode.cpu_cores }} CPU</span>
+            <span>{{ formatMemory(controllerMode.memory_bytes) }}</span>
+            <span>{{ $t('agent.totalServers') }}: {{ controllerMode.agent_count }}</span>
+          </div>
+          <v-alert
+            v-if="controllerMode.profile === 'client' && !controllerMode.can_enable"
+            type="warning"
+            variant="tonal"
+            density="compact"
+            class="mt-3"
+          >
+            {{ $t('setting.roleResourceBlocked') }}
+          </v-alert>
+          <div class="role-actions">
+            <v-btn-toggle :model-value="controllerMode.profile" color="primary" mandatory divided class="role-profile-toggle">
+              <v-btn
+                v-for="option in controllerProfileOptions"
+                :key="option.value"
+                :value="option.value"
+                :prepend-icon="option.icon"
+                :loading="controllerModeLoading && pendingControllerProfile === option.value"
+                :disabled="controllerMode.profile === 'client' && option.value !== 'client' && !controllerMode.can_enable"
+                @click="setControllerMode(option.value)"
+              >{{ option.title }}</v-btn>
+            </v-btn-toggle>
+            <span class="text-caption text-medium-emphasis">
+              {{ controllerMode.can_enable ? $t('setting.roleResourceReady') : '2 CPU / 2 GiB' }}
+            </span>
+          </div>
+        </section>
+
+        <v-divider class="my-5" opacity="40"></v-divider>
+        <section class="xray-install-section">
+          <div class="xray-install-header">
+            <div>
+              <div class="text-subtitle-1 font-weight-bold">{{ $t('setting.xrayInstallTitle') }}</div>
+              <div class="text-body-2 text-medium-emphasis">{{ $t('setting.xrayInstallHint') }}</div>
+            </div>
+            <div class="xray-install-status">
+              <v-chip
+                :color="xrayInstall.installed ? 'success' : 'default'"
+                :prepend-icon="xrayInstall.installed ? 'mdi-check-circle' : 'mdi-download-circle-outline'"
+              >
+                {{ xrayInstall.installed ? $t('setting.xrayInstalled') : $t('setting.xrayNotInstalled') }}
+              </v-chip>
+              <v-chip
+                v-if="xrayInstall.installed"
+                :color="xrayInstall.disabled ? 'warning' : 'primary'"
+                :prepend-icon="xrayInstall.disabled ? 'mdi-power-plug-off-outline' : 'mdi-power-plug-outline'"
+              >
+                {{ xrayInstall.disabled ? $t('setting.xrayDisabled') : $t('setting.xrayEnabled') }}
+              </v-chip>
+              <v-chip
+                v-if="xrayInstall.installed && !xrayInstall.disabled"
+                :color="xrayInstall.running ? 'success' : 'default'"
+                :prepend-icon="xrayInstall.running ? 'mdi-play-circle' : 'mdi-stop-circle-outline'"
+              >
+                {{ xrayInstall.running ? $t('setting.xrayRunning') : $t('setting.xrayStopped') }}
+              </v-chip>
+            </div>
+          </div>
+          <v-alert
+            v-if="!xrayInstall.supported"
+            type="warning"
+            variant="tonal"
+            density="compact"
+            class="mt-3"
+          >
+            {{ $t('setting.xrayInstallUnsupported') }}
+          </v-alert>
+          <template v-else>
+            <v-alert
+              v-if="xrayInstall.low_resource"
+              type="warning"
+              variant="tonal"
+              density="compact"
+              class="mt-3"
+            >
+              {{ $t('setting.xrayLowResourceHint') }}
+            </v-alert>
+            <div class="xray-install-facts">
+              <v-chip size="small" color="primary" variant="tonal" prepend-icon="mdi-shield-check-outline">
+                {{ $t('setting.xraySingboxDefault') }}
+              </v-chip>
+              <v-chip size="small" :color="xrayInstall.on_demand ? 'success' : 'default'" variant="tonal" prepend-icon="mdi-power-settings">
+                {{ $t('setting.xrayOnDemand') }}
+              </v-chip>
+              <v-chip v-if="xrayInstall.exclusive_run" size="small" color="warning" variant="tonal" prepend-icon="mdi-swap-horizontal-bold">
+                {{ $t('setting.xrayExclusiveRuntime') }}
+              </v-chip>
+              <span>{{ xrayInstall.cpu_cores }} CPU</span>
+              <span>{{ formatMemory(xrayInstall.memory_bytes) }}</span>
+            </div>
+            <v-row v-if="xrayInstall.installed" class="mt-1">
+              <v-col cols="12" sm="5">
+                <v-text-field :model-value="xrayInstall.version || '-'" :label="$t('setting.xrayVersion')" readonly hide-details />
+              </v-col>
+              <v-col cols="12" sm="7">
+                <v-text-field :model-value="xrayInstall.path || '-'" :label="$t('setting.xrayPath')" readonly hide-details />
+              </v-col>
+            </v-row>
+            <v-alert
+              v-if="xrayInstall.installed && !xrayInstall.has_inbounds"
+              type="info"
+              variant="tonal"
+              density="compact"
+              class="mt-3"
+            >
+              {{ $t('setting.xrayNoInboundsHint') }}
+            </v-alert>
+            <v-alert
+              v-else-if="xrayInstall.installed && xrayInstall.has_inbounds"
+              type="info"
+              variant="tonal"
+              density="compact"
+              class="mt-3"
+            >
+              {{ $t('setting.xrayUninstallProtected') }}
+            </v-alert>
+            <v-alert
+              v-if="xrayInstall.install.state !== 'idle'"
+              :type="xrayInstall.install.state === 'failed' ? 'error' : xrayInstall.install.state === 'success' ? 'success' : 'info'"
+              variant="tonal"
+              density="compact"
+              class="mt-3"
+            >
+              {{ xrayInstallStateText }}
+            </v-alert>
+            <div class="xray-install-actions">
+              <v-btn
+                color="primary"
+                prepend-icon="mdi-download"
+                :loading="xrayInstallLoading || xrayInstallRunning"
+                :disabled="!xrayInstall.can_install || xrayInstallActionLoading || xrayInstall.running"
+                @click="requestXrayInstall"
+              >
+                {{ xrayInstall.installed ? $t('setting.xrayReinstall') : $t('setting.xrayInstallNow') }}
+              </v-btn>
+              <template v-if="xrayInstall.installed">
+                <v-btn
+                  :color="xrayInstall.disabled ? 'primary' : 'warning'"
+                  :variant="xrayInstall.disabled ? 'elevated' : 'tonal'"
+                  :prepend-icon="xrayInstall.disabled ? 'mdi-power-plug-outline' : 'mdi-power-plug-off-outline'"
+                  :loading="xrayInstallAction === 'enabled'"
+                  :disabled="xrayInstallActionLoading || xrayInstallRunning"
+                  @click="setXrayEnabled(xrayInstall.disabled)"
+                >
+                  {{ xrayInstall.disabled ? $t('setting.xrayEnable') : $t('setting.xrayDisable') }}
+                </v-btn>
+                <v-btn
+                  v-if="!xrayInstall.disabled"
+                  :color="xrayInstall.running ? 'warning' : 'success'"
+                  variant="tonal"
+                  :prepend-icon="xrayInstall.running ? 'mdi-stop' : 'mdi-play'"
+                  :loading="xrayInstallAction === 'runtime'"
+                  :disabled="xrayInstallActionLoading || xrayInstallRunning || (!xrayInstall.running && !xrayInstall.has_inbounds)"
+                  @click="xrayInstall.running ? stopXray() : startXray()"
+                >
+                  {{ xrayInstall.running ? $t('setting.xrayStop') : $t('setting.xrayStart') }}
+                </v-btn>
+                <v-btn
+                  v-if="!xrayInstall.has_inbounds"
+                  variant="outlined"
+                  prepend-icon="mdi-plus-circle-outline"
+                  :disabled="xrayInstallActionLoading || xrayInstallRunning"
+                  @click="openXrayInbounds"
+                >
+                  {{ $t('setting.xrayAddInbound') }}
+                </v-btn>
+                <v-btn
+                  color="error"
+                  variant="text"
+                  prepend-icon="mdi-delete-outline"
+                  :loading="xrayInstallAction === 'uninstall'"
+                  :disabled="xrayInstallActionLoading || xrayInstallRunning || xrayInstall.has_inbounds"
+                  @click="uninstallXray"
+                >
+                  {{ $t('setting.xrayUninstall') }}
+                </v-btn>
+              </template>
+            </div>
+            <div class="text-caption text-medium-emphasis mt-2">{{ $t('setting.xrayInstallSafetyHint') }}</div>
+          </template>
+        </section>
+
+        <v-divider class="my-5" opacity="40"></v-divider>
+        <section class="version-section">
+          <div class="version-header">
+            <div>
+              <div class="text-subtitle-1 font-weight-bold">{{ $t('setting.versionCheckTitle') }}</div>
+              <div class="text-body-2 text-medium-emphasis">{{ $t('setting.versionCheckHint') }}</div>
+            </div>
+            <v-btn
+              prepend-icon="mdi-refresh"
+              variant="tonal"
+              :loading="versionLoading"
+              @click="loadVersion"
+            >
+              {{ $t('setting.versionCheckNow') }}
+            </v-btn>
+          </div>
+          <v-row class="mt-3">
+            <v-col cols="12" sm="6" md="3">
+              <v-text-field
+                :model-value="versionInfo.current || '-'"
+                :label="$t('setting.versionCurrent')"
+                readonly
+                hide-details
+              ></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6" md="3">
+              <v-text-field
+                :model-value="versionInfo.latest || '-'"
+                :label="$t('setting.versionLatest')"
+                readonly
+                hide-details
+              ></v-text-field>
+            </v-col>
+            <v-col cols="12" sm="6" md="6" class="d-flex align-center">
+              <v-alert
+                v-if="versionInfo.update_available"
+                type="info"
+                variant="tonal"
+                density="compact"
+                class="version-alert"
+              >
+                {{ $t('setting.versionAvailable') }}
+              </v-alert>
+              <v-alert
+                v-else-if="versionInfo.latest"
+                type="success"
+                variant="tonal"
+                density="compact"
+                class="version-alert"
+              >
+                {{ $t('setting.versionUpToDate') }}
+              </v-alert>
+            </v-col>
+          </v-row>
+          <v-alert
+            v-if="versionInfo.update.state !== 'idle'"
+            :type="versionInfo.update.state === 'failed' ? 'error' : 'info'"
+            variant="tonal"
+            density="compact"
+            class="mt-3"
+          >
+            {{ versionStateText }}
+          </v-alert>
+          <v-alert
+            v-if="versionInfo.update_available && !versionInfo.can_update"
+            type="warning"
+            variant="tonal"
+            density="compact"
+            class="mt-3"
+          >
+            {{ versionInfo.capability || $t('setting.versionUpdateUnavailable') }}
+          </v-alert>
+          <div class="version-actions">
+            <v-btn
+              color="primary"
+              prepend-icon="mdi-download"
+              :loading="versionUpdating"
+              :disabled="!versionInfo.update_available || !versionInfo.can_update || versionLoading"
+              @click="requestUpdate"
+            >
+              {{ $t('setting.versionUpdateNow') }}
+            </v-btn>
+            <span class="text-caption text-medium-emphasis">{{ $t('setting.versionUpdateHint') }}</span>
+          </div>
+        </section>
+
+        <v-divider class="my-5" opacity="40"></v-divider>
         <section class="reverse-proxy-section">
           <div class="reverse-proxy-header">
             <div>
@@ -144,27 +438,21 @@
 
         <v-divider class="my-5" opacity="40"></v-divider>
         <div class="text-subtitle-2 font-weight-bold mb-3">{{ $t('setting.panelBuiltinServer') }}</div>
+        <v-alert type="info" variant="tonal" density="compact" class="mb-3">
+          {{ $t('setting.frontendAccessHint') }}
+        </v-alert>
         <v-row>
           <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.webListen" :label="$t('setting.addr')" hide-details></v-text-field>
+            <v-text-field :model-value="frontendAddress" :label="$t('setting.frontendAddress')" readonly hide-details></v-text-field>
           </v-col>
           <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model.number="webPort" min="1" type="number" :label="$t('setting.port')" hide-details></v-text-field>
+            <v-text-field :model-value="frontendPort" :label="$t('setting.frontendPort')" readonly hide-details></v-text-field>
           </v-col>
           <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.webPath" :label="$t('setting.webPath')" hide-details></v-text-field>
+            <v-text-field :model-value="frontendPath" :label="$t('setting.frontendPath')" readonly hide-details></v-text-field>
           </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.webDomain" :label="$t('setting.domain')" hide-details></v-text-field>
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.webKeyFile" :label="$t('setting.sslKey')" hide-details></v-text-field>
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.webCertFile" :label="$t('setting.sslCert')" hide-details></v-text-field>
-          </v-col>
-          <v-col cols="12" sm="6" md="4">
-            <v-text-field v-model="settings.webURI" :label="$t('setting.webUri')" hide-details></v-text-field>
+          <v-col cols="12">
+            <v-text-field :model-value="backendApiURL" :label="$t('setting.backendApiUrl')" readonly hide-details></v-text-field>
           </v-col>
           <v-col cols="12" sm="6" md="4">
             <v-text-field
@@ -521,13 +809,16 @@
 
 <script lang="ts" setup>
 import { i18n } from '@/locales'
-import { Ref, computed, inject, onMounted, ref } from 'vue'
+import { Ref, computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import HttpUtils from '@/plugins/httputil'
 import { FindDiff } from '@/plugins/utils'
 import SubJsonExtVue from '@/components/SubJsonExt.vue'
 import SubClashExtVue from '@/components/SubClashExt.vue'
 import { push } from 'notivue'
 import bgAsset from '@/assets/bg.jpg'
+import { backendBaseUrl, resolveFrontendUrl, runtimeConfig } from '@/utils/backend'
+import Data from '@/store/modules/data'
 
 type ReverseProxyStatus = {
   supported: boolean
@@ -542,10 +833,85 @@ type ReverseProxyStatus = {
   domain: string
   panelListen: string
   panelPort: number
+  apiListen: string
   panelPath: string
   publicUrl: string
   message: string
 }
+
+type VersionInfo = {
+  current: string
+  latest: string
+  update_available: boolean
+  asset_available: boolean
+  asset: string
+  release_url: string
+  published_at: string
+  can_update: boolean
+  capability: string
+  update: {
+    state: string
+    version: string
+    message: string
+    started: number
+  }
+}
+
+type XrayInstallStatus = {
+  supported: boolean
+  can_install: boolean
+  installed: boolean
+  disabled: boolean
+  on_demand: boolean
+  running: boolean
+  has_inbounds: boolean
+  low_resource: boolean
+  exclusive_run: boolean
+  architecture: string
+  version: string
+  path: string
+  capability: string
+  cpu_cores: number
+  memory_bytes: number
+  install: {
+    state: string
+    version: string
+    message: string
+    started: number
+  }
+}
+
+const emptyVersionInfo = (): VersionInfo => ({
+  current: '',
+  latest: '',
+  update_available: false,
+  asset_available: false,
+  asset: '',
+  release_url: '',
+  published_at: '',
+  can_update: false,
+  capability: '',
+  update: { state: 'idle', version: '', message: '', started: 0 },
+})
+
+const emptyXrayInstall = (): XrayInstallStatus => ({
+  supported: false,
+  can_install: false,
+  installed: false,
+  disabled: true,
+  on_demand: false,
+  running: false,
+  has_inbounds: false,
+  low_resource: false,
+  exclusive_run: false,
+  architecture: '',
+  version: '',
+  path: '',
+  capability: '',
+  cpu_cores: 0,
+  memory_bytes: 0,
+  install: { state: 'idle', version: '', message: '', started: 0 },
+})
 
 const emptyReverseProxyStatus = (): ReverseProxyStatus => ({
   supported: false,
@@ -560,12 +926,59 @@ const emptyReverseProxyStatus = (): ReverseProxyStatus => ({
   domain: '',
   panelListen: '',
   panelPort: 2095,
-  panelPath: '/app/',
+  apiListen: '',
+  panelPath: '/',
   publicUrl: '',
   message: '',
 })
 
 const tab = ref("t0")
+
+const versionInfo = ref<VersionInfo>(emptyVersionInfo())
+const versionLoading = ref(false)
+const versionUpdating = ref(false)
+const versionTarget = ref('')
+let versionPollTimer: number | undefined
+const controllerModeLoading = ref(false)
+const pendingControllerProfile = ref('')
+const xrayInstall = ref<XrayInstallStatus>(emptyXrayInstall())
+const xrayInstallLoading = ref(false)
+const xrayInstallAction = ref('')
+let xrayInstallPollTimer: number | undefined
+
+const router = useRouter()
+const dataStore = Data()
+const controllerMode = computed(() => dataStore.controllerMode)
+const controllerProfileOptions = computed(() => [
+  { value: 'client', title: i18n.global.t('setting.roleClient'), icon: 'mdi-server-outline' },
+  { value: 'full', title: i18n.global.t('setting.roleFull'), icon: 'mdi-server-network' },
+  { value: 'monitor', title: i18n.global.t('setting.roleMonitor'), icon: 'mdi-monitor-eye' },
+])
+const controllerProfileLabel = computed(() => i18n.global.t(`setting.role${controllerMode.value.profile === 'full' ? 'Full' : controllerMode.value.profile === 'monitor' ? 'Monitor' : 'Client'}`))
+const controllerProfileHint = computed(() => i18n.global.t(`setting.role${controllerMode.value.profile === 'full' ? 'Full' : controllerMode.value.profile === 'monitor' ? 'Monitor' : 'Client'}Hint`))
+
+const xrayInstallRunning = computed(() => ['downloading', 'installing'].includes(xrayInstall.value.install.state))
+const xrayInstallActionLoading = computed(() => xrayInstallAction.value !== '')
+const xrayInstallStateText = computed(() => {
+  const state = xrayInstall.value.install.state
+  if (state === 'downloading') return i18n.global.t('setting.xrayDownloading')
+  if (state === 'installing') return i18n.global.t('setting.xrayInstalling')
+  if (state === 'success') {
+    return i18n.global.t(xrayInstall.value.disabled ? 'setting.xrayInstallSuccessDisabled' : 'setting.xrayInstallSuccess')
+  }
+  if (state === 'failed') return xrayInstall.value.install.message || i18n.global.t('setting.xrayInstallFailed')
+  return xrayInstall.value.install.message
+})
+
+const versionStateText = computed(() => {
+  const state = versionInfo.value.update.state
+  if (state === 'downloading') return i18n.global.t('setting.versionUpdateDownloading')
+  if (state === 'installing') return i18n.global.t('setting.versionUpdateInstalling')
+  if (state === 'restarting') return i18n.global.t('setting.versionUpdateRestarting')
+  if (state === 'success') return i18n.global.t('setting.versionUpdateStarted')
+  if (state === 'failed') return versionInfo.value.update.message || i18n.global.t('setting.versionUpdateFailed')
+  return versionInfo.value.update.message
+})
 
 const uiPreferenceEvent = 'ui-preferences-changed'
 const notifyUiPrefs = () => window.dispatchEvent(new Event(uiPreferenceEvent))
@@ -732,7 +1145,7 @@ const settings = ref({
 	webPort: "2095",
 	webCertFile: "",
 	webKeyFile: "",
-  webPath: "/app/",
+  webPath: "/",
   webURI: "",
 	sessionMaxAge: "0",
   trafficAge: "30",
@@ -768,30 +1181,23 @@ const reverseProxyEngineOptions = [
   { title: 'Nginx', value: 'nginx' },
 ]
 
-const normalizedPanelPath = computed(() => {
-  let path = reverseProxyStatus.value.panelPath || settings.value.webPath || '/app/'
-  if (!path.startsWith('/')) path = `/${path}`
-  if (!path.endsWith('/')) path += '/'
-  return path
-})
-
-const browserHostname = () => {
-  const hostname = window.location.hostname
-  return hostname.includes(':') && !hostname.startsWith('[') ? `[${hostname}]` : hostname
-}
+const frontendLocation = new URL(resolveFrontendUrl())
+const frontendAddress = frontendLocation.hostname
+const frontendPort = frontendLocation.port || (frontendLocation.protocol === 'https:' ? '443' : '80')
+const frontendPath = runtimeConfig.basePath
+const backendApiURL = backendBaseUrl()
 
 const reverseProxyUpstream = computed(() => {
-  const port = reverseProxyStatus.value.panelPort || webPort.value || 2095
-  return `127.0.0.1:${port}`
+  return reverseProxyStatus.value.apiListen || '-'
 })
 
 const reverseProxyPublicURL = computed(() => {
   const domain = reverseProxyConfig.value.domain.trim()
   if (domain) {
     const protocol = reverseProxyConfig.value.engine === 'caddy' ? 'https' : 'http'
-    return `${protocol}://${domain}${normalizedPanelPath.value}`
+    return `${protocol}://${domain}/`
   }
-  return `http://${browserHostname()}${normalizedPanelPath.value}`
+  return backendApiURL
 })
 
 const selectedReverseProxyInstalled = computed(() => {
@@ -809,9 +1215,136 @@ const canApplyReverseProxy = computed(() => {
 onMounted(async () => {
   loading.value = true
   await loadData()
+  await loadControllerMode()
+  await loadXrayInstall()
   await loadReverseProxy()
   loading.value = false
+  // Version checks use the GitHub API and must not delay the settings page.
+  void loadVersion()
 })
+
+onBeforeUnmount(() => {
+  if (versionPollTimer !== undefined) window.clearTimeout(versionPollTimer)
+  if (xrayInstallPollTimer !== undefined) window.clearTimeout(xrayInstallPollTimer)
+})
+
+const formatMemory = (value: number) => value > 0 ? `${(value / (1024 ** 3)).toFixed(2)} GiB` : '-'
+
+const loadControllerMode = async () => {
+  controllerModeLoading.value = true
+  await dataStore.loadControllerMode(true)
+  controllerModeLoading.value = false
+}
+
+const setControllerMode = async (profile: string) => {
+  if (profile === controllerMode.value.profile) return
+  if (profile === 'client' && controllerMode.value.agent_count > 0) {
+    const confirmed = window.confirm(i18n.global.t('setting.roleDisableConfirm', { count: controllerMode.value.agent_count }))
+    if (!confirmed) return
+  }
+  controllerModeLoading.value = true
+  pendingControllerProfile.value = profile
+  const msg = await HttpUtils.post('api/controller-mode', { profile })
+  if (msg.success && msg.obj) {
+    dataStore.assignControllerMode(msg.obj)
+    push.success({ message: i18n.global.t('setting.roleUpdated') })
+  }
+  pendingControllerProfile.value = ''
+  controllerModeLoading.value = false
+}
+
+const loadXrayInstall = async (): Promise<boolean> => {
+  if (xrayInstallLoading.value) return false
+  xrayInstallLoading.value = true
+  const msg = await HttpUtils.get('api/xray-install')
+  if (msg.success && msg.obj) {
+    assignXrayInstallStatus(msg.obj)
+  }
+  xrayInstallLoading.value = false
+  return msg.success
+}
+
+const pollXrayInstall = async () => {
+  const loaded = await loadXrayInstall()
+  if (!loaded || xrayInstallRunning.value) {
+    xrayInstallPollTimer = window.setTimeout(pollXrayInstall, 1500)
+    return
+  }
+  if (xrayInstall.value.install.state === 'success') {
+    push.success({ message: i18n.global.t(xrayInstall.value.disabled ? 'setting.xrayInstallSuccessDisabled' : 'setting.xrayInstallSuccess') })
+  }
+}
+
+const requestXrayInstall = async () => {
+  const confirmed = window.confirm(i18n.global.t('setting.xrayInstallConfirm'))
+  if (!confirmed) return
+  xrayInstallLoading.value = true
+  const msg = await HttpUtils.post('api/xray-install', {})
+  xrayInstallLoading.value = false
+  if (!msg.success) return
+  if (msg.obj) {
+    assignXrayInstallStatus(msg.obj)
+  }
+  await pollXrayInstall()
+}
+
+const assignXrayInstallStatus = (value: any) => {
+  if (!value) return
+  xrayInstall.value = {
+    ...emptyXrayInstall(),
+    ...value,
+    install: { ...emptyXrayInstall().install, ...(value.install || {}) },
+  }
+}
+
+const setXrayEnabled = async (enabled: boolean) => {
+  if (!enabled) {
+    const confirmed = window.confirm(i18n.global.t('setting.xrayDisableConfirm'))
+    if (!confirmed) return
+  }
+  xrayInstallAction.value = 'enabled'
+  const msg = await HttpUtils.post('api/xray-enabled', { enabled })
+  if (msg.success) {
+    assignXrayInstallStatus(msg.obj)
+    push.success({ message: i18n.global.t(enabled ? 'setting.xrayEnabledSuccess' : 'setting.xrayDisabledSuccess') })
+  }
+  xrayInstallAction.value = ''
+}
+
+const startXray = async () => {
+  if (xrayInstall.value.exclusive_run) {
+    const confirmed = window.confirm(i18n.global.t('setting.xrayStartExclusiveConfirm'))
+    if (!confirmed) return
+  }
+  xrayInstallAction.value = 'runtime'
+  const msg = await HttpUtils.post('api/restartXray', {})
+  if (msg.success) await loadXrayInstall()
+  xrayInstallAction.value = ''
+}
+
+const stopXray = async () => {
+  xrayInstallAction.value = 'runtime'
+  const msg = await HttpUtils.post('api/stopXray', {})
+  if (msg.success) await loadXrayInstall()
+  xrayInstallAction.value = ''
+}
+
+const uninstallXray = async () => {
+  if (xrayInstall.value.has_inbounds) return
+  const confirmed = window.confirm(i18n.global.t('setting.xrayUninstallConfirm'))
+  if (!confirmed) return
+  xrayInstallAction.value = 'uninstall'
+  const msg = await HttpUtils.post('api/xray-uninstall', {})
+  if (msg.success) {
+    assignXrayInstallStatus(msg.obj)
+    push.success({ message: i18n.global.t('setting.xrayUninstalledSuccess') })
+  }
+  xrayInstallAction.value = ''
+}
+
+const openXrayInbounds = async () => {
+  await router.push('/inbounds')
+}
 
 const loadData = async () => {
   loading.value = true
@@ -840,6 +1373,56 @@ const loadReverseProxy = async () => {
   reverseProxyLoading.value = false
 }
 
+const loadVersion = async (): Promise<boolean> => {
+  if (versionLoading.value) return false
+  versionLoading.value = true
+  const msg = await HttpUtils.get('api/version')
+  if (msg.success && msg.obj) {
+    versionInfo.value = { ...emptyVersionInfo(), ...msg.obj, update: { ...emptyVersionInfo().update, ...(msg.obj.update || {}) } }
+  }
+  versionLoading.value = false
+  return msg.success
+}
+
+const pollVersionUpdate = async () => {
+  const loaded = await loadVersion()
+  if (!loaded) {
+    versionPollTimer = window.setTimeout(pollVersionUpdate, 2000)
+    return
+  }
+  if (versionTarget.value && versionInfo.value.current === versionTarget.value) {
+    await sleep(2500)
+    window.location.reload()
+    return
+  }
+  const state = versionInfo.value.update.state
+  if (state === 'downloading' || state === 'installing' || state === 'restarting') {
+    versionPollTimer = window.setTimeout(pollVersionUpdate, 2000)
+    return
+  }
+  if (state === 'success') {
+    await sleep(2500)
+    window.location.reload()
+    return
+  }
+  versionUpdating.value = false
+}
+
+const requestUpdate = async () => {
+  if (!versionInfo.value.latest) return
+  const confirmed = window.confirm(i18n.global.t('setting.versionUpdateConfirm', { version: versionInfo.value.latest }))
+  if (!confirmed) return
+  versionUpdating.value = true
+  const msg = await HttpUtils.post('api/update', {})
+  if (!msg.success) {
+    versionUpdating.value = false
+    return
+  }
+  if (msg.obj) versionInfo.value.update = { ...versionInfo.value.update, ...msg.obj }
+  versionTarget.value = msg.obj?.version || versionInfo.value.latest
+  await pollVersionUpdate()
+}
+
 const applyReverseProxy = async () => {
   reverseProxyLoading.value = true
   const msg = await HttpUtils.post('api/reverse-proxy', {
@@ -856,9 +1439,8 @@ const applyReverseProxy = async () => {
     message: i18n.global.t('setting.reverseProxyApplied'),
   })
 
-  const target = `${reverseProxyPublicURL.value}settings`
   await sleep(3200)
-  window.location.replace(target)
+  window.location.replace(resolveFrontendUrl('settings'))
 }
 
 const save = async () => {
@@ -881,30 +1463,10 @@ const restartApp = async () => {
   loading.value = true
   const msg = await HttpUtils.post('api/restartApp',{})
   if (msg.success) {
-    let url = settings.value.webURI
-    if (url === "") {
-      const isTLS = settings.value.webCertFile !== "" || settings.value.webKeyFile !== ""
-      url = buildURL(settings.value.webDomain,settings.value.webPort.toString(),isTLS, settings.value.webPath)
-    }
     await sleep(3000)
-    window.location.replace(url)
+    window.location.replace(resolveFrontendUrl('settings'))
   }
   loading.value = false
-}
-
-const buildURL = (host: string, port: string, isTLS: boolean, path: string) => {
-  if (!host || host.length == 0) host = window.location.hostname
-  if (!port || port.length == 0) port = window.location.port
-
-  const protocol = isTLS ? "https:" : "http:"
-
-  if (port === "" || (isTLS && port === "443") || (!isTLS && port === "80")) {
-      port = ""
-  } else {
-      port = `:${port}`
-  }
-
-  return `${protocol}//${host}${port}${path}settings`
 }
 
 const subEncode = computed({
@@ -1007,6 +1569,61 @@ const applyCongestion = async () => {
 </script>
 
 <style scoped>
+.role-section,
+.xray-install-section,
+.version-section {
+  width: 100%;
+}
+
+.role-header,
+.xray-install-header,
+.version-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.role-capacity {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 14px;
+  color: rgba(var(--v-theme-on-surface), 0.68);
+  font-size: 0.82rem;
+}
+
+.version-alert {
+  width: 100%;
+}
+
+.xray-install-facts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 14px;
+  color: rgba(var(--v-theme-on-surface), 0.68);
+  font-size: 0.82rem;
+}
+
+.xray-install-status {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.role-actions,
+.xray-install-actions,
+.version-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
 .reverse-proxy-section {
   width: 100%;
 }
@@ -1034,6 +1651,29 @@ const applyCongestion = async () => {
 }
 
 @media (max-width: 600px) {
+  .role-header,
+  .role-actions,
+  .xray-install-header,
+  .xray-install-actions,
+  .version-header,
+  .version-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .role-header :deep(.v-btn),
+  .role-actions :deep(.v-btn),
+  .xray-install-header :deep(.v-btn),
+  .xray-install-actions :deep(.v-btn),
+  .version-header :deep(.v-btn),
+  .version-actions :deep(.v-btn) {
+    width: 100%;
+  }
+
+  .xray-install-status {
+    justify-content: flex-start;
+  }
+
   .reverse-proxy-header,
   .reverse-proxy-actions {
     align-items: stretch;

@@ -1,9 +1,6 @@
 import axios from 'axios'
+import { backendBaseUrl } from '@/utils/backend'
 
-axios.defaults.headers.post['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8'
-axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest'
-
-axios.defaults.baseURL = "./"
 const pendingRequests = new Map<string, ReturnType<typeof axios.CancelToken.source>>()
 
 const requestKey = (config: any): string => {
@@ -14,7 +11,12 @@ const requestKey = (config: any): string => {
     return `get:${config.url}:${JSON.stringify(params)}`
 }
 
-const api = axios.create()
+const api = axios.create({
+    baseURL: backendBaseUrl(),
+    withCredentials: true,
+})
+api.defaults.headers.post['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8'
+api.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest'
 
 api.interceptors.request.use(
     (config) => {

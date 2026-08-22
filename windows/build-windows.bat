@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 
 echo Building S-UI for Windows...
 
-cd /d "%~dp0"
+cd /d "%~dp0\.."
 
 REM Check if Go is installed
 go version >nul 2>&1
@@ -14,50 +14,17 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM Check if Node.js is installed
-node --version >nul 2>&1
-if errorlevel 1 (
-    echo Error: Node.js is not installed or not in PATH
-    echo Please install Node.js from https://nodejs.org/
-    pause
-    exit /b 1
-)
-
-echo Building frontend...
-cd frontend
-call npm install
-if errorlevel 1 (
-    echo Error: Failed to install frontend dependencies
-    pause
-    exit /b 1
-)
-
-call npm run build
-if errorlevel 1 (
-    echo Error: Failed to build frontend
-    pause
-    exit /b 1
-)
-
-cd ..
-
-echo Creating web/html directory...
-if not exist "web\html" mkdir "web\html"
-
-echo Copying frontend build files...
-xcopy "frontend\dist\*" "web\html\" /E /Y /Q
-
 echo Building backend...
 set CGO_ENABLED=1
 set GOOS=windows
 set GOARCH=amd64
 
 REM Try to build with CGO first
-go build -ldflags "-w -s" -tags "with_quic,with_grpc,with_utls,with_acme,with_gvisor,with_tailscale" -o sui.exe main.go
+go -C backend build -ldflags "-w -s" -tags "with_quic,with_grpc,with_utls,with_acme,with_gvisor,with_tailscale" -o ..\sui.exe .
 if errorlevel 1 (
     echo Warning: CGO build failed, trying without CGO...
     set CGO_ENABLED=0
-    go build -ldflags "-w -s" -tags "with_quic,with_grpc,with_utls,with_acme,with_gvisor,with_tailscale" -o sui.exe main.go
+    go -C backend build -ldflags "-w -s" -tags "with_quic,with_grpc,with_utls,with_acme,with_gvisor,with_tailscale" -o ..\sui.exe .
     if errorlevel 1 (
         echo Error: Failed to build backend
         pause

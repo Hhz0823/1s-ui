@@ -56,6 +56,29 @@ cat >"$tmp_dir/bin/chattr" <<'EOF'
 exit 0
 EOF
 
+cat >"$tmp_dir/bin/systemctl" <<'EOF'
+#!/bin/sh
+last=""
+for arg in "$@"; do
+    last="$arg"
+done
+case "$1:$last" in
+is-active:s-ui-agent)
+    [ "${TEST_AGENT_ACTIVE:-0}" = 1 ]
+    ;;
+is-enabled:s-ui-agent)
+    [ "${TEST_AGENT_ENABLED:-0}" = 1 ]
+    ;;
+is-active:* | is-enabled:* | list-unit-files:*)
+    exit 1
+    ;;
+*)
+    printf 'systemctl %s\n' "$*" >>"$TEST_COMMAND_LOG"
+    exit 0
+    ;;
+esac
+EOF
+
 chmod +x "$tmp_dir/bin/"*
 export PATH="$tmp_dir/bin:$PATH"
 
@@ -154,6 +177,10 @@ if ensure_swap_if_needed; then
 fi
 
 INSTALL_KIND="full"
+CONFIGURE_AGENT=0
+CONNECT_URL=""
+CONTROLLER_URL=""
+AGENT_TOKEN=""
 MEM_TOTAL_MB=1024
 MEM_AVAIL_MB=384
 SWAP_MB=1024
@@ -184,7 +211,7 @@ apply_kind_defaults >/dev/null
 assert_eq 1 "$INSTALL_AGENT" "2c2G full mode Agent enablement"
 assert_eq 0 "$SKIP_CORE" "2c2G full mode core startup"
 
-INSTALL_KIND="minimal"
+INSTALL_KIND=""
 MEM_TOTAL_MB=1967
 MEM_AVAIL_MB=1400
 CPU_CORES=1
@@ -193,12 +220,15 @@ FORCE_XRAY=0
 FORCE_PROXY=0
 FORCE_SKIP_CORE=0
 FORCE_START_CORE=0
+resolve_install_profile
 apply_kind_defaults >/dev/null
-assert_eq 0 "$INSTALL_AGENT" "single-core minimal mode Agent exclusion"
-assert_eq 0 "$SKIP_CORE" "single-core minimal mode core startup with sufficient memory"
+assert_eq "client" "$INSTALL_KIND" "default install profile"
+assert_eq 1 "$INSTALL_AGENT" "default client ships dormant Agent"
+assert_eq 0 "$CONFIGURE_AGENT" "default client does not bind Agent"
+assert_eq 0 "$SKIP_CORE" "single-core client starts sing-box with sufficient memory"
 assert_eq 1 "$DISABLE_XRAY" "single-core low profile Xray runtime guard"
 
-INSTALL_KIND="minimal"
+INSTALL_KIND="client"
 MEM_TOTAL_MB=1967
 MEM_AVAIL_MB=1400
 CPU_CORES=1
@@ -208,8 +238,10 @@ FORCE_PROXY=0
 FORCE_SKIP_CORE=0
 FORCE_START_CORE=0
 apply_kind_defaults >/dev/null
-assert_eq 0 "$INSTALL_XRAY" "low profile ignores --with-xray"
-assert_eq 1 "$DISABLE_XRAY" "low profile remains sing-box only"
+assert_eq 1 "$INSTALL_XRAY" "low profile honors --with-xray"
+assert_eq 0 "$DISABLE_XRAY" "low profile enables optional Xray"
+assert_eq 1 "$XRAY_ON_DEMAND" "low profile keeps optional Xray on-demand"
+assert_eq 512 "$(core_start_budget_mb)" "low dual-core startup budget remains sing-box sized"
 
 INSTALL_KIND="minimal"
 MEM_TOTAL_MB=1024
@@ -220,9 +252,12 @@ FORCE_XRAY=0
 FORCE_PROXY=0
 FORCE_SKIP_CORE=0
 FORCE_START_CORE=0
+resolve_install_profile
 apply_kind_defaults >/dev/null
-assert_eq 0 "$SKIP_CORE" "1c1G minimal mode starts sing-box"
-assert_eq 1 "$DISABLE_XRAY" "1c1G minimal mode keeps Xray disabled"
+assert_eq "client" "$INSTALL_KIND" "legacy minimal alias"
+assert_eq 1 "$INSTALL_AGENT" "legacy minimal alias includes dormant Agent"
+assert_eq 0 "$SKIP_CORE" "1c1G client starts sing-box"
+assert_eq 1 "$DISABLE_XRAY" "1c1G client keeps Xray disabled"
 assert_eq 512 "$(core_start_budget_mb)" "1c1G sing-box startup budget"
 
 FORCE_SKIP_CORE=1
@@ -231,7 +266,8 @@ assert_eq 1 "$SKIP_CORE" "explicit --skip-core remains panel-only"
 assert_eq 384 "$(core_start_budget_mb)" "panel-only startup budget"
 FORCE_SKIP_CORE=0
 
-INSTALL_KIND="managed"
+INSTALL_KIND="client"
+CONFIGURE_AGENT=1
 MEM_TOTAL_MB=512
 MEM_AVAIL_MB=320
 CPU_CORES=1
@@ -243,17 +279,84 @@ FORCE_PROXY=0
 FORCE_SKIP_CORE=0
 FORCE_START_CORE=0
 apply_kind_defaults >/dev/null
-assert_eq 1 "$INSTALL_AGENT" "1c512 managed-client Agent enablement"
-assert_eq 0 "$SKIP_CORE" "1c512 managed-client starts sing-box"
-assert_eq 1 "$DISABLE_XRAY" "1c512 managed-client Xray runtime guard"
-assert_eq 512 "$(core_start_budget_mb)" "1c512 managed-client startup budget"
+assert_eq 1 "$INSTALL_AGENT" "1c512 connected client Agent package"
+assert_eq 0 "$SKIP_CORE" "1c512 connected client starts sing-box"
+assert_eq 1 "$DISABLE_XRAY" "1c512 connected client Xray runtime guard"
+assert_eq 512 "$(core_start_budget_mb)" "1c512 connected client startup budget"
 
-INSTALL_KIND="managed"
+INSTALL_KIND="client"
+CONFIGURE_AGENT=1
 CONTROLLER_URL=""
 AGENT_TOKEN=""
 if apply_kind_defaults >/dev/null; then
-    fail "managed-client mode accepted missing controller credentials"
+    fail "automatic Agent binding accepted missing controller credentials"
 fi
+
+INSTALL_KIND=""
+CONFIGURE_AGENT=0
+CONNECT_URL=""
+CONTROLLER_URL=""
+AGENT_TOKEN=""
+parse_args --managed-client --connect 'https://panel.example.com/app/agent/v1/enroll#abcdefghijklmnopqrstuvwxyzABCDEFGH12345678'
+assert_eq "client" "$INSTALL_KIND" "legacy managed-client alias"
+assert_eq 1 "$CONFIGURE_AGENT" "legacy managed-client enables automatic binding"
+
+CONNECT_URL="https://panel.example.com/app/agent/v1/enroll#short"
+if validate_agent_connection >/dev/null; then
+    fail "automatic Agent binding accepted a malformed connection API"
+fi
+CONNECT_URL=""
+
+AGENT_ENV_FILE="$tmp_dir/state/1s-ui-agent"
+AGENT_BINARY="$tmp_dir/state/sui-agent"
+AGENT_UNIT_FILE="$tmp_dir/state/s-ui-agent.service"
+printf '#!/bin/sh\nexit 0\n' >"$AGENT_BINARY"
+chmod +x "$AGENT_BINARY"
+: >"$AGENT_UNIT_FILE"
+: >"$AGENT_ENV_FILE"
+: >"$TEST_COMMAND_LOG"
+export TEST_AGENT_ACTIVE=1
+export TEST_AGENT_ENABLED=1
+capture_agent_service_state
+assert_eq 1 "$AGENT_WAS_ACTIVE" "active Agent state capture"
+assert_eq 1 "$AGENT_WAS_ENABLED" "enabled Agent state capture"
+CONFIGURE_AGENT=0
+START_SERVICE=1
+restore_agent_service_state
+assert_eq "restored" "$AGENT_STATE" "Agent state after upgrade restore"
+grep -q '^systemctl enable s-ui-agent$' "$TEST_COMMAND_LOG" \
+    || fail "upgrade did not restore Agent enablement"
+grep -q '^systemctl start s-ui-agent$' "$TEST_COMMAND_LOG" \
+    || fail "upgrade did not restart an active Agent"
+
+rm -f "$AGENT_ENV_FILE"
+AGENT_WAS_ACTIVE=0
+AGENT_WAS_ENABLED=0
+AGENT_STATE="configured"
+restore_agent_service_state
+assert_eq "installed" "$AGENT_STATE" "fresh Agent remains dormant"
+
+if grep -Eq '请选择 \[1/2/3\]|确认按此方案安装|是否继续修改设置' "$installer"; then
+    fail "default installer still contains SSH setup prompts"
+fi
+if grep -q 'config_after_install' "$installer"; then
+    fail "default installer still calls the legacy SSH configuration flow"
+fi
+if grep -q '默认登录：admin / admin' "$installer"; then
+    fail "installer still advertises a default Web password"
+fi
+grep -q '首次打开面板将在 Web 页面创建管理员账号和密码' "$installer" \
+    || fail "installer does not direct fresh installs to first-run Web setup"
+grep -q 'capture_agent_service_state' "$installer" \
+    || fail "installer does not preserve the Agent service state before upgrade"
+grep -q 'restore_agent_service_state' "$installer" \
+    || fail "installer does not restore or configure Agent after upgrade"
+grep -q '/usr/local/s-ui/db/.controller_mode' "$installer" \
+    || fail "legacy full installs do not preserve controller mode"
+grep -q 'web_xray_enabled' "$installer" \
+    || fail "upgrades do not preserve the Web-managed Xray choice"
+grep -q '99-xray-runtime.conf' "$installer" \
+    || fail "installer does not respect the Web-managed Xray runtime override"
 
 if grep -Eq '^[[:space:]]*swapoff([[:space:]]|$)' "$installer"; then
     fail "installer contains an executable swapoff command"
@@ -269,8 +372,51 @@ if grep -q 'read -r -p "反代域名' "$installer"; then
 fi
 grep -q '^Environment=SUI_SKIP_CORE=false$' "$repo_root/s-ui.service" \
     || fail "release service unit does not start sing-box by default"
+grep -q '^Environment=SUI_API_LISTEN=127.0.0.1$' "$repo_root/s-ui.service" \
+    || fail "release service unit does not bind the API backend to loopback"
+grep -q '^Environment=SUI_API_PORT=2097$' "$repo_root/s-ui.service" \
+    || fail "release service unit does not pin the internal API port"
 grep -q 'setting -listen 127.0.0.1 -domain - -uri -' "$installer" \
     || fail "IP-only reverse proxy setup does not clear stale domain settings"
+grep -q 's-ui-frontend.tar.gz' "$installer" \
+    || fail "installer does not download the independent frontend artifact"
+grep -q 's-ui-frontend.conf' "$installer" \
+    || fail "installer does not keep the frontend gateway in its own nginx file"
+grep -q 's-ui-public.conf' "$installer" \
+    || fail "installer does not keep the public proxy in its own nginx file"
+grep -q 'location = /.well-known/1s-ui/config.js' "$installer" \
+    || fail "frontend gateway does not expose the fixed runtime config path"
+grep -q 'add_header Cache-Control "no-store" always' "$installer" \
+    || fail "frontend runtime config is cacheable"
+grep -q 'rollback_frontend_gateway' "$installer" \
+    || fail "frontend gateway changes have no rollback path"
+
+FRONTEND_LISTEN="127.0.0.1"
+FRONTEND_PORT=3095
+FRONTEND_PATH="/panel/"
+FRONTEND_DOMAIN="panel.example.com"
+validate_frontend_entry || fail "valid persisted frontend entry was rejected"
+FRONTEND_PATH='/bad path/'
+if validate_frontend_entry; then
+    fail "unsafe persisted frontend path was accepted"
+fi
+FRONTEND_PATH="/app/"
+FRONTEND_LISTEN=""
+FRONTEND_PORT=2095
+FRONTEND_DOMAIN=""
+SUBSCRIPTION_PORT=2096
+
+port_in_use() { [[ "$1" -eq 2098 ]]; }
+FRONTEND_PORT=2097
+select_api_port || fail "API port selection failed"
+assert_eq 2099 "$API_PORT" "API port skips frontend and occupied ports"
+FRONTEND_PORT=2095
+SUBSCRIPTION_PORT=2097
+port_in_use() { return 1; }
+select_api_port || fail "API port selection failed with subscription collision"
+assert_eq 2098 "$API_PORT" "API port skips subscription port"
+unset -f port_in_use
+SUBSCRIPTION_PORT=2096
 
 INSTALL_PROXY=0
 PROXY_READY=0

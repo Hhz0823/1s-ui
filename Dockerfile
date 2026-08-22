@@ -1,34 +1,17 @@
-FROM --platform=$BUILDPLATFORM node:alpine AS front-builder
-WORKDIR /app
-COPY frontend/ ./
-RUN npm ci && npm run build
-
 FROM golang:1.26.5-alpine AS backend-builder
-WORKDIR /app
+WORKDIR /src/backend
 ARG TARGETARCH
 ARG TARGETVARIANT
 ENV CGO_ENABLED=1
 ENV CGO_CFLAGS="-D_LARGEFILE64_SOURCE"
 ENV GOARCH=$TARGETARCH
 
-RUN apk update && apk add --no-cache \
-    gcc \
-    musl-dev \
-    libc-dev \
-    make \
-    git \
-    wget \
-    unzip \
-    bash \
-    curl
-
+RUN apk add --no-cache gcc musl-dev libc-dev make git wget unzip bash curl
 ENV CC=gcc
 
 RUN CRONET_ARCH="$TARGETARCH" && \
-    CRONET_URL="https://github.com/SagerNet/cronet-go/releases/latest/download/libcronet-linux-${CRONET_ARCH}.so"; \
-    echo "Downloading $CRONET_URL" && \
-    wget -q -O ./libcronet.so "$CRONET_URL" && \
-    chmod 755 ./libcronet.so
+    CRONET_URL="https://github.com/SagerNet/cronet-go/releases/latest/download/libcronet-linux-${CRONET_ARCH}.so" && \
+    wget -q -O /tmp/libcronet.so "$CRONET_URL" && chmod 755 /tmp/libcronet.so
 
 RUN XRAY_ASSET="" && \
     case "$TARGETARCH/$TARGETVARIANT" in \
@@ -41,31 +24,33 @@ RUN XRAY_ASSET="" && \
       s390x/*) XRAY_ASSET="Xray-linux-s390x.zip" ;; \
     esac && \
     if [ -n "$XRAY_ASSET" ]; then \
-      mkdir -p /app/bin /tmp/xray && \
+      mkdir -p /tmp/s-ui-bin /tmp/xray && \
       wget -q -O /tmp/xray.zip "https://github.com/XTLS/Xray-core/releases/latest/download/${XRAY_ASSET}" && \
       unzip -q /tmp/xray.zip -d /tmp/xray && \
-      cp /tmp/xray/xray /app/bin/xray && \
-      chmod 755 /app/bin/xray && \
-      cp /tmp/xray/geoip.dat /tmp/xray/geosite.dat /app/bin/ && \
-      rm -rf /tmp/xray /tmp/xray.zip; \
+      cp /tmp/xray/xray /tmp/xray/geoip.dat /tmp/xray/geosite.dat /tmp/s-ui-bin/ && \
+      chmod 755 /tmp/s-ui-bin/xray; \
     else \
-      echo "No Xray-core asset mapping for $TARGETARCH/$TARGETVARIANT"; \
+      mkdir -p /tmp/s-ui-bin; \
     fi
 
-COPY . .
-COPY --from=front-builder /app/dist/ /app/web/html/
-
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
+COPY backend/ ./
 RUN if [ "$TARGETARCH" = "arm" ]; then export GOARM=7; [ "$TARGETVARIANT" = "v6" ] && export GOARM=6; fi; \
     go build -ldflags="-w -s" \
-    -tags "with_quic,with_grpc,with_utls,with_acme,with_gvisor,with_naive_outbound,with_purego,with_tailscale" \
-    -o sui main.go
+      -tags "with_quic,with_grpc,with_utls,with_acme,with_gvisor,with_naive_outbound,with_purego,with_tailscale" \
+      -o /tmp/sui . && \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-w -s" -o /tmp/sui-agent ./cmd/sui-agent
 
 FROM alpine
 ENV TZ=Asia/Shanghai
+ENV SUI_API_LISTEN=0.0.0.0
+ENV SUI_API_PORT=2097
 WORKDIR /app
-RUN set -ex && apk add --no-cache --upgrade bash tzdata ca-certificates nftables
-COPY --from=backend-builder /app/sui /app/libcronet.so /app/
-COPY --from=backend-builder /app/bin/ /app/bin/
+RUN apk add --no-cache --upgrade bash tzdata ca-certificates nftables
+COPY --from=backend-builder /tmp/sui /tmp/sui-agent /tmp/libcronet.so /app/
+COPY --from=backend-builder /tmp/s-ui-bin/ /app/bin/
 COPY entrypoint.sh /app/
 RUN chmod +x /app/entrypoint.sh
-ENTRYPOINT [ "./entrypoint.sh" ]
+EXPOSE 2097
+ENTRYPOINT ["./entrypoint.sh"]

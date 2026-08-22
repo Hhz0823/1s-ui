@@ -16,6 +16,7 @@ if ($Help) {
 }
 
 Write-Host "Building S-UI for Windows ($Architecture)..." -ForegroundColor Green
+Set-Location (Resolve-Path (Join-Path $PSScriptRoot ".."))
 
 # Check if Go is installed
 try {
@@ -30,55 +31,6 @@ try {
     Read-Host "Press Enter to exit"
     exit 1
 }
-
-# Check if Node.js is installed
-try {
-    $nodeVersion = node --version 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        throw "Node.js not found"
-    }
-    Write-Host "Node.js version: $nodeVersion" -ForegroundColor Green
-} catch {
-    Write-Host "Error: Node.js is not installed or not in PATH" -ForegroundColor Red
-    Write-Host "Please install Node.js from https://nodejs.org/" -ForegroundColor Yellow
-    Read-Host "Press Enter to exit"
-    exit 1
-}
-
-# Build frontend
-Write-Host "Building frontend..." -ForegroundColor Yellow
-Push-Location frontend
-
-try {
-    Write-Host "Installing dependencies..." -ForegroundColor Cyan
-    npm install
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to install frontend dependencies"
-    }
-
-    Write-Host "Building frontend..." -ForegroundColor Cyan
-    npm run build
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to build frontend"
-    }
-} catch {
-    Write-Host "Error: $_" -ForegroundColor Red
-    Pop-Location
-    Read-Host "Press Enter to exit"
-    exit 1
-}
-
-Pop-Location
-
-# Create web/html directory
-Write-Host "Creating web/html directory..." -ForegroundColor Yellow
-if (!(Test-Path "web\html")) {
-    New-Item -ItemType Directory -Path "web\html" -Force | Out-Null
-}
-
-# Copy frontend build files
-Write-Host "Copying frontend build files..." -ForegroundColor Yellow
-Copy-Item "frontend\dist\*" "web\html\" -Recurse -Force
 
 # Build backend
 Write-Host "Building backend..." -ForegroundColor Yellow
@@ -96,7 +48,7 @@ if ($NoCGO) {
 }
 
 # Build command
-$buildCmd = "go build -ldflags `"-w -s`" -tags `"with_quic,with_grpc,with_utls,with_acme,with_gvisor,with_tailscale`" -o sui.exe main.go"
+$buildCmd = "go -C backend build -ldflags `"-w -s`" -tags `"with_quic,with_grpc,with_utls,with_acme,with_gvisor,with_tailscale`" -o ..\sui.exe ."
 
 try {
     Invoke-Expression $buildCmd

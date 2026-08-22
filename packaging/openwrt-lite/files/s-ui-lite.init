@@ -16,6 +16,8 @@ start_service() {
 	procd_set_param env SUI_DB_FOLDER="$DATA_DIR/db"
 	procd_set_param env SUI_BIN_FOLDER="$BIN_DIR"
 	procd_set_param env SUI_LOG_LEVEL="${SUI_LOG_LEVEL:-warn}"
+	procd_set_param env SUI_API_LISTEN="${SUI_API_LISTEN:-0.0.0.0}"
+	procd_set_param env SUI_API_PORT="${SUI_API_PORT:-2095}"
 	procd_set_param limits nofile="1048576 1048576"
 	procd_set_param respawn 3600 5 5
 	procd_set_param stdout 1

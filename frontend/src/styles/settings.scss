@@ -1787,3 +1787,730 @@ body,
     flex: 1 1 120px;
   }
 }
+
+/* ===== Glass preset refinement ===== */
+.ui-style--glass {
+  --app-new-control-bg: rgba(var(--v-theme-surface), 0.52);
+  --app-new-control-border: rgba(var(--v-theme-on-surface), 0.14);
+  --app-new-control-border-hover: rgba(var(--v-theme-primary), 0.28);
+  --app-new-control-blur: blur(20px) saturate(175%);
+  --app-new-control-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 6px 18px rgba(15, 23, 42, 0.08);
+  --app-dialog-card-bg: rgba(var(--v-theme-surface), 0.76);
+  --app-dialog-card-border: rgba(var(--v-theme-on-surface), 0.16);
+  --app-dialog-card-blur: blur(24px) saturate(180%);
+  --app-dialog-field-bg: rgba(var(--v-theme-surface), 0.48);
+}
+
+.ui-style--glass .app-page .v-card,
+.ui-style--glass .app-page .v-data-table,
+.ui-style--glass .app-page .v-table,
+.ui-style--glass .traffic-card {
+  background: rgba(var(--v-theme-surface), 0.58) !important;
+  border-color: rgba(var(--v-theme-on-surface), 0.14) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 10px 28px rgba(15, 23, 42, 0.1) !important;
+  backdrop-filter: blur(20px) saturate(175%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(175%) !important;
+}
+
+.ui-style--glass .app-bar,
+.ui-style--glass .app-drawer {
+  background: rgba(var(--v-theme-surface), 0.54) !important;
+  border-color: rgba(var(--v-theme-on-surface), 0.13) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 8px 24px rgba(15, 23, 42, 0.08) !important;
+  backdrop-filter: blur(22px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(180%) !important;
+}
+
+.ui-style--glass .page-toolbar,
+.ui-style--glass .traffic-header,
+.ui-style--glass .monitor-controls {
+  padding: 8px 12px !important;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-radius: 8px;
+  background: rgba(var(--v-theme-surface), 0.46);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 6px 18px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+}
+
+.ui-style--glass .v-menu > .v-overlay__content > .v-card,
+.ui-style--glass .v-menu .menu-card,
+.ui-style--glass .v-overlay__content > .v-list {
+  background: rgba(var(--v-theme-surface), 0.72) !important;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.14) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 14px 34px rgba(15, 23, 42, 0.14) !important;
+  backdrop-filter: blur(22px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(180%) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-style--glass .v-card,
+  .ui-style--glass .v-btn,
+  .ui-style--glass .v-field,
+  .ui-style--glass .v-list-item,
+  .ui-style--glass .app-bar,
+  .ui-style--glass .app-drawer {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ===== Liquid Glass Interaction System ===== */
+.ui-style--glass {
+  --glass-surface: rgba(var(--v-theme-surface), 0.46);
+  --glass-surface-strong: rgba(var(--v-theme-surface), 0.68);
+  --glass-surface-soft: rgba(var(--v-theme-surface), 0.34);
+  --glass-edge: rgba(255, 255, 255, 0.34);
+  --glass-edge-muted: rgba(var(--v-theme-on-surface), 0.13);
+  --glass-highlight: rgba(255, 255, 255, 0.3);
+  --glass-primary-glow: rgba(var(--v-theme-primary), 0.16);
+  --glass-blur: blur(24px) saturate(190%) contrast(102%);
+  --glass-blur-strong: blur(32px) saturate(205%) contrast(104%);
+  --glass-button-surface: rgba(var(--v-theme-surface), 0.1);
+  --glass-button-filter: blur(11px) saturate(220%) contrast(106%) brightness(104%);
+  --glass-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    inset 1px 0 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(var(--v-theme-on-surface), 0.05),
+    0 12px 32px rgba(15, 23, 42, 0.1);
+  --glass-shadow-raised:
+    inset 0 1px 0 rgba(255, 255, 255, 0.46),
+    inset 1px 0 0 rgba(255, 255, 255, 0.16),
+    0 18px 42px rgba(15, 23, 42, 0.14),
+    0 2px 8px rgba(var(--v-theme-primary), 0.08);
+  --glass-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --glass-pointer-x: 50%;
+  --glass-pointer-y: 18%;
+}
+
+.ui-style--glass.v-theme--dark,
+.ui-style--glass.v-theme--midnight,
+.ui-style--glass.v-theme--ocean,
+.ui-style--glass.v-theme--forest,
+.ui-style--glass.v-theme--cyberpunk,
+.ui-style--glass.v-theme--nord,
+.ui-style--glass.v-theme--dracula,
+.ui-style--glass.v-theme--graphite {
+  --glass-surface: rgba(var(--v-theme-surface), 0.4);
+  --glass-surface-strong: rgba(var(--v-theme-surface), 0.64);
+  --glass-surface-soft: rgba(var(--v-theme-surface), 0.28);
+  --glass-button-surface: rgba(var(--v-theme-surface), 0.08);
+  --glass-edge: rgba(255, 255, 255, 0.2);
+  --glass-edge-muted: rgba(255, 255, 255, 0.1);
+  --glass-highlight: rgba(255, 255, 255, 0.2);
+  --glass-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    inset 1px 0 0 rgba(255, 255, 255, 0.08),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.14),
+    0 14px 36px rgba(0, 0, 0, 0.24);
+  --glass-shadow-raised:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 1px 0 0 rgba(255, 255, 255, 0.1),
+    0 20px 46px rgba(0, 0, 0, 0.32),
+    0 2px 10px rgba(var(--v-theme-primary), 0.12);
+}
+
+.ui-style--glass.app-root {
+  background: rgba(var(--v-theme-background), 0.42) !important;
+}
+
+.ui-style--glass .app-main {
+  background: transparent !important;
+}
+
+.ui-style--glass .app-bar,
+.ui-style--glass .app-drawer,
+.ui-style--glass .app-page .v-card,
+.ui-style--glass .app-page .v-data-table,
+.ui-style--glass .app-page .v-table,
+.ui-style--glass .traffic-card,
+.ui-style--glass .summary-item,
+.ui-style--glass .monitor-controls,
+.ui-style--glass .page-toolbar,
+.ui-style--glass .v-expansion-panel {
+  background:
+    radial-gradient(
+      260px circle at var(--glass-pointer-x) var(--glass-pointer-y),
+      var(--glass-highlight),
+      transparent 66%
+    ),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.12), transparent 44%, var(--glass-primary-glow)),
+    var(--glass-surface) !important;
+  border-color: var(--glass-edge-muted) !important;
+  box-shadow: var(--glass-shadow) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  background-clip: padding-box !important;
+}
+
+.ui-style--glass .app-page .v-card,
+.ui-style--glass .app-page .v-data-table,
+.ui-style--glass .app-page .v-table,
+.ui-style--glass .traffic-card,
+.ui-style--glass .summary-item,
+.ui-style--glass .v-expansion-panel {
+  transition:
+    border-color 0.28s var(--glass-ease),
+    box-shadow 0.28s var(--glass-ease),
+    background 0.2s linear !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ui-style--glass .app-page .v-card:hover,
+  .ui-style--glass .app-page .v-data-table:hover,
+  .ui-style--glass .traffic-card:hover,
+  .ui-style--glass .summary-item:hover,
+  .ui-style--glass .v-expansion-panel:hover {
+    border-color: rgba(var(--v-theme-primary), 0.26) !important;
+    box-shadow: var(--glass-shadow-raised) !important;
+  }
+}
+
+/* Buttons keep their semantic color as a translucent tint. */
+.ui-style--glass .v-btn {
+  border-color: var(--glass-edge-muted) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 7px 18px rgba(15, 23, 42, 0.09) !important;
+  backdrop-filter: var(--glass-button-filter) !important;
+  -webkit-backdrop-filter: var(--glass-button-filter) !important;
+  transition:
+    transform 0.22s var(--glass-ease),
+    border-color 0.22s ease,
+    box-shadow 0.22s var(--glass-ease),
+    filter 0.22s ease !important;
+}
+
+.ui-style--glass .v-btn.v-btn--variant-elevated,
+.ui-style--glass .v-btn.v-btn--variant-flat {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.16), transparent 48%, rgba(var(--v-theme-primary), 0.08)),
+    var(--glass-button-surface) !important;
+}
+
+.ui-style--glass .v-btn.bg-primary {
+  color: rgb(var(--v-theme-primary)) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.22), transparent 46%, rgba(var(--v-theme-primary), 0.16)),
+    rgba(var(--v-theme-primary), 0.12) !important;
+}
+
+.ui-style--glass .v-btn.bg-secondary {
+  color: rgb(var(--v-theme-secondary)) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.2), transparent 48%),
+    rgba(var(--v-theme-secondary), 0.11) !important;
+}
+
+.ui-style--glass .v-btn.bg-success {
+  color: rgb(var(--v-theme-success)) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.2), transparent 48%),
+    rgba(var(--v-theme-success), 0.11) !important;
+}
+
+.ui-style--glass .v-btn.bg-warning {
+  color: rgb(var(--v-theme-warning)) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.2), transparent 48%),
+    rgba(var(--v-theme-warning), 0.11) !important;
+}
+
+.ui-style--glass .v-btn.bg-error {
+  color: rgb(var(--v-theme-error)) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.2), transparent 48%),
+    rgba(var(--v-theme-error), 0.11) !important;
+}
+
+.ui-style--glass .v-btn.bg-info {
+  color: rgb(var(--v-theme-info)) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.2), transparent 48%),
+    rgba(var(--v-theme-info), 0.11) !important;
+}
+
+.ui-style--glass .v-btn.v-btn--variant-tonal,
+.ui-style--glass .v-btn.v-btn--variant-outlined,
+.ui-style--glass .v-btn.v-btn--variant-text,
+.ui-style--glass .v-btn.v-btn--variant-plain {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.14), transparent 48%, rgba(var(--v-theme-primary), 0.07)),
+    var(--glass-button-surface) !important;
+}
+
+.ui-style--glass .v-btn::after {
+  content: '' !important;
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 0;
+  border-radius: inherit !important;
+  background: radial-gradient(
+    92px circle at var(--glass-pointer-x) var(--glass-pointer-y),
+    rgba(255, 255, 255, 0.38),
+    rgba(255, 255, 255, 0.1) 34%,
+    transparent 72%
+  ) !important;
+  opacity: 0;
+  transform: none !important;
+  transition: opacity 0.2s ease !important;
+  pointer-events: none;
+}
+
+.ui-style--glass .v-btn .v-btn__overlay,
+.ui-style--glass .v-btn .v-btn__underlay {
+  opacity: 0 !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ui-style--glass .v-btn:not(.v-btn--disabled):hover {
+    transform: translateY(-1px) !important;
+    border-color: rgba(var(--v-theme-primary), 0.34) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.42),
+      0 12px 26px rgba(15, 23, 42, 0.13),
+      0 2px 8px rgba(var(--v-theme-primary), 0.12) !important;
+    filter: saturate(1.08) drop-shadow(0 5px 9px rgba(15, 23, 42, 0.1));
+  }
+
+  .ui-style--glass .v-btn:not(.v-btn--disabled):hover::after {
+    opacity: 0.78;
+  }
+}
+
+.ui-style--glass .v-btn:not(.v-btn--disabled):active {
+  transform: translateY(0) scale(0.975) !important;
+  box-shadow:
+    inset 0 2px 5px rgba(var(--v-theme-on-surface), 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 3px 9px rgba(15, 23, 42, 0.08) !important;
+  transition-duration: 0.08s !important;
+}
+
+.ui-style--glass .v-btn:focus-visible {
+  outline: 0;
+  box-shadow:
+    0 0 0 3px rgba(var(--v-theme-primary), 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    0 10px 24px rgba(15, 23, 42, 0.12) !important;
+}
+
+/* Native option buttons use the same independent optical edge as Vuetify buttons. */
+.ui-style--glass .ui-choice-button,
+.ui-style--glass .theme-chip {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid var(--glass-edge-muted) !important;
+  border-radius: var(--app-control-radius, 10px) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.16), transparent 48%, rgba(var(--v-theme-primary), 0.08)),
+    var(--glass-button-surface) !important;
+  background-clip: padding-box !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 6px 16px rgba(15, 23, 42, 0.08) !important;
+  backdrop-filter: var(--glass-button-filter) !important;
+  -webkit-backdrop-filter: var(--glass-button-filter) !important;
+  clip-path: inset(0 round var(--app-control-radius, 10px));
+  transition:
+    transform 0.22s var(--glass-ease),
+    color 0.18s ease,
+    border-color 0.22s ease,
+    box-shadow 0.22s var(--glass-ease),
+    background 0.18s linear !important;
+}
+
+.ui-style--glass .ui-choice-button::before,
+.ui-style--glass .theme-chip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(
+    96px circle at var(--glass-pointer-x) var(--glass-pointer-y),
+    rgba(255, 255, 255, 0.4),
+    rgba(255, 255, 255, 0.1) 34%,
+    transparent 72%
+  );
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.ui-style--glass .ui-choice-button.is-active,
+.ui-style--glass .theme-chip--active {
+  color: rgb(var(--v-theme-primary)) !important;
+  border-color: rgba(var(--v-theme-primary), 0.38) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.22), transparent 46%, rgba(var(--v-theme-primary), 0.15)),
+    rgba(var(--v-theme-primary), 0.11) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.42),
+    0 8px 20px rgba(var(--v-theme-primary), 0.14) !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ui-style--glass .ui-choice-button:hover,
+  .ui-style--glass .theme-chip:hover {
+    transform: translateY(-1px);
+    border-color: rgba(var(--v-theme-primary), 0.34) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.44),
+      0 10px 22px rgba(15, 23, 42, 0.12),
+      0 2px 8px rgba(var(--v-theme-primary), 0.1) !important;
+  }
+
+  .ui-style--glass .ui-choice-button:hover::before,
+  .ui-style--glass .theme-chip:hover::before {
+    opacity: 0.82;
+  }
+}
+
+.ui-style--glass .ui-choice-button:active,
+.ui-style--glass .theme-chip:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.ui-style--glass .ui-choice-button:focus-visible,
+.ui-style--glass .theme-chip:focus-visible {
+  outline: 0;
+  box-shadow:
+    0 0 0 3px rgba(var(--v-theme-primary), 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    0 8px 20px rgba(15, 23, 42, 0.1) !important;
+}
+
+/* Inputs use the same optical edge without moving under the pointer. */
+.ui-style--glass .v-field {
+  background:
+    radial-gradient(
+      180px circle at var(--glass-pointer-x) var(--glass-pointer-y),
+      rgba(255, 255, 255, 0.26),
+      transparent 70%
+    ),
+    linear-gradient(150deg, rgba(255, 255, 255, 0.1), transparent 55%),
+    var(--glass-surface-soft) !important;
+  border-color: var(--glass-edge-muted) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 5px 16px rgba(15, 23, 42, 0.06) !important;
+  backdrop-filter: blur(18px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
+  transition: border-color 0.22s ease, box-shadow 0.22s var(--glass-ease), background 0.18s linear !important;
+}
+
+.ui-style--glass .v-field:hover {
+  border-color: rgba(var(--v-theme-primary), 0.28) !important;
+}
+
+.ui-style--glass .v-field--focused {
+  border-color: rgba(var(--v-theme-primary), 0.5) !important;
+  box-shadow:
+    0 0 0 3px rgba(var(--v-theme-primary), 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 10px 24px rgba(var(--v-theme-primary), 0.1) !important;
+}
+
+/* Drawer groups and second-level navigation share the same fluid response. */
+.ui-style--glass .app-drawer .menu-item,
+.ui-style--glass .top-menu-item {
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transition:
+    transform 0.22s var(--glass-ease),
+    color 0.18s ease,
+    border-color 0.2s ease,
+    background 0.2s linear,
+    box-shadow 0.22s var(--glass-ease) !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .ui-style--glass .app-drawer .menu-item:hover,
+  .ui-style--glass .top-menu-item:hover {
+    transform: translateX(3px) !important;
+    border-color: rgba(var(--v-theme-primary), 0.18) !important;
+    background:
+      radial-gradient(120px circle at var(--glass-pointer-x) var(--glass-pointer-y), rgba(255, 255, 255, 0.3), transparent 70%),
+      rgba(var(--v-theme-primary), 0.08) !important;
+  }
+}
+
+.ui-style--glass .app-drawer .menu-item--active,
+.ui-style--glass .top-menu-item--active,
+.ui-style--glass .v-tab--selected {
+  color: rgb(var(--v-theme-primary)) !important;
+  border-color: rgba(var(--v-theme-primary), 0.26) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.2), transparent 52%),
+    rgba(var(--v-theme-primary), 0.13) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 6px 16px rgba(var(--v-theme-primary), 0.1) !important;
+}
+
+.ui-style--glass .app-drawer .menu-icon-wrap {
+  transition: transform 0.24s var(--glass-ease), background 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.ui-style--glass .app-drawer .menu-item:hover .menu-icon-wrap,
+.ui-style--glass .app-drawer .menu-item--active .menu-icon-wrap {
+  transform: scale(1.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+.ui-style--glass .group-label {
+  color: rgba(var(--v-theme-on-surface), 0.54);
+}
+
+.ui-style--glass .v-btn-toggle,
+.ui-style--glass .v-tabs {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Each toggle item keeps its own glass boundary; the group only arranges them. */
+.ui-style--glass .ui-choice-group {
+  gap: 7px;
+  padding: 2px;
+  overflow: visible;
+}
+
+.ui-style--glass .ui-choice-field,
+.ui-style--glass .ui-range-field {
+  background: rgba(var(--v-theme-surface), 0.16) !important;
+  border-color: var(--glass-edge-muted) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 6px 18px rgba(15, 23, 42, 0.06) !important;
+  backdrop-filter: blur(9px) saturate(175%) !important;
+  -webkit-backdrop-filter: blur(9px) saturate(175%) !important;
+}
+
+.ui-style--glass .v-btn-toggle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px;
+  width: fit-content;
+  max-width: 100%;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+.ui-style--glass .v-tabs .v-slide-group__content {
+  gap: 6px;
+  padding: 2px;
+}
+
+.ui-style--glass .v-tabs .v-tab {
+  flex: 0 0 auto;
+  border: 1px solid var(--glass-edge-muted) !important;
+  border-radius: var(--app-control-radius, 10px) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.14), transparent 50%, rgba(var(--v-theme-primary), 0.07)),
+    var(--glass-button-surface) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 5px 14px rgba(15, 23, 42, 0.06) !important;
+  clip-path: inset(0 round var(--app-control-radius, 10px));
+}
+
+.ui-style--glass .v-btn-toggle > .v-btn,
+.ui-style--glass .v-btn-toggle > .v-btn:first-child,
+.ui-style--glass .v-btn-toggle > .v-btn:last-child,
+.ui-style--glass .v-btn-toggle > .v-btn:only-child {
+  --app-current-radius: var(--app-control-radius, 10px);
+  margin: 0 !important;
+  border: 1px solid var(--glass-edge-muted) !important;
+  border-radius: var(--app-current-radius) !important;
+  clip-path: inset(0 round var(--app-current-radius));
+}
+
+.ui-style--glass .role-profile-toggle {
+  flex: 1 1 auto;
+}
+
+.ui-style--glass .role-profile-toggle > .v-btn {
+  flex: 1 1 150px;
+}
+
+@media (max-width: 600px) {
+  .ui-style--glass .role-profile-toggle {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+}
+
+.ui-style--glass .v-expansion-panel--active {
+  border-color: rgba(var(--v-theme-primary), 0.28) !important;
+  box-shadow: var(--glass-shadow-raised) !important;
+}
+
+.ui-style--glass .v-expansion-panel-title {
+  transition: color 0.2s ease, background 0.22s linear !important;
+}
+
+.ui-style--glass .v-expansion-panel-title:hover,
+.ui-style--glass .v-expansion-panel--active > .v-expansion-panel-title {
+  color: rgb(var(--v-theme-primary));
+  background: rgba(var(--v-theme-primary), 0.07) !important;
+}
+
+.ui-style--glass .v-expansion-panel--active .v-expansion-panel-text__wrapper {
+  animation: liquid-section-reveal 0.34s var(--glass-ease) both;
+}
+
+/* Teleported dropdowns use body.ui-style--glass as their style scope. */
+body.ui-style--glass .v-menu > .v-overlay__content,
+body.ui-style--glass .v-select__content,
+body.ui-style--glass .v-autocomplete__content,
+body.ui-style--glass .v-combobox__content {
+  transform-origin: top center;
+  animation: liquid-menu-in 0.26s var(--glass-ease) both !important;
+}
+
+body.ui-style--glass .v-menu > .v-overlay__content > .v-card,
+body.ui-style--glass .v-menu > .v-overlay__content > .v-list,
+body.ui-style--glass .v-select__content > .v-list,
+body.ui-style--glass .v-autocomplete__content > .v-list,
+body.ui-style--glass .v-combobox__content > .v-list {
+  background:
+    radial-gradient(220px circle at var(--glass-pointer-x) var(--glass-pointer-y), rgba(255, 255, 255, 0.3), transparent 68%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.14), transparent 52%, rgba(var(--v-theme-primary), 0.08)),
+    var(--glass-surface-strong) !important;
+  border: 1px solid var(--glass-edge-muted) !important;
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    0 20px 48px rgba(15, 23, 42, 0.18),
+    0 4px 12px rgba(var(--v-theme-primary), 0.08) !important;
+  backdrop-filter: var(--glass-blur-strong) !important;
+  -webkit-backdrop-filter: var(--glass-blur-strong) !important;
+}
+
+body.ui-style--glass .v-overlay__content .v-list-item {
+  border: 1px solid transparent;
+  transition: transform 0.2s var(--glass-ease), background 0.18s linear, border-color 0.18s ease !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  body.ui-style--glass .v-overlay__content .v-list-item:hover {
+    transform: translateX(3px);
+    border-color: rgba(var(--v-theme-primary), 0.18);
+    background:
+      radial-gradient(130px circle at var(--glass-pointer-x) var(--glass-pointer-y), rgba(255, 255, 255, 0.32), transparent 72%),
+      rgba(var(--v-theme-primary), 0.08) !important;
+  }
+}
+
+body.ui-style--glass .v-overlay__content .v-list-item--active {
+  border-color: rgba(var(--v-theme-primary), 0.24);
+  background: rgba(var(--v-theme-primary), 0.13) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22) !important;
+}
+
+/* Dialogs are full secondary pages with a deeper focal plane. */
+body.ui-style--glass .v-dialog > .v-overlay__scrim {
+  background: rgba(10, 16, 28, 0.2) !important;
+  backdrop-filter: blur(11px) saturate(125%) !important;
+  -webkit-backdrop-filter: blur(11px) saturate(125%) !important;
+}
+
+body.ui-style--glass .v-dialog > .v-overlay__content {
+  animation: liquid-dialog-in 0.36s var(--glass-ease) both !important;
+}
+
+body.ui-style--glass .v-dialog > .v-overlay__content > .v-card {
+  background:
+    radial-gradient(360px circle at var(--glass-pointer-x) var(--glass-pointer-y), rgba(255, 255, 255, 0.3), transparent 68%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.16), transparent 46%, rgba(var(--v-theme-primary), 0.08)),
+    var(--glass-surface-strong) !important;
+  border: 1px solid var(--glass-edge-muted) !important;
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    inset 1px 0 0 rgba(255, 255, 255, 0.12),
+    0 28px 70px rgba(15, 23, 42, 0.24),
+    0 6px 18px rgba(var(--v-theme-primary), 0.08) !important;
+  backdrop-filter: var(--glass-blur-strong) !important;
+  -webkit-backdrop-filter: var(--glass-blur-strong) !important;
+}
+
+body.ui-style--glass .v-dialog > .v-overlay__content > .v-card > .v-card-title {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(var(--v-theme-surface), 0.12)) !important;
+  border-bottom: 1px solid var(--glass-edge-muted);
+  backdrop-filter: blur(18px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(180%) !important;
+}
+
+body.ui-style--glass .v-dialog > .v-overlay__content > .v-card > .v-card-text {
+  background: rgba(var(--v-theme-surface), 0.08) !important;
+}
+
+body.ui-style--glass .v-dialog > .v-overlay__content > .v-card > .v-card-actions {
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+  background: rgba(var(--v-theme-surface), 0.12) !important;
+}
+
+body.ui-style--glass .v-dialog > .v-overlay__content > .v-card > .v-card-actions .v-btn:not(.v-btn--icon) {
+  border: 1px solid var(--glass-edge-muted) !important;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.14), transparent 54%, rgba(var(--v-theme-primary), 0.07)),
+    var(--glass-button-surface) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 5px 14px rgba(15, 23, 42, 0.08) !important;
+  backdrop-filter: blur(14px) saturate(175%) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(175%) !important;
+}
+
+.ui-style--glass .app-page--route-enter {
+  animation: liquid-page-in 0.34s var(--glass-ease) both;
+}
+
+.ui-style--glass .v-window-item {
+  animation: liquid-section-reveal 0.34s var(--glass-ease) both;
+}
+
+@keyframes liquid-menu-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.96); filter: blur(5px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+@keyframes liquid-dialog-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.965); filter: blur(7px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+@keyframes liquid-page-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.992); filter: blur(5px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+@keyframes liquid-section-reveal {
+  from { opacity: 0; transform: translateY(7px); filter: blur(3px); }
+  to { opacity: 1; transform: translateY(0); filter: blur(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-style--glass .app-page--route-enter,
+  .ui-style--glass .v-window-item,
+  .ui-style--glass .v-expansion-panel-text__wrapper,
+  body.ui-style--glass .v-menu > .v-overlay__content,
+  body.ui-style--glass .v-select__content,
+  body.ui-style--glass .v-autocomplete__content,
+  body.ui-style--glass .v-combobox__content,
+  body.ui-style--glass .v-dialog > .v-overlay__content {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    filter: none !important;
+  }
+
+  .ui-style--glass .v-btn,
+  .ui-style--glass .v-list-item,
+  .ui-style--glass .v-tab,
+  .ui-style--glass .menu-item {
+    transition: none !important;
+    transform: none !important;
+  }
+}

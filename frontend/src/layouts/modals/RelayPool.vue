@@ -217,6 +217,7 @@ import HttpUtils from '@/plugins/httputil'
 import Data from '@/store/modules/data'
 import { i18n } from '@/locales'
 import { copyText } from '@/utils/clipboard'
+import { backendBaseUrl, backendFetch, downloadBackendFile } from '@/utils/backend'
 
 interface IPv6Item { interface: string; address: string; prefix: number }
 interface RelayItem { listen_port: number; username: string; password: string; ipv6?: string; protocol?: string; export?: string }
@@ -244,7 +245,7 @@ const pools = ref<RelayPool[]>([])
 const capabilities = ref<RelayCapabilities | null>(null)
 const isRemote = computed(() => Number.isInteger(props.agentId) && Number(props.agentId) > 0)
 const form = reactive({
-  name: '', public_host: window.location.hostname, port_start: 30000, count: 10,
+  name: '', public_host: new URL(backendBaseUrl()).hostname, port_start: 30000, count: 10,
   username_prefix: 'relay', password_length: 12, interface: '', base_ipv6: '', prefix: 64,
   ipv6_text: '', upstream_text: '', add_system_addresses: true, protocol: 'socks',
   transport: 'http', tls_id: 0, domain_strategy: 'ipv6_only', shadowsocks_method: '2022-blake3-aes-256-gcm',
@@ -295,9 +296,7 @@ const loadData = async () => {
   try {
     let data: any
     if (isRemote.value) {
-      const response = await fetch(`api/agents/${props.agentId}/relay`, {
-        credentials: 'include', headers: { 'X-Requested-With': 'XMLHttpRequest' },
-      })
+      const response = await backendFetch(`api/agents/${props.agentId}/relay`)
       const msg = await response.json()
       if (!response.ok || !msg.success) throw new Error(msg.msg || response.statusText)
       data = msg.obj
@@ -354,9 +353,9 @@ const create = async (mode: 'ipv6' | 'upstream', quick = false) => {
     payload.upstream_text = form.upstream_text
     delete payload.ipv6_text
     const endpoint = isRemote.value ? `api/agents/${props.agentId}/relay/create` : 'api/relay/create'
-    const response = await fetch(endpoint, {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    const response = await backendFetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
     let msg: any
@@ -410,21 +409,8 @@ const downloadBitBrowser = async (pool: RelayPool) => {
     const endpoint = isRemote.value
       ? `api/agents/${props.agentId}/relay/${pool.id}/bitbrowser.xlsx`
       : `api/relay/${pool.id}/bitbrowser.xlsx`
-    const response = await fetch(endpoint, {
-      credentials: 'include',
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
-    })
-    if (!response.ok) throw new Error((await response.text()).trim() || i18n.global.t('relay.exportBitBrowserFailed'))
-    const blob = await response.blob()
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
     const safeName = (pool.name || `relay-${pool.id}`).replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || `relay-${pool.id}`
-    link.href = url
-    link.download = `1s-ui-bitbrowser-${safeName}.xlsx`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
+    await downloadBackendFile(endpoint, `1s-ui-bitbrowser-${safeName}.xlsx`)
     push.success({ message: i18n.global.t('relay.exportBitBrowserReady') })
   } catch (error: any) {
     push.error({ message: error?.message || i18n.global.t('relay.exportBitBrowserFailed') })
@@ -449,7 +435,7 @@ const remove = async (id: number) => {
     const endpoint = isRemote.value
       ? `api/agents/${props.agentId}/relay/${id}/delete`
       : `api/relay/${id}/delete`
-    const response = await fetch(endpoint, { method: 'POST', credentials: 'include', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    const response = await backendFetch(endpoint, { method: 'POST' })
     let msg: any
     try { msg = await response.json() } catch { msg = { success: false, msg: i18n.global.t('relay.invalidResponse') } }
     if (msg.success) {

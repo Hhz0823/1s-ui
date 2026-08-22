@@ -6,6 +6,22 @@ import { Inbound } from '@/types/inbounds'
 import { Client } from '@/types/clients'
 
 let pendingLoadData: Promise<void> | null = null
+let pendingControllerMode: Promise<boolean> | null = null
+
+const emptyControllerMode = () => ({
+  profile: 'client',
+  enabled: false,
+  monitor_only: false,
+  can_control: true,
+  configured: 'auto',
+  inherited: false,
+  can_enable: false,
+  agent_count: 0,
+  cpu_cores: 0,
+  memory_bytes: 0,
+  min_cpu_cores: 2,
+  min_memory_bytes: 2 * 1024 ** 3,
+})
 
 const Data = defineStore('Data', {
   state: () => ({ 
@@ -22,6 +38,8 @@ const Data = defineStore('Data', {
     clients: <any>[],
     tlsConfigs: <any[]>[],
     hostRequirements: <any>null,
+    controllerMode: <any>emptyControllerMode(),
+    controllerModeLoaded: false,
     lastCoreLog: "",
   }),
   getters: {
@@ -34,6 +52,35 @@ const Data = defineStore('Data', {
     },
   },
   actions: {
+    assignControllerMode(value: any) {
+      const raw = value || {}
+      const profile = ['client', 'full', 'monitor'].includes(raw.profile)
+        ? raw.profile
+        : raw.monitor_only ? 'monitor' : raw.enabled ? 'full' : 'client'
+      this.controllerMode = {
+        ...emptyControllerMode(),
+        ...raw,
+        profile,
+        enabled: raw.enabled ?? profile !== 'client',
+        monitor_only: raw.monitor_only ?? profile === 'monitor',
+        can_control: raw.can_control ?? profile !== 'monitor',
+      }
+      this.controllerModeLoaded = true
+    },
+    async loadControllerMode(force = false): Promise<boolean> {
+      if (this.controllerModeLoaded && !force) return true
+      if (pendingControllerMode) return pendingControllerMode
+      pendingControllerMode = (async () => {
+        const msg = await HttpUtils.get('api/controller-mode')
+        if (msg.success && msg.obj) this.assignControllerMode(msg.obj)
+        return msg.success
+      })()
+      try {
+        return await pendingControllerMode
+      } finally {
+        pendingControllerMode = null
+      }
+    },
     async loadData() {
       if (pendingLoadData) return pendingLoadData
       pendingLoadData = (async () => {

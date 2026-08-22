@@ -55,8 +55,9 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version-file: backend/go.mod
           cache: true
 
       - name: Scan reachable Go vulnerabilities
+        working-directory: backend
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...

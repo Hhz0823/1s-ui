@@ -141,6 +141,7 @@ import InboundVue from '@/layouts/modals/Inbound.vue'
 import RelayPool from '@/layouts/modals/RelayPool.vue'
 import RandomUtil from '@/plugins/randomUtil'
 import { CoreTypes } from '@/types/inbounds'
+import { fetchBackendObject as api } from '@/utils/backend'
 
 const route = useRoute()
 const router = useRouter()
@@ -169,22 +170,6 @@ const quickAdd = reactive({
   obfs_password: '',
   handshake_server: 'www.microsoft.com',
 })
-
-const apiURL = (path: string) => {
-  const base = (document.querySelector('base')?.getAttribute('href') || (window as any).BASE_URL || '/').replace(/\/?$/, '/')
-  return `${base}${path.replace(/^\//, '')}`
-}
-
-const api = async (path: string, options?: RequestInit) => {
-  const response = await fetch(apiURL(path), {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...(options?.headers || {}) },
-    ...options,
-  })
-  const result = await response.json()
-  if (!response.ok || !result.success) throw new Error(result.msg || response.statusText)
-  return result.obj
-}
 
 const connectionHost = computed(() => {
   if (node.value?.public_host) return node.value.public_host

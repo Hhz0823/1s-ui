@@ -88,6 +88,7 @@
 import { computed } from 'vue'
 import router from '@/router'
 import { logout } from '@/plugins/httputil'
+import Data from '@/store/modules/data'
 
 const props = defineProps(['isMobile', 'displayDrawer', 'expanded'])
 const emit = defineEmits(['toggleDrawer', 'closeDrawer'])
@@ -99,11 +100,12 @@ const showDrawer = computed({
   },
 })
 
-const menuGroups = [
+const allMenuGroups = [
   {
     label: 'menu.group.overview',
     items: [
       { title: 'pages.home', icon: 'mdi-view-dashboard-outline', path: '/' },
+      { title: 'pages.portTraffic', icon: 'mdi-chart-timeline-variant', path: '/port-traffic' },
     ],
   },
   {
@@ -139,6 +141,13 @@ const menuGroups = [
     ],
   },
 ]
+const monitorPaths = new Set(['/', '/agents', '/admins', '/settings'])
+const menuGroups = computed(() => {
+  if (Data().controllerMode.profile !== 'monitor') return allMenuGroups
+  return allMenuGroups
+    .map(group => ({ ...group, items: group.items.filter(item => monitorPaths.has(item.path)) }))
+    .filter(group => group.items.length)
+})
 
 const Logout = async () => {
   logout()

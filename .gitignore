@@ -4,8 +4,10 @@ release/
 backup/
 bin/
 db/
-sui
-web/html
+/sui
+/sui-agent
+backend/bin/
+backend/db/
 main
 tmp
 .sync*

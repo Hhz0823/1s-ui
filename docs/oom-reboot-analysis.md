@@ -18,7 +18,7 @@
 | Agent 二进制 | ~6.6MB（相对小） |
 | 发布构建 tags | `with_gvisor,with_tailscale,with_naive_outbound,with_musl,with_quic,...`（见 `.github/workflows/release.yml`） |
 | OpenWrt Lite | ~20–22MB 包，tags 更精简（无 tailscale/naive/gvisor 全家桶） |
-| CLI 与面板同二进制 | `main.go` 同时 import `app` + `cmd`，`sui migrate` 也会加载全量代码 |
+| CLI 与后端同二进制 | `backend/main.go` 同时 import `app` + `cmd`，`sui migrate` 也会加载全量代码 |
 
 ## 3. 根因排序（按影响）
 
@@ -49,7 +49,7 @@
 
 每次都是 **完整链接了 sing-box + gvisor + tailscale + naive/cronet + CGO sqlite** 的进程。
 
-更关键的是：`cmd/migration.MigrateDb()` 在 **全新安装（无数据库文件）时直接 return**，却仍要：
+更关键的是：`backend/cmd/migration.MigrateDb()` 在 **全新安装（无数据库文件）时直接 return**，却仍要：
 
 - 启动 90MB 进程
 - 完成 Go runtime / 包初始化
@@ -143,7 +143,8 @@ page cache 可回收，但与 Go RSS 重叠时仍会推高瞬时压力。
 | `GOMEMLIMIT` | 中 | 限制堆增长，不限制代码段/CGO/映射 |
 | 自动 Swap | 高（若成功） | 可能失败或自身有代价 |
 | 保留已有 Swap + 独立补充文件 | 高 | 必须同时检查磁盘余量与 cgroup 限额 |
-| 默认不装 Xray/反代 | 高 | 需保证脚本真正执行到 |
+| 默认不装 Xray/反代 | 高 | 低配显式 `--with-xray` 或设置页安装后必须保持 Xray 按需启动 |
+| 低配单内核运行 | 高 | 物理/cgroup 有效内存低于 1.5GiB 时，sing-box 与 Xray 只能二选一运行 |
 | 懒加载 NewCore | 低–中 | 结构上 import 仍在 |
 | 去掉 MemoryMax | 正确 | 硬上限曾导致颠簸更像死机 |
 
@@ -153,9 +154,10 @@ page cache 可回收，但与 Go RSS 重叠时仍会推高瞬时压力。
 
 1. **新鲜安装：禁止调用 `sui migrate` / 尽量不调用 `sui admin`**
    - 无 DB 时 migrate 本就是空操作
-   - 默认账号由 `InitDB` 创建 `admin/admin`
-2. **选择性解压**：只取 `sui` + `s-ui.service` + `s-ui.sh`，不落盘 agent
+   - 首次管理员改由浏览器一次性初始化，不创建默认账号
+2. **统一基础包**：面板和 Agent 文件一起落盘，Agent 未绑定时保持禁用、不产生常驻进程
 3. **升级安装**：仅在已有 DB 时 migrate **一次**
+4. **双内核运行保护**：低于 1.5GiB 时，启动 Xray 前停止 sing-box；停止、禁用 Xray 或删除最后一个 Xray 入站后恢复 sing-box；启动失败自动回滚
 4. **启动前内存门闩**：`MemAvailable + SwapFree` 过低则中止并提示，避免硬刚
 5. 安装结束 **不要** 再跑 `sui uri`（又一次 90MB）
 6. **永不执行 `swapoff`**：只新增 `/var/lib/s-ui/swapfile*`，失败时不改系统原有 Swap
@@ -173,7 +175,8 @@ page cache 可回收，但与 Go RSS 重叠时仍会推高瞬时压力。
 ### 产品策略（已澄清）
 
 - **普通面板**：无硬性 2c2G  
-- **集群控制面（服务器监控）**：硬性要求 2c2G；安装脚本与 Agent API 均不可绕过
+- **集群控制面（服务器监控）**：默认关闭，需在 Web 设置中显式开启；硬性要求 2c2G，安装脚本与 Agent API 均不可绕过
+- **受管客户端**：只主动连接主面板，不开放 Agent 控制入口；解绑不会删除本机 Web、入站或代理配置
 
 ## 7. 复现与验证清单
 

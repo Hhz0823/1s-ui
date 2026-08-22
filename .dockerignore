@@ -5,7 +5,9 @@ backup/
 bin/
 db/
 sui
-web/html
+sui-agent
+backend/bin/
+backend/db/
 main
 tmp
 .sync*

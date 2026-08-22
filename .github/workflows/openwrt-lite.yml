@@ -13,39 +13,11 @@ permissions:
   contents: write
 
 env:
-  NODE_VERSION: "25"
   BOOTLIN_BASE_URL: https://toolchains.bootlin.com/downloads/releases/toolchains
 
 jobs:
-  build-frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - name: 检出仓库
-        uses: actions/checkout@v6.0.2
-
-      - name: 设置 Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: 构建 OpenWrt Lite 前端
-        run: |
-          cd frontend
-          npm ci
-          VITE_OPENWRT_LITE=true npm run build
-
-      - name: 上传前端构建产物
-        uses: actions/upload-artifact@v7
-        with:
-          name: openwrt-lite-frontend
-          path: frontend/dist/
-          retention-days: 1
-
   build-openwrt-lite:
     name: 构建-${{ matrix.openwrt }}
-    needs: build-frontend
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -67,17 +39,11 @@ jobs:
       - name: 检出仓库
         uses: actions/checkout@v6.0.2
 
-      - name: 下载前端构建产物
-        uses: actions/download-artifact@v8
-        with:
-          name: openwrt-lite-frontend
-          path: web/html
-
       - name: 设置 Go
         uses: actions/setup-go@v6
         with:
           cache: false
-          go-version-file: go.mod
+          go-version-file: backend/go.mod
 
       - name: 设置 Bootlin musl 工具链
         run: |
@@ -105,7 +71,7 @@ jobs:
           fi
 
       - name: 构建 OpenWrt Lite ipk
-        run: SKIP_FRONTEND=1 scripts/build-openwrt-lite.sh ${{ matrix.openwrt }}
+        run: scripts/build-openwrt-lite.sh ${{ matrix.openwrt }}
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v7

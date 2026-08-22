@@ -3,7 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
 
 // Utilities
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import { fileURLToPath, URL } from 'node:url'
 import { randomBytes } from 'crypto'
 import postcss from 'postcss'
@@ -40,51 +40,64 @@ function preserveStandardBackdropFilter(): Plugin {
   }
 }
 
-export default defineConfig({
-  base: '',
-  plugins: [
-    vue({
-      template: { transformAssetUrls },
-    }),
-    vuetify({
-      autoImport: true,
-      styles: {
-        configFile: 'src/styles/settings.scss',
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const proxyTarget = env.VITE_DEV_PROXY_TARGET?.trim() || 'http://127.0.0.1:2097'
+
+  return {
+    base: './',
+    plugins: [
+      vue({
+        template: { transformAssetUrls },
+      }),
+      vuetify({
+        autoImport: true,
+        styles: {
+          configFile: 'src/styles/settings.scss',
+        },
+      }),
+      preserveStandardBackdropFilter(),
+    ],
+    build: {
+      manifest: false,
+      outDir: 'dist',
+      chunkSizeWarningLimit: 2000,
+      rollupOptions: {
+        output: {
+          codeSplitting: false,
+          entryFileNames: getUniqueFileName('assets/[name].js'),
+          chunkFileNames: getUniqueFileName('assets/[name].js'),
+          assetFileNames: (assetInfo) => {
+            if (assetInfo.names.some(name => name.endsWith('.css')))
+              return getUniqueFileName('assets/[name].css')
+            return 'assets/' + assetInfo.names[0]
+          },
+        },
       },
-    }),
-    preserveStandardBackdropFilter(),
-  ],
-  build: {
-    manifest: false,
-    outDir: 'dist',
-    chunkSizeWarningLimit: 2000,
-    rollupOptions: {
-      output: {
-        codeSplitting: false,
-        entryFileNames: getUniqueFileName('assets/[name].js'),
-        chunkFileNames: getUniqueFileName('assets/[name].js'),
-        assetFileNames: (assetInfo) => {
-          if (assetInfo.names.some(name => name.endsWith('.css')))
-            return getUniqueFileName('assets/[name].css')
-          return 'assets/' + assetInfo.names[0]
+    },
+    define: { 'process.env': {} },
+    resolve: {
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url)),
+      },
+      extensions: ['.js', '.json', '.jsx', '.mjs', '.ts', '.tsx', '.vue'],
+    },
+    server: {
+      port: 3000,
+      proxy: {
+		'/api': {
+		  target: proxyTarget,
+		  ws: true,
+		},
+		'/apiv2': {
+		  target: proxyTarget,
+		  ws: true,
+		},
+		'/agent/v1': {
+		  target: proxyTarget,
+		  ws: true,
         },
       },
     }
-  },
-  define: { 'process.env': {} },
-  resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-    },
-    extensions: ['.js', '.json', '.jsx', '.mjs', '.ts', '.tsx', '.vue'],
-  },
-  server: {
-    port: 3000,
-    proxy: {
-      '/app/api': {
-        target: 'http://localhost:2095',
-        changeOrigin: true,
-      },
-    },
   }
 })

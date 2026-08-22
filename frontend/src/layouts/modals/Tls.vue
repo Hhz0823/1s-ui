@@ -364,6 +364,7 @@ import HttpUtils from '@/plugins/httputil'
 import { push } from 'notivue'
 import { i18n } from '@/locales'
 import RandomUtil from '@/plugins/randomUtil'
+import { backendFetch } from '@/utils/backend'
 export default {
   props: ['visible', 'data', 'id'],
   emits: ['close', 'save'],
@@ -465,11 +466,10 @@ export default {
       return { serverName: addr.includes(':') ? addr : addr + ':443' }
     },
     async fetchPinnedSha256(payload: Record<string, string>): Promise<string[]> {
-      const resp = await fetch('api/pinnedSha256', {
+      const resp = await backendFetch('api/pinnedSha256', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        credentials: 'include',
       })
       const msg = await resp.json()
       if (msg.success && msg.obj && msg.obj.length > 0) return msg.obj

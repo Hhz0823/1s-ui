@@ -45,6 +45,9 @@
 
 <script lang="ts">
 import HttpUtils from '@/plugins/httputil'
+import { push } from 'notivue'
+import { i18n } from '@/locales'
+import { downloadBackendFile } from '@/utils/backend'
 export default {
   props: ['control', 'visible'],
   data() {
@@ -54,15 +57,22 @@ export default {
     }
   },
   methods: {
-    backup() {
+    async backup() {
       const excludeOption = this.exclude.length>0 ? '?exclude=' +this.exclude.join(',') : ''
-      window.location.href = 'api/getdb' + excludeOption
+      await this.download('api/getdb' + excludeOption, '1s-ui-backup.db')
     },
-    config() {
-      window.location.href = 'api/singbox-config'
+    async config() {
+      await this.download('api/singbox-config', 'sing-box-config.json')
     },
-    xrayConfig() {
-      window.location.href = 'api/xray-config'
+    async xrayConfig() {
+      await this.download('api/xray-config', 'xray-config.json')
+    },
+    async download(path: string, fallbackName: string) {
+      try {
+        await downloadBackendFile(path, fallbackName)
+      } catch (error: any) {
+        push.error({ message: error?.message || i18n.global.t('failed') })
+      }
     },
     restore() {
       const fileInput = document.createElement('input')

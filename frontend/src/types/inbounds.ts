@@ -63,6 +63,8 @@ interface InboundBasics extends Listen {
   type: InType
   tag: string
   tls_id: number
+  upload_limit?: number
+  download_limit?: number
   addrs?: Addr[]
   out_json?: any
 }
@@ -311,6 +313,8 @@ const defaultValues: Record<InType, Inbound> = {
 export function createInbound<T extends Inbound>(type: InType,json?: Partial<T>, host = location.hostname): Inbound {
   const defaultObject: Inbound = { ...defaultValues[type] ?? {}, ...(json ?? {}) }
   defaultObject.core_type = defaultObject.core_type || CoreTypes.SingBox
+  defaultObject.upload_limit = Number(defaultObject.upload_limit || 0)
+  defaultObject.download_limit = Number(defaultObject.download_limit || 0)
   if (defaultObject.core_type == CoreTypes.Xray && [InTypes.VLESS, InTypes.VMess, InTypes.Trojan, InTypes.Hysteria2].includes(type)) {
     const inbound = <any>defaultObject
     if (!inbound.transport || Object.keys(inbound.transport).length == 0) {

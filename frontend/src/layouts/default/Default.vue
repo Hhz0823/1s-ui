@@ -48,6 +48,7 @@ import Drawer from './Drawer.vue'
 import DefaultView from './View.vue'
 import { useDisplay } from 'vuetify'
 import bgAsset from '@/assets/bg.jpg'
+import Data from '@/store/modules/data'
 
 const { smAndDown } = useDisplay()
 const drawerOpen = ref(false)
@@ -90,6 +91,30 @@ const readUiPrefs = () => ({
   uiDensity: normalizeUiChoice(localStorage.getItem('uiDensity'), 'comfortable', ['comfortable', 'compact']),
 })
 const uiPrefs = ref(readUiPrefs())
+let glassPointerFrame = 0
+let glassPointerTarget: HTMLElement | null = null
+let glassPointerX = 0
+let glassPointerY = 0
+
+const updateGlassPointer = (event: PointerEvent) => {
+  if (!document.body.classList.contains('ui-style--glass')) return
+  const target = (event.target as Element | null)?.closest<HTMLElement>(
+    '.v-btn, .ui-choice-button, .theme-chip, .v-card, .v-field, .v-list-item, .v-expansion-panel, .v-tab, .menu-card, .app-drawer, .app-bar',
+  )
+  if (!target) return
+  glassPointerTarget = target
+  glassPointerX = event.clientX
+  glassPointerY = event.clientY
+  if (glassPointerFrame) return
+  glassPointerFrame = window.requestAnimationFrame(() => {
+    glassPointerFrame = 0
+    if (!glassPointerTarget?.isConnected) return
+    const rect = glassPointerTarget.getBoundingClientRect()
+    glassPointerTarget.style.setProperty('--glass-pointer-x', `${Math.max(0, Math.min(rect.width, glassPointerX - rect.left))}px`)
+    glassPointerTarget.style.setProperty('--glass-pointer-y', `${Math.max(0, Math.min(rect.height, glassPointerY - rect.top))}px`)
+  })
+}
+
 const refreshUiPrefs = () => {
   uiPrefs.value = readUiPrefs()
 }
@@ -108,10 +133,13 @@ const syncDocumentUiClasses = () => {
 onMounted(() => {
   window.addEventListener(uiPreferenceEvent, refreshUiPrefs)
   window.addEventListener('storage', refreshUiPrefs)
+  document.addEventListener('pointermove', updateGlassPointer, { passive: true })
 })
 onBeforeUnmount(() => {
   window.removeEventListener(uiPreferenceEvent, refreshUiPrefs)
   window.removeEventListener('storage', refreshUiPrefs)
+  document.removeEventListener('pointermove', updateGlassPointer)
+  if (glassPointerFrame) window.cancelAnimationFrame(glassPointerFrame)
   document.body.classList.remove(...documentUiClasses)
 })
 
@@ -135,8 +163,9 @@ watch([smAndDown, menuPosition], ([mobile, position]) => {
   drawerOpen.value = !mobile && position !== 'top'
 }, { immediate: true })
 
-const menuItems = [
+const allMenuItems = [
   { title: 'pages.home', icon: 'mdi-view-dashboard-outline', path: '/' },
+  { title: 'pages.portTraffic', icon: 'mdi-chart-timeline-variant', path: '/port-traffic' },
   { title: 'pages.inbounds', icon: 'mdi-arrow-down-bold-circle-outline', path: '/inbounds' },
   { title: 'pages.clients', icon: 'mdi-account-group-outline', path: '/clients' },
   { title: 'pages.outbounds', icon: 'mdi-arrow-up-bold-circle-outline', path: '/outbounds' },
@@ -146,9 +175,14 @@ const menuItems = [
   { title: 'pages.basics', icon: 'mdi-tune-variant', path: '/basics' },
   { title: 'pages.rules', icon: 'mdi-routes', path: '/rules' },
   { title: 'pages.dns', icon: 'mdi-dns-outline', path: '/dns' },
+  { title: 'pages.agents', icon: 'mdi-server-network', path: '/agents' },
   { title: 'pages.admins', icon: 'mdi-account-tie-outline', path: '/admins' },
   { title: 'pages.settings', icon: 'mdi-cog-outline', path: '/settings' },
 ]
+const monitorPaths = new Set(['/', '/agents', '/admins', '/settings'])
+const menuItems = computed(() => Data().controllerMode.profile === 'monitor'
+  ? allMenuItems.filter(item => monitorPaths.has(item.path))
+  : allMenuItems)
 </script>
 
 <style>

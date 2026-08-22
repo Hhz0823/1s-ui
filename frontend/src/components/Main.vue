@@ -201,20 +201,33 @@
                 <v-row class="home-info-grid">
                   <v-col cols="4">{{ $t('main.info.running') }}</v-col>
                   <v-col cols="8">
-                    <v-chip density="compact" color="success" variant="flat" v-if="tilesData.xry?.running">{{ $t('main.info.runningYes') }}</v-chip>
-                    <v-chip density="compact" color="warning" variant="flat" v-else-if="tilesData.xry?.has_inbounds === false">未配置</v-chip>
+                    <v-chip density="compact" color="warning" variant="flat" v-if="tilesData.xry?.disabled">{{ $t('setting.xrayDisabled') }}</v-chip>
+                    <v-chip density="compact" color="success" variant="flat" v-else-if="tilesData.xry?.running">{{ $t('main.info.runningYes') }}</v-chip>
+                    <v-chip density="compact" color="warning" variant="flat" v-else-if="tilesData.xry?.has_inbounds === false">{{ $t('setting.xrayNotConfigured') }}</v-chip>
                     <v-chip density="compact" color="error" variant="flat" v-else>{{ $t('main.info.runningNo') }}</v-chip>
-                    <v-chip density="compact" color="transparent" v-if="tilesData.xry?.has_inbounds === false" style="cursor: pointer;" @click="goXrayInbound()">
+                    <v-chip density="compact" color="transparent" v-if="tilesData.xry?.disabled" style="cursor: pointer;" @click="goXraySettings()">
                       <v-tooltip activator="parent" location="top">
-                        添加 Xray 入站
+                        {{ $t('setting.xrayEnable') }}
+                      </v-tooltip>
+                      <v-icon icon="mdi-cog-outline" color="primary" />
+                    </v-chip>
+                    <v-chip density="compact" color="transparent" v-else-if="tilesData.xry?.has_inbounds === false" style="cursor: pointer;" @click="goXrayInbound()">
+                      <v-tooltip activator="parent" location="top">
+                        {{ $t('setting.xrayAddInbound') }}
                       </v-tooltip>
                       <v-icon icon="mdi-plus-circle" color="primary" />
                     </v-chip>
                     <v-chip density="compact" color="transparent" v-else-if="!loading" style="cursor: pointer;" @click="restartXray()">
                       <v-tooltip activator="parent" location="top">
-                        {{ $t('actions.restartXray') }}
+                        {{ tilesData.xry?.running ? $t('actions.restartXray') : $t('setting.xrayStart') }}
                       </v-tooltip>
-                      <v-icon icon="mdi-restart" color="warning" />
+                      <v-icon :icon="tilesData.xry?.running ? 'mdi-restart' : 'mdi-play-circle-outline'" :color="tilesData.xry?.running ? 'warning' : 'success'" />
+                    </v-chip>
+                    <v-chip density="compact" color="transparent" v-if="tilesData.xry?.running && !loading" style="cursor: pointer;" @click="stopXray()">
+                      <v-tooltip activator="parent" location="top">
+                        {{ $t('setting.xrayStop') }}
+                      </v-tooltip>
+                      <v-icon icon="mdi-stop-circle-outline" color="error" />
                     </v-chip>
                   </v-col>
                   <v-col cols="4">{{ $t('main.info.uptime') }}</v-col>
@@ -386,9 +399,17 @@ const restartSingbox = async () => {
 }
 
 const restartXray = async () => {
+  if (tilesData.value.xry?.disabled) {
+    await goXraySettings()
+    return
+  }
   if (tilesData.value.xry?.has_inbounds === false) {
     await goXrayInbound()
     return
+  }
+  if (!tilesData.value.xry?.running && tilesData.value.xry?.exclusive_run) {
+    const confirmed = window.confirm(i18n.global.t('setting.xrayStartExclusiveConfirm'))
+    if (!confirmed) return
   }
   loading.value = true
   await HttpUtils.post('api/restartXray',{})
@@ -396,8 +417,19 @@ const restartXray = async () => {
   loading.value = false
 }
 
+const stopXray = async () => {
+  loading.value = true
+  await HttpUtils.post('api/stopXray', {})
+  await reloadData()
+  loading.value = false
+}
+
 const goXrayInbound = async () => {
   await router.push('/inbounds')
+}
+
+const goXraySettings = async () => {
+  await router.push('/settings')
 }
 
 const shortPath = (path?: string) => path ? path.split(/[\\/]/).pop() || path : '-'

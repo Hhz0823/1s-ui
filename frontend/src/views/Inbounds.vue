@@ -324,6 +324,7 @@ import RandomUtil from '@/plugins/randomUtil'
 import { i18n } from '@/locales'
 import { push } from 'notivue'
 import RelayPool from '@/layouts/modals/RelayPool.vue'
+import { backendFetch } from '@/utils/backend'
 
 const isOpenWrtLite = import.meta.env.VITE_OPENWRT_LITE === 'true'
 
@@ -604,11 +605,10 @@ const needsTls = ['vmess', 'vless', 'trojan', 'hysteria2', 'tuic', 'naive', 'any
 
 const pinnedSha256FromCertificate = async (certificate: string[]): Promise<string[]> => {
   try {
-    const resp = await fetch('api/pinnedSha256', {
+    const resp = await backendFetch('api/pinnedSha256', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cert: certificate.join('\n') }),
-      credentials: 'include',
     })
     const msg = await resp.json()
     if (msg.success && Array.isArray(msg.obj)) return msg.obj
@@ -836,7 +836,7 @@ const createQuickNode = async () => {
       const client = { enable: true, name: clientName, config: protoConfig, inbounds: [], links: [], volume: 0, expiry: 0, up: 0, down: 0, desc: '', group: '' }
       const clientBody = new URLSearchParams({ object: 'clients', action: 'new', data: JSON.stringify(client) })
       try {
-        const clientResp = await fetch('api/save', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: clientBody.toString(), credentials: 'include' })
+        const clientResp = await backendFetch('api/save', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: clientBody.toString() })
         const clientMsg = await clientResp.json()
         const savedClient = clientMsg.success && clientMsg.obj?.clients?.find((c: any) => c.name === clientName)
         if (savedClient?.id) initUsers = [savedClient.id]

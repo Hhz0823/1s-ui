@@ -3,16 +3,16 @@
 
 <head>
   <meta charset="UTF-8" />
-  <base href="{{ .BASE_URL }}" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script vite-ignore src="/.well-known/1s-ui/config.js"></script>
   <script>
-    window.BASE_URL = "{{ .BASE_URL }}"
-
-    // Dev Mode
-    if (window.BASE_URL.charAt(0) === '{') window.BASE_URL = "/app/"
-    document.querySelector('base').setAttribute('href', window.BASE_URL)
+    const configuredPath = (window.__SUI_CONFIG__ && window.__SUI_CONFIG__.basePath) || '/'
+    const pathname = new URL(configuredPath || '/', window.location.origin).pathname
+    const base = document.createElement('base')
+    base.href = pathname === '/' ? '/' : `/${pathname.split('/').filter(Boolean).join('/')}/`
+    document.head.appendChild(base)
   </script>
-  <link rel="icon" href="assets/favicon.ico" />
+  <link rel="icon" href="./assets/favicon.ico" />
   <title>1S-UI</title>
 </head>
 
