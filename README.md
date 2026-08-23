@@ -25,19 +25,23 @@
 
 ## 页面截图
 
-截图来自默认实色主题，不包含账号密码、Token、证书私钥、真实服务器 IP 或节点密钥。
+截图来自 `v1.6.0-boost` 默认液态玻璃主题。服务器、域名、地址和指标均为演示数据，不包含账号密码、Token、证书私钥、真实服务器 IP 或节点密钥。
 
 | 服务器群控 Server Fleet | 节点实时指标 Live Metrics |
 | --- | --- |
-| ![Server agents](docs/screenshots/agents.png) | ![Agent live metrics](docs/screenshots/agent-detail.png) |
+| ![Liquid glass server fleet](docs/screenshots/agents-glass.jpg) | ![Liquid glass agent metrics](docs/screenshots/agent-detail-glass.jpg) |
 
-| 远程入站 Remote Inbounds | 接入主控 Connect Controller |
+| 远程入站 Remote Inbounds | 用户流量排行 User Traffic |
 | --- | --- |
-| ![Managed client inbounds](docs/screenshots/agent-inbounds.png) | ![Connect a child server](docs/screenshots/controller-connect.png) |
+| ![Liquid glass managed inbounds](docs/screenshots/agent-inbounds-glass.jpg) | ![Liquid glass user traffic ranking](docs/screenshots/user-traffic-glass.jpg) |
 
-| 首次 Web 向导 First-run Guide | 本机入站 Inbounds |
+| 本机入站 Local Inbounds | 界面自定义 Appearance |
 | --- | --- |
-| ![1S-UI first-run guide](docs/screenshots/onboarding.png) | ![1S-UI inbounds](docs/screenshots/inbounds.png) |
+| ![Liquid glass local inbounds](docs/screenshots/inbounds-glass.jpg) | ![Liquid glass appearance settings](docs/screenshots/interface-glass.jpg) |
+
+| 液态玻璃主页 Glass Home | 接入主控 Connect Controller |
+| --- | --- |
+| ![1S-UI liquid glass home](docs/screenshots/dashboard-glass.jpg) | ![Connect a child server](docs/screenshots/controller-connect-glass.jpg) |
 
 ---
 
