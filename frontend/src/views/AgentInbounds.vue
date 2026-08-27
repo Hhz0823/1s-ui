@@ -1,7 +1,7 @@
 <template>
   <v-dialog v-model="quickAdd.visible" width="min(560px, calc(100vw - 24px))" scrollable>
     <v-card class="remote-quick-dialog">
-      <v-card-title class="text-center">{{ $t('pages.quickAddNode') }}</v-card-title>
+      <v-card-title class="justify-center text-center">{{ $t('pages.quickAddNode') }}</v-card-title>
       <v-divider />
       <v-card-text>
         <v-row>
@@ -41,11 +41,16 @@
           <v-col v-if="quickAdd.protocol === 'shadowtls'" cols="12">
             <v-text-field v-model="quickAdd.handshake_server" :label="$t('types.shdwTls.hs')" hide-details />
           </v-col>
+          <NaiveQuickAdd
+            v-if="quickAdd.protocol === 'naive'"
+            :data="quickAdd.naive"
+            :tls-configs="tlsConfigs"
+          />
         </v-row>
       </v-card-text>
       <v-divider />
-      <v-card-actions class="justify-center">
-        <v-btn color="secondary" variant="tonal" prepend-icon="mdi-ip-network" @click="quickAdd.visible = false; relayModal.visible = true">{{ $t('relay.batchCreate') }}</v-btn>
+      <v-card-actions class="quick-add-dialog-actions justify-center">
+        <v-btn class="quick-add-relay-action" color="secondary" variant="tonal" prepend-icon="mdi-ip-network" @click="quickAdd.visible = false; relayModal.visible = true">{{ $t('relay.batchCreate') }}</v-btn>
         <v-btn variant="outlined" @click="quickAdd.visible = false">{{ $t('actions.close') }}</v-btn>
         <v-btn color="primary" variant="tonal" :loading="quickAdd.loading" @click="createQuickNodes">{{ $t('actions.save') }}</v-btn>
       </v-card-actions>
@@ -142,6 +147,8 @@ import RelayPool from '@/layouts/modals/RelayPool.vue'
 import RandomUtil from '@/plugins/randomUtil'
 import { CoreTypes } from '@/types/inbounds'
 import { fetchBackendObject as api } from '@/utils/backend'
+import NaiveQuickAdd from '@/components/NaiveQuickAdd.vue'
+import { createNaiveQuickAddOptions, normalizeNaiveServer, parseNaiveExtraHeaders } from '@/types/naive'
 
 const route = useRoute()
 const router = useRouter()
@@ -169,6 +176,7 @@ const quickAdd = reactive({
   method: '2022-blake3-aes-256-gcm',
   obfs_password: '',
   handshake_server: 'www.microsoft.com',
+  naive: createNaiveQuickAddOptions(''),
 })
 
 const connectionHost = computed(() => {
@@ -179,6 +187,7 @@ const connectionHost = computed(() => {
 })
 const capabilities = computed(() => new Set<string>(node.value?.report?.panel?.capabilities || []))
 const supportsQuickAdd = computed(() => Boolean(node.value?.managed) && capabilities.value.has('inbounds.quick_add.v1'))
+const supportsNaiveQuickAdd = computed(() => capabilities.value.has('inbounds.quick_add.naive.v1'))
 const supportsRelay = computed(() => Boolean(node.value?.managed) && capabilities.value.has('relay.v1'))
 const xrayAvailable = computed(() => Boolean(node.value?.report?.cores?.xray_version))
 const coreOptions = computed(() => {
@@ -186,7 +195,7 @@ const coreOptions = computed(() => {
   if (xrayAvailable.value) values.push({ title: 'Xray-core', value: CoreTypes.Xray })
   return values
 })
-const singBoxProtocolOptions = [
+const singBoxProtocolItems = [
   { title: 'Mixed', value: 'mixed' }, { title: 'SOCKS', value: 'socks' }, { title: 'HTTP', value: 'http' },
   { title: 'Shadowsocks', value: 'shadowsocks' }, { title: 'VMess', value: 'vmess' }, { title: 'Trojan', value: 'trojan' },
   { title: 'VLESS', value: 'vless' }, { title: 'Hysteria2', value: 'hysteria2' }, { title: 'ShadowTLS', value: 'shadowtls' },
@@ -198,7 +207,9 @@ const xrayProtocolOptions = [
   { title: 'Shadowsocks', value: 'shadowsocks' }, { title: 'SOCKS', value: 'socks' }, { title: 'HTTP', value: 'http' },
   { title: 'Mixed', value: 'mixed' }, { title: 'Hysteria2', value: 'hysteria2' }, { title: 'Dokodemo-door', value: 'dokodemo-door' },
 ]
-const protocolOptions = computed(() => quickAdd.core_type === CoreTypes.Xray ? xrayProtocolOptions : singBoxProtocolOptions)
+const protocolOptions = computed(() => quickAdd.core_type === CoreTypes.Xray
+  ? xrayProtocolOptions
+  : singBoxProtocolItems.filter(item => item.value !== 'naive' || supportsNaiveQuickAdd.value))
 const shadowsocksMethods = [
   'aes-128-gcm', 'aes-192-gcm', 'aes-256-gcm', 'chacha20-ietf-poly1305', 'xchacha20-ietf-poly1305',
   '2022-blake3-aes-128-gcm', '2022-blake3-aes-256-gcm', '2022-blake3-chacha20-poly1305',
@@ -292,6 +303,11 @@ const regenerateQuickAdd = () => {
   quickAdd.port = RandomUtil.randomIntRange(10000, 60000)
   quickAdd.tag = `${quickAdd.protocol}-${quickAdd.port}`
   quickAdd.obfs_password = RandomUtil.randomShadowsocksPassword(16)
+  if (quickAdd.protocol === 'naive') {
+    quickAdd.naive.username = 'naive-' + RandomUtil.randomSeq(6)
+    quickAdd.naive.password = RandomUtil.randomShadowsocksPassword(32)
+    quickAdd.naive.server = connectionHost.value
+  }
 }
 const openQuickAdd = () => {
   if (!supportsQuickAdd.value) return
@@ -307,6 +323,20 @@ const createQuickNodes = async () => {
     push.error({ message: `${i18n.global.t('in.port')}: 1-65535` })
     return
   }
+  let naiveExtraHeaders: Record<string, string> = {}
+  if (quickAdd.protocol === 'naive') {
+    try {
+      quickAdd.naive.server = normalizeNaiveServer(quickAdd.naive.server || connectionHost.value)
+      naiveExtraHeaders = parseNaiveExtraHeaders(quickAdd.naive.extra_headers_text)
+    } catch {
+      push.error({ message: i18n.global.t('types.naive.invalidOptions') })
+      return
+    }
+    if (!quickAdd.naive.username.trim() || !quickAdd.naive.password) {
+      push.error({ message: i18n.global.t('types.naive.identityRequired') })
+      return
+    }
+  }
   quickAdd.loading = true
   try {
     const result = await api(`api/agents/${nodeId}/inbounds/quick-add`, {
@@ -320,6 +350,15 @@ const createQuickNodes = async () => {
         method: quickAdd.method,
         obfs_password: quickAdd.obfs_password,
         handshake_server: quickAdd.handshake_server,
+        password: quickAdd.protocol === 'naive' ? quickAdd.naive.password : undefined,
+        naive_username: quickAdd.naive.username,
+        naive_server: quickAdd.naive.server,
+        naive_mode: quickAdd.naive.mode,
+        naive_tls_id: quickAdd.naive.tls_id,
+        naive_extra_headers: naiveExtraHeaders,
+        naive_udp_over_tcp: quickAdd.naive.udp_over_tcp,
+        naive_insecure_concurrency: quickAdd.naive.insecure_concurrency,
+        naive_quic_congestion_control: quickAdd.naive.quic_congestion_control,
         expected_revision: revision.value,
       }),
     })

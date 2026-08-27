@@ -27,7 +27,7 @@ func TestCompareVersions(t *testing.T) {
 
 func TestVersionCheckReadsStableRelease(t *testing.T) {
 	server := httptest.NewServer(httpHandlerFunc(func() string {
-		return `{"tag_name":"v1.6.1","html_url":"https://github.com/Hhz0823/1s-ui/releases/tag/v1.6.1","published_at":"2026-08-08T00:00:00Z","assets":[{"name":"s-ui-linux-amd64.tar.gz","browser_download_url":"https://example.test/s-ui-linux-amd64.tar.gz","size":123}]}`
+		return `{"tag_name":"v1.6.2","html_url":"https://github.com/Hhz0823/1s-ui/releases/tag/v1.6.2","published_at":"2026-08-08T00:00:00Z","assets":[{"name":"s-ui-linux-amd64.tar.gz","browser_download_url":"https://example.test/s-ui-linux-amd64.tar.gz","size":123}]}`
 	}))
 	defer server.Close()
 	oldURL, oldClient := panelReleaseAPIURL, panelHTTPClient
@@ -39,7 +39,7 @@ func TestVersionCheckReadsStableRelease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Current != "1.6.0-boost" || info.Latest != "1.6.1" {
+	if info.Current != "1.6.1" || info.Latest != "1.6.2" {
 		t.Fatalf("unexpected versions: %#v", info)
 	}
 	if !info.UpdateAvailable {

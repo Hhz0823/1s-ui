@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Hhz0823/1s-ui/util/common"
+	"golang.org/x/net/http/httpguts"
 )
 
 func GetOutbound(uri string, i int) (*map[string]interface{}, string, error) {
@@ -478,26 +479,47 @@ func parseNaiveLink(u *url.URL, i int) (*map[string]interface{}, string, error) 
 			tls["server_name"] = peer
 		}
 	}
-	if insecure := query.Get("insecure"); insecure == "1" || insecure == "true" {
-		if tls, ok := naive["tls"].(map[string]interface{}); ok {
-			tls["insecure"] = true
-		}
-	}
-	if alpn := query.Get("alpn"); alpn != "" {
-		if tls, ok := naive["tls"].(map[string]interface{}); ok {
-			tls["alpn"] = strings.Split(alpn, ",")
-		}
-	}
-	if pcs := query.Get("pcs"); pcs != "" {
-		if tls, ok := naive["tls"].(map[string]interface{}); ok {
-			tls["pinned_peer_certificate_sha256"] = []string{pcs}
-		}
-	}
 	if u.Scheme == "naive+quic" {
 		naive["quic"] = true
 	}
+	if extraHeaders := query.Get("extra-headers"); extraHeaders != "" {
+		headers := map[string]string{}
+		for _, line := range strings.Split(strings.ReplaceAll(extraHeaders, "\r\n", "\n"), "\n") {
+			separator := strings.Index(line, ":")
+			if separator <= 0 {
+				continue
+			}
+			name := strings.TrimSpace(line[:separator])
+			value := strings.TrimSpace(line[separator+1:])
+			if validNaiveExtraHeader(name, value) {
+				headers[name] = value
+			}
+			if len(headers) >= 32 {
+				break
+			}
+		}
+		if len(headers) > 0 {
+			naive["extra_headers"] = headers
+		}
+	}
 
 	return &naive, tag, nil
+}
+
+func isReservedNaiveHeader(name string) bool {
+	switch strings.ToLower(name) {
+	case "proxy-authorization", "padding", "content-length", "transfer-encoding", "connection":
+		return true
+	default:
+		return false
+	}
+}
+
+func validNaiveExtraHeader(name, value string) bool {
+	return httpguts.ValidHeaderFieldName(name) &&
+		httpguts.ValidHeaderFieldValue(value) &&
+		value != "" && len(value) <= 4096 &&
+		!isReservedNaiveHeader(name)
 }
 
 func getTransport(tp_type string, q *url.Values) map[string]interface{} {

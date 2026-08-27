@@ -119,6 +119,42 @@ func repairClientLinksForInboundTags(tx *gorm.DB, tags map[string]string) error 
 	return nil
 }
 
+func naiveV2rayNLinkRepairNeeded(tx *gorm.DB, inboundID uint, tag string) (bool, error) {
+	var clientIDs []uint
+	if err := tx.Raw("SELECT clients.id FROM clients, json_each(clients.inbounds) AS je WHERE je.value = ?", inboundID).Scan(&clientIDs).Error; err != nil {
+		return false, err
+	}
+	if len(clientIDs) == 0 {
+		return false, nil
+	}
+	var clients []model.Client
+	if err := tx.Where("id IN ?", clientIDs).Find(&clients).Error; err != nil {
+		return false, err
+	}
+	for index := range clients {
+		var links []map[string]string
+		if err := json.Unmarshal(clients[index].Links, &links); err != nil {
+			return true, nil
+		}
+		foundV2rayN := false
+		foundLegacy := false
+		for _, link := range links {
+			if link["type"] != "local" || link["remark"] != tag {
+				continue
+			}
+			if strings.HasPrefix(link["uri"], "v2rayn://naive/") {
+				foundV2rayN = true
+			} else {
+				foundLegacy = true
+			}
+		}
+		if !foundV2rayN || foundLegacy {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (s *ConfigService) RepairGeneratedTLSPins() (int, error) {
 	repaired := 0
 	err := database.GetDB().Transaction(func(tx *gorm.DB) error {
@@ -154,9 +190,26 @@ func (s *ConfigService) RepairGeneratedTLSPins() (int, error) {
 					if err = tx.Model(&model.Inbound{}).Where("id = ?", inbounds[inboundIndex].Id).UpdateColumn("out_json", updated).Error; err != nil {
 						return err
 					}
+					inbounds[inboundIndex].OutJson = updated
 					recordChanged = true
 				}
 				inboundTags[inbounds[inboundIndex].Tag] = pinHex
+				if inbounds[inboundIndex].Type == "naive" && util.CertIsSelfSigned(util.CertPEMFromTLS(mapFromRaw(tlsConfigs[index].Server))) {
+					var addrs []map[string]interface{}
+					if json.Unmarshal(inbounds[inboundIndex].Addrs, &addrs) == nil && len(addrs) > 0 {
+						needsRepair, repairErr := naiveV2rayNLinkRepairNeeded(tx, inbounds[inboundIndex].Id, inbounds[inboundIndex].Tag)
+						if repairErr != nil {
+							return repairErr
+						}
+						if needsRepair {
+							inbounds[inboundIndex].Tls = &tlsConfigs[index]
+							if repairErr = (&ClientService{}).UpdateLinksByInboundChange(tx, &[]model.Inbound{inbounds[inboundIndex]}, "", ""); repairErr != nil {
+								return repairErr
+							}
+							recordChanged = true
+						}
+					}
+				}
 			}
 			if recordChanged {
 				repaired++
@@ -165,4 +218,10 @@ func (s *ConfigService) RepairGeneratedTLSPins() (int, error) {
 		return repairClientLinksForInboundTags(tx, inboundTags)
 	})
 	return repaired, err
+}
+
+func mapFromRaw(raw json.RawMessage) map[string]interface{} {
+	value := map[string]interface{}{}
+	_ = json.Unmarshal(raw, &value)
+	return value
 }

@@ -1,14 +1,57 @@
 package util
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
+	"math/big"
+	"net"
 	"os"
 	"strings"
+	"time"
 )
+
+func GenerateSelfSignedTLS(serverName string, now, expire time.Time) ([]byte, []byte, error) {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, err
+	}
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
+	if err != nil {
+		return nil, nil, err
+	}
+	serverName = strings.Trim(strings.TrimSpace(serverName), "[]")
+	template := &x509.Certificate{
+		SerialNumber:          serial,
+		NotBefore:             now.Add(-time.Hour),
+		NotAfter:              expire,
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		Subject:               pkix.Name{CommonName: serverName},
+	}
+	if ip := net.ParseIP(serverName); ip != nil {
+		template.IPAddresses = []net.IP{ip}
+	} else {
+		template.DNSNames = []string{serverName}
+	}
+	certificateDER, err := x509.CreateCertificate(rand.Reader, template, template, key.Public(), key)
+	if err != nil {
+		return nil, nil, err
+	}
+	privateDER, err := x509.MarshalPKCS8PrivateKey(key)
+	if err != nil {
+		return nil, nil, err
+	}
+	privatePEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privateDER})
+	certificatePEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certificateDER})
+	return privatePEM, certificatePEM, nil
+}
 
 func CertPEMFromTLS(tlsConfig map[string]interface{}) string {
 	if tlsConfig == nil {

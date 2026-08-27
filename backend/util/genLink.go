@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"sort"
 	"strings"
 
 	"github.com/Hhz0823/1s-ui/database/model"
@@ -20,6 +21,12 @@ type LinkParam struct {
 	Key   string
 	Value string
 }
+
+const (
+	v2rayNNaiveConfigType = 12
+	v2rayNSingBoxCoreType = 24
+	v2rayNConfigVersion   = 4
+)
 
 func removeLinkParam(params []LinkParam, key string) []LinkParam {
 	filtered := params[:0]
@@ -135,7 +142,11 @@ func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname stri
 	case "shadowsocks":
 		return shadowsocksLink(userConfig, *inbound, Addrs)
 	case "naive":
-		return naiveLink(userConfig["naive"], *inbound, Addrs)
+		v2rayNLinks := naiveV2rayNLinks(userConfig["naive"], *inbound, Addrs)
+		if naiveRequiresEmbeddedCertificate(Addrs) && len(v2rayNLinks) > 0 {
+			return v2rayNLinks
+		}
+		return append(v2rayNLinks, naiveLink(userConfig["naive"], *inbound, Addrs)...)
 	case "hysteria":
 		return hysteriaLink(userConfig["hysteria"], *inbound, Addrs)
 	case "hysteria2":
@@ -168,6 +179,11 @@ func prepareTls(t *model.Tls) map[string]interface{} {
 		if pin := CertSha256Hex(CertPEMFromTLS(iTls)); pin != "" {
 			oTls["pinSHA256"] = pin
 		}
+	}
+	if certificate := CertPEMFromTLS(iTls); certificate != "" {
+		// Public certificate only. v2rayN's Naive importer needs the PEM to
+		// validate generated certificates without disabling TLS verification.
+		oTls["certificate"] = certificate
 	}
 
 	for k, v := range iTls {
@@ -259,7 +275,19 @@ func naiveLink(
 	password, _ := userConfig["password"].(string)
 	username, _ := userConfig["username"].(string)
 
-	baseUri := "naive+https://"
+	outboundOptions := naiveOutboundOptions(inbound)
+	schemes := []string{"naive+https://"}
+	network, _ := inbound["network"].(string)
+	if network == "udp" {
+		schemes = []string{"naive+quic://"}
+	} else if network == "" {
+		if quic, _ := outboundOptions["quic"].(bool); quic {
+			schemes = []string{"naive+quic://"}
+		} else {
+			schemes = []string{"naive+https://", "naive+quic://"}
+		}
+	}
+	extraHeaders := naiveExtraHeadersForLink(outboundOptions["extra_headers"])
 	var links []string
 
 	for _, addr := range addrs {
@@ -267,7 +295,10 @@ func naiveLink(
 		if tls, ok := addr["tls"].(map[string]interface{}); ok {
 			// sing-box rejects insecure on Naive outbounds. A trusted
 			// certificate or a client that supports the exported pin is required.
-			getTlsParams(&params, tls, "")
+			getTlsParams(&params, tls, "insecure")
+			for _, unsupported := range []string{"insecure", "alpn", "fp", "disable_sni"} {
+				params = removeLinkParam(params, unsupported)
+			}
 			for _, param := range params {
 				if param.Key == "sni" {
 					// peer keeps older 1S-UI importers compatible.
@@ -281,17 +312,190 @@ func naiveLink(
 		} else {
 			params = append(params, LinkParam{"tfo", "0"})
 		}
+		if extraHeaders != "" {
+			params = append(params, LinkParam{"extra-headers", extraHeaders})
+		}
 
-		uri := fmt.Sprintf(
-			"%s%s:%s@%s",
-			baseUri,
-			escapeLinkUserInfo(username),
-			escapeLinkUserInfo(password),
-			linkHostPort(addr),
-		)
-		links = append(links, addRawParams(uri, params, addr["remark"].(string)))
+		for _, scheme := range schemes {
+			uri := fmt.Sprintf(
+				"%s%s:%s@%s",
+				scheme,
+				escapeLinkUserInfo(username),
+				escapeLinkUserInfo(password),
+				linkHostPort(addr),
+			)
+			links = append(links, addRawParams(uri, params, addr["remark"].(string)))
+		}
 	}
 	return links
+}
+
+func naiveOutboundOptions(inbound map[string]interface{}) map[string]interface{} {
+	outboundOptions := map[string]interface{}{}
+	switch raw := inbound["out_json"].(type) {
+	case json.RawMessage:
+		_ = json.Unmarshal(raw, &outboundOptions)
+	case []byte:
+		_ = json.Unmarshal(raw, &outboundOptions)
+	case map[string]interface{}:
+		outboundOptions = raw
+	}
+	return outboundOptions
+}
+
+func naiveV2rayNLinks(
+	userConfig map[string]interface{},
+	inbound map[string]interface{},
+	addrs []map[string]interface{}) []string {
+
+	username, _ := userConfig["username"].(string)
+	password, _ := userConfig["password"].(string)
+	options := naiveOutboundOptions(inbound)
+
+	quicModes := []bool{false}
+	network, _ := inbound["network"].(string)
+	switch network {
+	case "udp":
+		quicModes = []bool{true}
+	case "":
+		if quic, _ := options["quic"].(bool); quic {
+			quicModes = []bool{true}
+		} else {
+			quicModes = []bool{false, true}
+		}
+	}
+
+	uot := naiveUDPOverTCPEnabled(options["udp_over_tcp"])
+	congestionControl := naiveCongestionControl(options, inbound)
+	insecureConcurrency := naivePositiveInt(options["insecure_concurrency"])
+	links := make([]string, 0, len(addrs)*len(quicModes))
+	for _, addr := range addrs {
+		for _, quic := range quicModes {
+			profile := map[string]interface{}{
+				"ConfigType":     v2rayNNaiveConfigType,
+				"CoreType":       v2rayNSingBoxCoreType,
+				"ConfigVersion":  v2rayNConfigVersion,
+				"Address":        strings.Trim(addr["server"].(string), "[]"),
+				"Port":           int(addr["server_port"].(float64)),
+				"Username":       username,
+				"Password":       password,
+				"Remarks":        addr["remark"].(string),
+				"StreamSecurity": "tls",
+			}
+			protocolExtra := map[string]interface{}{
+				"Uot":       uot,
+				"NaiveQuic": quic,
+			}
+			if quic {
+				protocolExtra["CongestionControl"] = congestionControl
+			}
+			if insecureConcurrency > 0 {
+				protocolExtra["InsecureConcurrency"] = insecureConcurrency
+			}
+			profile["ProtoExtraObj"] = protocolExtra
+
+			if tls, ok := addr["tls"].(map[string]interface{}); ok {
+				if sni, _ := tls["server_name"].(string); sni != "" {
+					profile["Sni"] = sni
+				} else {
+					profile["Sni"] = profile["Address"]
+				}
+				if certificate := CertPEMFromTLS(tls); certificate != "" {
+					profile["Cert"] = certificate
+				}
+			}
+
+			encoded, err := json.Marshal(profile)
+			if err != nil {
+				continue
+			}
+			links = append(links, "v2rayn://naive/"+base64.RawURLEncoding.EncodeToString(encoded))
+		}
+	}
+	return links
+}
+
+func naiveUDPOverTCPEnabled(value interface{}) bool {
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	case map[string]interface{}:
+		enabled, _ := typed["enabled"].(bool)
+		return enabled
+	default:
+		return false
+	}
+}
+
+func naiveRequiresEmbeddedCertificate(addrs []map[string]interface{}) bool {
+	for _, addr := range addrs {
+		tlsConfig, _ := addr["tls"].(map[string]interface{})
+		if CertIsSelfSigned(CertPEMFromTLS(tlsConfig)) {
+			return true
+		}
+	}
+	return false
+}
+
+func naivePositiveInt(value interface{}) int {
+	switch typed := value.(type) {
+	case int:
+		if typed > 0 {
+			return typed
+		}
+	case float64:
+		if typed > 0 {
+			return int(typed)
+		}
+	}
+	return 0
+}
+
+func naiveCongestionControl(options, inbound map[string]interface{}) string {
+	value, _ := options["quic_congestion_control"].(string)
+	if value == "" {
+		value, _ = inbound["quic_congestion_control"].(string)
+	}
+	switch value {
+	case "bbr", "bbr2", "cubic", "reno":
+		return value
+	default:
+		return "bbr"
+	}
+}
+
+func naiveExtraHeadersForLink(value interface{}) string {
+	headers := map[string]string{}
+	switch values := value.(type) {
+	case map[string]interface{}:
+		for name, rawValue := range values {
+			if headerValue, ok := rawValue.(string); ok && validNaiveExtraHeader(name, headerValue) {
+				headers[name] = headerValue
+			}
+		}
+	case map[string]string:
+		for name, headerValue := range values {
+			if validNaiveExtraHeader(name, headerValue) {
+				headers[name] = headerValue
+			}
+		}
+	}
+	if len(headers) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(headers))
+	for name := range headers {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	lines := make([]string, 0, len(names))
+	for _, name := range names {
+		lines = append(lines, name+": "+headers[name])
+		if len(lines) == 32 {
+			break
+		}
+	}
+	return strings.Join(lines, "\r\n")
 }
 
 func hysteriaLink(

@@ -55,7 +55,7 @@
           <v-window-item value="link">
             <v-row v-for="l in clientLinks">
               <v-col style="text-align: center;">
-                <v-chip>{{ l.remark?? $t('client.' + l.type) }}</v-chip><br />
+                <v-chip>{{ linkLabel(l) }}</v-chip><br />
                 <QrcodeVue :value="l.uri" :size="size" @click="copyToClipboard(l.uri)" :margin="1" style="border-radius: .5rem; cursor: copy;" />
               </v-col>
             </v-row>
@@ -118,6 +118,12 @@ export default {
       // Perform click on hidden button to trigger copy
       hiddenButton.click()
       document.body.removeChild(hiddenButton)
+    },
+    linkLabel(link:any) {
+      const remark = link.remark ?? i18n.global.t('client.' + link.type)
+      if (String(link.uri || '').startsWith('v2rayn://naive/')) return `v2rayN · ${remark}`
+      if (String(link.uri || '').startsWith('naive+')) return `Naive URL · ${remark}`
+      return remark
     }
   },
   computed: {

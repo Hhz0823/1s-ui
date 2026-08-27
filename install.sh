@@ -60,6 +60,8 @@ CONNECT_URL=""
 AGENT_INSECURE=0
 PORT80_FREE=1
 PORT443_FREE=1
+PUBLIC_IP=""
+PUBLIC_IP_SOURCE=""          # override | external | local | ""
 # Full/cluster recommendation
 CLUSTER_CPU_CORES=2
 CLUSTER_MEM_MB=2048
@@ -858,6 +860,109 @@ bind_panel_localhost() {
     # Avoid restart storm; caller restarts once if needed.
 }
 
+valid_ipv4() {
+    local ip="${1:-}"
+    local IFS=.
+    local octets=()
+    read -r -a octets <<<"$ip"
+    [[ "${#octets[@]}" -eq 4 ]] || return 1
+
+    local octet
+    for octet in "${octets[@]}"; do
+        [[ "$octet" =~ ^[0-9]{1,3}$ ]] || return 1
+        ((10#$octet <= 255)) || return 1
+    done
+
+    ((10#${octets[0]} < 224)) || return 1
+    case "$ip" in
+    0.* | 127.* | 169.254.*) return 1 ;;
+    esac
+    return 0
+}
+
+fetch_public_ipv4() {
+    local endpoint raw candidate
+    local endpoints=(
+        "https://api.ipify.org"
+        "https://api.ip.sb/ip"
+    )
+    for endpoint in "${endpoints[@]}"; do
+        raw=""
+        if command -v curl >/dev/null 2>&1; then
+            raw=$(curl -4 -fsS --connect-timeout 2 --max-time 3 "$endpoint" 2>/dev/null || true)
+        elif command -v wget >/dev/null 2>&1; then
+            raw=$(wget -qO- --timeout=3 "$endpoint" 2>/dev/null || true)
+        else
+            return 1
+        fi
+        candidate=$(printf '%s' "$raw" | tr -d '[:space:]')
+        if valid_ipv4 "$candidate"; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+find_local_ipv4() {
+    local candidate addresses
+    candidate=""
+    if command -v ip >/dev/null 2>&1; then
+        candidate=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{ for (i = 1; i <= NF; i++) if ($i == "src") { print $(i + 1); exit } }' || true)
+        if valid_ipv4 "$candidate"; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+    fi
+
+    addresses=""
+    if command -v hostname >/dev/null 2>&1; then
+        addresses=$(hostname -I 2>/dev/null || true)
+    fi
+    for candidate in $addresses; do
+        if valid_ipv4 "$candidate"; then
+            printf '%s' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+detect_public_ip() {
+    PUBLIC_IP=""
+    PUBLIC_IP_SOURCE=""
+
+    local candidate="${SUI_PUBLIC_IP:-}"
+    if valid_ipv4 "$candidate"; then
+        PUBLIC_IP="$candidate"
+        PUBLIC_IP_SOURCE="override"
+        return 0
+    fi
+
+    candidate=$(fetch_public_ipv4 || true)
+    if valid_ipv4 "$candidate"; then
+        PUBLIC_IP="$candidate"
+        PUBLIC_IP_SOURCE="external"
+        return 0
+    fi
+
+    candidate=$(find_local_ipv4 || true)
+    if valid_ipv4 "$candidate"; then
+        PUBLIC_IP="$candidate"
+        PUBLIC_IP_SOURCE="local"
+        return 0
+    fi
+    return 1
+}
+
+panel_access_host() {
+    if [[ -n "$PUBLIC_IP" ]]; then
+        printf '%s' "$PUBLIC_IP"
+    else
+        printf '<服务器公网IP>'
+    fi
+}
+
 panel_access_url() {
     if [[ "$PROXY_READY" -eq 1 ]]; then
         if [[ -n "$PROXY_DOMAIN" ]]; then
@@ -867,11 +972,11 @@ panel_access_url() {
                 printf 'http://%s%s' "$PROXY_DOMAIN" "$FRONTEND_PATH"
             fi
         else
-            printf 'http://服务器IP%s' "$FRONTEND_PATH"
+            printf 'http://%s%s' "$(panel_access_host)" "$FRONTEND_PATH"
         fi
         return
     fi
-    printf 'http://服务器IP:%s%s' "$FRONTEND_PORT" "$FRONTEND_PATH"
+    printf 'http://%s:%s%s' "$(panel_access_host)" "$FRONTEND_PORT" "$FRONTEND_PATH"
 }
 
 proxy_summary_label() {
@@ -951,7 +1056,7 @@ install_reverse_proxy() {
                 if [[ -n "$PROXY_DOMAIN" ]]; then
                     echo -e "面板地址：${green}https://${PROXY_DOMAIN}${FRONTEND_PATH}${plain}"
                 else
-                    echo -e "面板地址：${green}http://服务器IP${FRONTEND_PATH}${plain}（80 端口）"
+                    echo -e "面板地址：${green}$(panel_access_url)${plain}（80 端口）"
                 fi
                 return 0
             fi
@@ -995,7 +1100,7 @@ install_reverse_proxy() {
                 echo -e "HTTP：${green}http://${PROXY_DOMAIN}${FRONTEND_PATH}${plain}"
                 echo -e "${yellow}提示：可用 certbot --nginx -d ${PROXY_DOMAIN} 配置 HTTPS${plain}"
             else
-                echo -e "面板地址：${green}http://服务器IP${FRONTEND_PATH}${plain}（80 端口）"
+                echo -e "面板地址：${green}$(panel_access_url)${plain}（80 端口）"
             fi
             return 0
         fi
@@ -1911,4 +2016,20 @@ if ! install_base; then
     echo -e "${red}基础工具安装失败，已停止；不会继续进入下载和启动阶段。${plain}"
     exit 1
 fi
+
+detect_public_ip || true
+case "$PUBLIC_IP_SOURCE" in
+override)
+    echo -e "${green}面板访问地址使用指定公网 IPv4：${PUBLIC_IP}${plain}"
+    ;;
+external)
+    echo -e "${green}已自动识别服务器公网 IPv4：${PUBLIC_IP}${plain}"
+    ;;
+local)
+    echo -e "${yellow}公网 IPv4 查询不可用，暂用本机地址：${PUBLIC_IP}；若服务器经过 NAT，请改用实际公网 IP。${plain}"
+    ;;
+*)
+    echo -e "${yellow}未能自动识别公网 IPv4，安装完成后访问地址会保留 <服务器公网IP> 提示。${plain}"
+    ;;
+esac
 install_s-ui

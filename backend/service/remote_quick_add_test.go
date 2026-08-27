@@ -85,6 +85,68 @@ func TestValidateRemoteQuickAddRejectsUnsafeBounds(t *testing.T) {
 	}
 }
 
+func TestRemoteQuickAddNaivePreservesIdentityAndFeatures(t *testing.T) {
+	request := RemoteQuickAddRequest{
+		CoreType:                   model.CoreTypeSingBox,
+		Protocol:                   "naive",
+		Count:                      1,
+		Port:                       443,
+		NaiveUsername:              "browser-user",
+		NaiveServer:                "node.example.com",
+		NaiveMode:                  "quic",
+		NaiveExtraHeaders:          map[string]string{"X-Edge": "stable"},
+		NaiveUDPOverTCP:            true,
+		NaiveQUICCongestionControl: "bbr2",
+	}
+	if err := validateRemoteQuickAddRequest(&request); err != nil {
+		t.Fatal(err)
+	}
+	inbound := buildRemoteQuickAddInbound(request, "naive-443", 443, "secret", 7, "198.51.100.20")
+	if inbound["network"] != "udp" || inbound["quic_congestion_control"] != "bbr2" {
+		t.Fatalf("unexpected Naive inbound: %#v", inbound)
+	}
+	addrs, ok := inbound["addrs"].([]interface{})
+	if !ok || len(addrs) != 1 || addrs[0].(map[string]interface{})["server"] != "node.example.com" {
+		t.Fatalf("unexpected Naive server addresses: %#v", inbound["addrs"])
+	}
+	outbound, ok := inbound["out_json"].(map[string]interface{})
+	if !ok || outbound["quic"] != true || outbound["insecure_concurrency"] != nil {
+		t.Fatalf("unexpected Naive outbound features: %#v", inbound["out_json"])
+	}
+	if headers := outbound["extra_headers"].(map[string]string); headers["X-Edge"] != "stable" {
+		t.Fatalf("unexpected Naive extra headers: %#v", headers)
+	}
+}
+
+func TestValidateRemoteQuickAddRejectsUnsafeNaiveOptions(t *testing.T) {
+	for _, request := range []RemoteQuickAddRequest{
+		{CoreType: model.CoreTypeSingBox, Protocol: "naive", Count: 1, Port: 443, NaiveMode: "http3"},
+		{CoreType: model.CoreTypeSingBox, Protocol: "naive", Count: 1, Port: 443, NaiveInsecureConcurrency: 5},
+		{CoreType: model.CoreTypeSingBox, Protocol: "naive", Count: 1, Port: 443, NaiveMode: "quic", NaiveInsecureConcurrency: 1},
+		{CoreType: model.CoreTypeSingBox, Protocol: "naive", Count: 1, Port: 443, NaiveExtraHeaders: map[string]string{"Padding": "override"}},
+	} {
+		if err := validateRemoteQuickAddRequest(&request); err == nil {
+			t.Fatalf("accepted unsafe Naive options: %#v", request)
+		}
+	}
+}
+
+func TestRemoteQuickAddNaiveHTTPSPreservesConcurrency(t *testing.T) {
+	request := RemoteQuickAddRequest{
+		CoreType: model.CoreTypeSingBox, Protocol: "naive", Count: 1, Port: 443,
+		NaiveUsername: "browser-user", NaiveServer: "node.example.com", NaiveMode: "https",
+		NaiveInsecureConcurrency: 2,
+	}
+	if err := validateRemoteQuickAddRequest(&request); err != nil {
+		t.Fatal(err)
+	}
+	inbound := buildRemoteQuickAddInbound(request, "naive-https", 443, "secret", 7, "198.51.100.20")
+	outbound := inbound["out_json"].(map[string]interface{})
+	if inbound["network"] != "tcp" || outbound["quic"] != false || outbound["insecure_concurrency"] != 2 {
+		t.Fatalf("unexpected HTTPS Naive options: inbound=%#v outbound=%#v", inbound, outbound)
+	}
+}
+
 func TestNormalizeRemoteActor(t *testing.T) {
 	if actor, err := normalizeRemoteActor("  admin  "); err != nil || actor != "admin" {
 		t.Fatalf("normalize actor = %q, %v", actor, err)

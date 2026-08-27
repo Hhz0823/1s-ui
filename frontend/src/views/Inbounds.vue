@@ -65,9 +65,9 @@
       </v-card-actions>
     </v-card>
   </v-dialog>
-  <v-dialog v-model="quickAdd.visible" transition="dialog-bottom-transition" width="min(560px, calc(100vw - 24px))">
+  <v-dialog v-model="quickAdd.visible" transition="dialog-bottom-transition" width="min(560px, calc(100vw - 24px))" scrollable>
     <v-card class="rounded-lg">
-      <v-card-title>{{ $t('pages.quickAddNode') }}</v-card-title>
+      <v-card-title class="justify-center text-center">{{ $t('pages.quickAddNode') }}</v-card-title>
       <v-divider></v-divider>
       <v-card-text>
         <v-row>
@@ -167,12 +167,16 @@
               hide-details
             ></v-text-field>
           </v-col>
+          <NaiveQuickAdd
+            v-if="quickAdd.protocol === 'naive'"
+            :data="quickAdd.naive"
+            :tls-configs="tlsConfigs"
+          />
         </v-row>
       </v-card-text>
       <v-divider></v-divider>
-      <v-card-actions>
-        <v-spacer></v-spacer>
-        <v-btn color="secondary" variant="tonal" prepend-icon="mdi-ip-network" @click="quickAdd.visible = false; relayModal.visible = true">
+      <v-card-actions class="quick-add-dialog-actions">
+        <v-btn class="quick-add-relay-action" color="secondary" variant="tonal" prepend-icon="mdi-ip-network" @click="quickAdd.visible = false; relayModal.visible = true">
           {{ $t('relay.batchCreate') }}
         </v-btn>
         <v-btn color="primary" variant="outlined" @click="quickAdd.visible = false">{{ $t('actions.close') }}</v-btn>
@@ -325,6 +329,8 @@ import { i18n } from '@/locales'
 import { push } from 'notivue'
 import RelayPool from '@/layouts/modals/RelayPool.vue'
 import { backendFetch } from '@/utils/backend'
+import NaiveQuickAdd from '@/components/NaiveQuickAdd.vue'
+import { createNaiveQuickAddOptions, normalizeNaiveServer, parseNaiveExtraHeaders } from '@/types/naive'
 
 const isOpenWrtLite = import.meta.env.VITE_OPENWRT_LITE === 'true'
 
@@ -419,6 +425,7 @@ const quickAdd = ref({
   hasMethod: false,
   hasObfs: false,
   hasHandshake: false,
+  naive: createNaiveQuickAddOptions(location.hostname),
   loading: false,
 })
 
@@ -592,6 +599,11 @@ const regenerateQuickAdd = (resetTag = true) => {
   }
   quickAdd.value.port = port
   quickAdd.value.password = randomPasswordForMethod(quickAdd.value.method)
+  if (quickAdd.value.protocol === 'naive') {
+    quickAdd.value.naive.username = 'naive-' + RandomUtil.randomSeq(6)
+    quickAdd.value.naive.password = RandomUtil.randomShadowsocksPassword(32)
+    if (!quickAdd.value.naive.server) quickAdd.value.naive.server = location.hostname
+  }
 }
 
 const openQuickAdd = () => {
@@ -623,9 +635,9 @@ const genSelfSignedTls = async (serverName: string): Promise<number> => {
   while (Data().tlsConfigs.find((t: any) => t.name === tlsName)) {
     tlsName += '-copy'
   }
-  const cleanServerName = (serverName || quickAdd.value.tag).replace(/[^a-zA-Z0-9.-]/g, '-')
+  const certificateServerName = (serverName || quickAdd.value.tag).trim()
   try {
-    const keyMsg = await HttpUtils.get('api/keypairs', { k: 'tls', o: cleanServerName })
+    const keyMsg = await HttpUtils.get('api/keypairs', { k: 'tls', o: certificateServerName })
     if (!keyMsg.success || !keyMsg.obj || !keyMsg.obj.length) return 0
     const lines: string[] = keyMsg.obj.filter((l: string) => l && l.trim())
     if (lines.length < 4) return 0
@@ -649,10 +661,12 @@ const genSelfSignedTls = async (serverName: string): Promise<number> => {
       name: tlsName,
       server: {
         enabled: true,
+        server_name: certificateServerName,
         key: privateKey,
         certificate: publicKey,
       },
       client: {
+        certificate: publicKey,
         pinned_peer_certificate_sha256: pinnedSha256,
       }
     }
@@ -736,9 +750,29 @@ const createQuickNode = async () => {
     return
   }
 
+  let naiveServer = ''
+  let naiveExtraHeaders: Record<string, string> = {}
+  if (proto === 'naive') {
+    try {
+      naiveServer = normalizeNaiveServer(quickAdd.value.naive.server || location.hostname)
+      naiveExtraHeaders = parseNaiveExtraHeaders(quickAdd.value.naive.extra_headers_text)
+    } catch {
+      quickAdd.value.loading = false
+      push.error({ message: i18n.global.t('types.naive.invalidOptions') })
+      return
+    }
+    if (!quickAdd.value.naive.username.trim() || !quickAdd.value.naive.password) {
+      quickAdd.value.loading = false
+      push.error({ message: i18n.global.t('types.naive.identityRequired') })
+      return
+    }
+  }
+
   let tlsId = 0
   if (needsTls.includes(proto)) {
-    tlsId = await genSelfSignedTls(tags[0])
+    tlsId = proto === 'naive' && quickAdd.value.naive.tls_id > 0
+      ? Number(quickAdd.value.naive.tls_id)
+      : await genSelfSignedTls(proto === 'naive' ? naiveServer : tags[0])
     if (tlsId === 0) {
       quickAdd.value.loading = false
       push.error('TLS generation failed. Please create TLS certificate in TLS Settings first.')
@@ -749,8 +783,17 @@ const createQuickNode = async () => {
   let createdCount = 0
   const isXray = quickAdd.value.core_type === CoreTypes.Xray
   for (let index = 0; index < count; index++) {
-    const clientName = 'user-' + RandomUtil.randomSeq(6)
-    const nodePassword = index === 0 ? quickAdd.value.password : randomPasswordForMethod(quickAdd.value.method)
+    let clientName = proto === 'naive'
+      ? (count === 1 ? quickAdd.value.naive.username.trim() : `${quickAdd.value.naive.username.trim()}-${index + 1}`)
+      : 'user-' + RandomUtil.randomSeq(6)
+    while (Data().clients.some((client: any) => client.name === clientName)) {
+      clientName = proto === 'naive'
+        ? `${quickAdd.value.naive.username.trim()}-${RandomUtil.randomSeq(4)}`
+        : 'user-' + RandomUtil.randomSeq(6)
+    }
+    const nodePassword = proto === 'naive'
+      ? (index === 0 ? quickAdd.value.naive.password : RandomUtil.randomShadowsocksPassword(32))
+      : (index === 0 ? quickAdd.value.password : randomPasswordForMethod(quickAdd.value.method))
     const uuid = RandomUtil.randomUUID()
     const inbound = createInbound(proto, {
       id: 0,
@@ -802,6 +845,22 @@ const createQuickNode = async () => {
         break
       case 'naive':
         ;(inbound as any).tls_id = tlsId
+        ;(inbound as any).network = quickAdd.value.naive.mode === 'quic' ? 'udp' : 'tcp'
+        if (quickAdd.value.naive.mode === 'quic') {
+          ;(inbound as any).quic_congestion_control = quickAdd.value.naive.quic_congestion_control || 'bbr'
+        }
+        inbound.addrs = [{ server: naiveServer, server_port: ports[index], remark: '' }]
+        inbound.out_json = {
+          insecure_concurrency: quickAdd.value.naive.mode === 'https'
+            ? Math.min(4, Math.max(0, Number(quickAdd.value.naive.insecure_concurrency) || 0)) || undefined
+            : undefined,
+          extra_headers: Object.keys(naiveExtraHeaders).length ? naiveExtraHeaders : undefined,
+          udp_over_tcp: quickAdd.value.naive.udp_over_tcp ? { enabled: true } : undefined,
+          quic: quickAdd.value.naive.mode === 'quic',
+          quic_congestion_control: quickAdd.value.naive.mode === 'quic'
+            ? (quickAdd.value.naive.quic_congestion_control || 'bbr')
+            : undefined,
+        }
         break
       case 'anytls':
         ;(inbound as any).tls_id = tlsId

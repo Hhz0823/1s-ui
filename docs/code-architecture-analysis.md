@@ -1,6 +1,6 @@
 # 1S-UI 代码架构与运行风险分析
 
-> 审计基线：`main` / 后端 `1.6.0-boost`，Linux（Ubuntu、Debian）为主要部署目标。
+> 审计基线：`main` / 后端 `1.6.1`，Linux（Ubuntu、Debian）为主要部署目标。
 
 ## 1. 项目规模与边界
 

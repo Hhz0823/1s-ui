@@ -1786,6 +1786,21 @@ body,
   .v-dialog .v-card-actions .v-btn:not(.v-btn--icon) {
     flex: 1 1 120px;
   }
+
+  .v-dialog .quick-add-dialog-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .v-dialog .quick-add-dialog-actions .quick-add-relay-action {
+    grid-column: 1 / -1;
+  }
+
+  .v-dialog .quick-add-dialog-actions .v-btn:not(.v-btn--icon) {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+  }
 }
 
 /* ===== Glass preset refinement ===== */

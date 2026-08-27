@@ -39,6 +39,17 @@ func FillOutJson(i *model.Inbound, hostname string) error {
 	outJson["tag"] = i.Tag
 	outJson["server"] = hostname
 	outJson["server_port"] = (*inbound)["listen_port"]
+	if i.Type == "naive" {
+		var addrs []map[string]interface{}
+		if json.Unmarshal(i.Addrs, &addrs) == nil && len(addrs) > 0 {
+			if server, ok := addrs[0]["server"].(string); ok && server != "" {
+				outJson["server"] = server
+			}
+			if port, ok := addrs[0]["server_port"]; ok {
+				outJson["server_port"] = port
+			}
+		}
+	}
 
 	switch i.Type {
 	case "http", "socks", "mixed", "anytls":
@@ -127,6 +138,23 @@ func addTls(out *map[string]interface{}, tls *model.Tls) {
 }
 
 func naiveOut(out *map[string]interface{}, inbound map[string]interface{}) {
+	if tlsOptions, ok := (*out)["tls"].(map[string]interface{}); ok {
+		for key := range tlsOptions {
+			switch key {
+			case "enabled", "server_name", "certificate", "certificate_path", "ech":
+			default:
+				delete(tlsOptions, key)
+			}
+		}
+	}
+	if network, ok := inbound["network"].(string); ok {
+		switch network {
+		case "udp":
+			(*out)["quic"] = true
+		case "tcp":
+			(*out)["quic"] = false
+		}
+	}
 	if quic_congestion_control, ok := inbound["quic_congestion_control"].(string); ok {
 		(*out)["quic"] = true
 		switch quic_congestion_control {

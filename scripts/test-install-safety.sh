@@ -422,14 +422,16 @@ INSTALL_PROXY=0
 PROXY_READY=0
 PROXY_ENGINE=""
 PROXY_DOMAIN=""
-assert_eq "http://服务器IP:2095/app/" "$(panel_access_url)" "direct panel URL"
+PUBLIC_IP="203.0.113.42"
+PUBLIC_IP_SOURCE="test"
+assert_eq "http://203.0.113.42:2095/app/" "$(panel_access_url)" "direct panel URL"
 assert_eq "否" "$(proxy_summary_label)" "disabled proxy summary"
 
 INSTALL_PROXY=1
 PROXY_READY=1
 PROXY_ENGINE="caddy"
 PROXY_DOMAIN=""
-assert_eq "http://服务器IP/app/" "$(panel_access_url)" "Caddy IP URL"
+assert_eq "http://203.0.113.42/app/" "$(panel_access_url)" "Caddy IP URL"
 assert_eq "是(caddy，已启动)" "$(proxy_summary_label)" "active Caddy summary"
 
 PROXY_DOMAIN="panel.example.com"
@@ -439,7 +441,31 @@ PROXY_ENGINE="nginx"
 assert_eq "http://panel.example.com/app/" "$(panel_access_url)" "Nginx domain URL"
 
 PROXY_READY=0
-assert_eq "http://服务器IP:2095/app/" "$(panel_access_url)" "failed proxy fallback URL"
+assert_eq "http://203.0.113.42:2095/app/" "$(panel_access_url)" "failed proxy fallback URL"
 assert_eq "否（未启动）" "$(proxy_summary_label)" "failed proxy summary"
+
+PUBLIC_IP=""
+assert_eq "http://<服务器公网IP>:2095/app/" "$(panel_access_url)" "unknown public IP placeholder"
+valid_ipv4 "198.51.100.8" || fail "valid public IPv4 was rejected"
+if valid_ipv4 "999.51.100.8"; then
+    fail "invalid IPv4 was accepted"
+fi
+
+export SUI_PUBLIC_IP="198.51.100.9"
+detect_public_ip
+assert_eq "198.51.100.9" "$PUBLIC_IP" "explicit public IP override"
+assert_eq "override" "$PUBLIC_IP_SOURCE" "explicit public IP source"
+unset SUI_PUBLIC_IP
+
+fetch_public_ipv4() { printf '192.0.2.25'; }
+find_local_ipv4() { printf '10.0.0.25'; }
+detect_public_ip
+assert_eq "192.0.2.25" "$PUBLIC_IP" "external public IP detection"
+assert_eq "external" "$PUBLIC_IP_SOURCE" "external public IP source"
+
+fetch_public_ipv4() { return 1; }
+detect_public_ip
+assert_eq "10.0.0.25" "$PUBLIC_IP" "local IPv4 fallback"
+assert_eq "local" "$PUBLIC_IP_SOURCE" "local IPv4 source"
 
 echo "PASS: installer swap, disk, and cgroup safety checks"

@@ -11,7 +11,7 @@
   [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8)](backend/go.mod)
   [![Vue](https://img.shields.io/badge/Vue-3-42b883)](frontend/package.json)
 
-  **[Linux v1.6.0-boost](https://github.com/Hhz0823/1s-ui/releases/tag/v1.6.0-boost)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
+  **[Linux v1.6.1](https://github.com/Hhz0823/1s-ui/releases/tag/v1.6.1)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
 </div>
 
 > 1S-UI 基于 [alireza0/s-ui](https://github.com/alireza0/s-ui) 二次开发，仅用于学习、研究与技术交流。请遵守当地法律法规。
@@ -241,6 +241,15 @@ Agent 主动出站连接中心面板，远端无需开放 Agent 控制端口：
 IPv6 池模式只会向选定网卡添加地址，不修改系统默认路由。每个地址都经过 DAD 和公网出口验证，失败会回滚。VPS 必须拥有服务商已路由或授权的 IPv6 前缀；仅添加随机 `/64` 地址无法绕过源地址过滤。
 
 实现参考 [help660vip/auto-add-ipv6](https://github.com/help660vip/auto-add-ipv6) 的流程，但 1S-UI 使用内置 Go 逻辑，不执行第三方远程脚本。
+
+### v1.6.1 更新重点
+
+- 一键创建 NaiveProxy 默认使用 QUIC / HTTP/3、UDP over TCP、`bbr` 拥塞控制和 0 不安全并发，账号密码使用浏览器加密随机源生成 256 位凭据。
+- 增加 v2rayN 完整导入链接，已按 v2rayN 7.23.4 的真实解析器验证，可保留 QUIC、UoT、拥塞控制、SNI 和公开证书；链接不包含证书私钥，也不会关闭 TLS 校验。
+- 使用公有可信证书时同时保留通用 `naive+https://` / `naive+quic://` 链接；自动专用证书只导出携带公开证书的 v2rayN 完整链接，避免 `cert authority invalid`，升级时会自动重建已有旧链接。
+- 本机与受管服务器的一键 NaiveProxy 使用相同参数模型，支持已有可信 TLS、自动专用证书、协议身份、额外请求头及 Chromium 原生 TLS 指纹。
+- 修复安装完成后仍显示 `http://服务器IP:2095/app/`：安装器会自动识别公网 IPv4，外部查询失败时回退本机地址，并在无法识别时给出明确占位提示。
+- 保持群控、远程入站、IPv6 / SOCKS5 中转、用户流量排行、端口限速和低配置内存保护兼容。
 
 ### v1.6.0-boost 更新重点
 

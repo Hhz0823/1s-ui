@@ -1,8 +1,14 @@
 package util
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"net/url"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/Hhz0823/1s-ui/database/model"
 )
 
 func TestUserInfoLinksEscapeCredentials(t *testing.T) {
@@ -137,6 +143,156 @@ func TestNaiveLinkUsesCurrentClientSchemeAndSNI(t *testing.T) {
 	}
 	if got := parsed.Query().Get("pcs"); got == "" {
 		t.Fatalf("missing pinned certificate SHA-256 in %q", link)
+	}
+	outbound, _, err := parseNaiveLink(parsed, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tlsConfig := (*outbound)["tls"].(map[string]interface{}); tlsConfig["pinned_peer_certificate_sha256"] != nil {
+		t.Fatalf("Naive importer must ignore unsupported certificate pin: %#v", tlsConfig)
+	}
+}
+
+func TestNaiveLinkUsesQUICAndExtraHeaders(t *testing.T) {
+	links := naiveLink(
+		map[string]interface{}{"username": "browser", "password": "secret"},
+		map[string]interface{}{
+			"network":  "udp",
+			"out_json": json.RawMessage(`{"quic":true,"extra_headers":{"X-Edge":"stable","X-Mode":"browser","Padding":"forbidden"}}`),
+		},
+		[]map[string]interface{}{{
+			"server": "node.example.com", "server_port": float64(443), "remark": "naive-quic",
+		}},
+	)
+	if len(links) != 1 {
+		t.Fatalf("links = %#v", links)
+	}
+	parsed, err := url.Parse(links[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Scheme != "naive+quic" {
+		t.Fatalf("scheme = %q", parsed.Scheme)
+	}
+	extraHeaders := parsed.Query().Get("extra-headers")
+	if !strings.Contains(extraHeaders, "X-Edge: stable") || !strings.Contains(extraHeaders, "X-Mode: browser") {
+		t.Fatalf("extra-headers = %q", extraHeaders)
+	}
+	if strings.Contains(extraHeaders, "Padding") {
+		t.Fatalf("reserved header leaked into link: %q", extraHeaders)
+	}
+	outbound, _, err := parseNaiveLink(parsed, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outboundHeaders := (*outbound)["extra_headers"].(map[string]string); outboundHeaders["X-Edge"] != "stable" {
+		t.Fatalf("parsed headers = %#v", outboundHeaders)
+	}
+}
+
+func TestNaiveV2rayNLinkPreservesSecureAdvancedOptions(t *testing.T) {
+	_, certificate, err := GenerateSelfSignedTLS("node.example.com", time.Now(), time.Now().AddDate(1, 0, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	serverTLS, err := json.Marshal(map[string]interface{}{
+		"enabled": true, "server_name": "node.example.com",
+		"certificate": strings.Split(strings.TrimSpace(string(certificate)), "\n"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	inbound := &model.Inbound{
+		Type: "naive", Tag: "naive-secure", CoreType: model.CoreTypeSingBox, TlsId: 1,
+		Tls:     &model.Tls{Id: 1, Server: serverTLS, Client: json.RawMessage(`{}`)},
+		Addrs:   json.RawMessage(`[{"server":"198.51.100.20","server_port":443,"remark":""}]`),
+		OutJson: json.RawMessage(`{"quic":true,"quic_congestion_control":"bbr2","udp_over_tcp":{"enabled":true},"insecure_concurrency":0}`),
+		Options: json.RawMessage(`{"listen_port":443,"network":"udp","quic_congestion_control":"bbr2"}`),
+	}
+	links := LinkGenerator(
+		json.RawMessage(`{"naive":{"username":"browser","password":"strong-secret"}}`),
+		inbound,
+		"198.51.100.20",
+		"",
+	)
+	if len(links) != 1 {
+		t.Fatalf("links = %#v", links)
+	}
+	parsed, err := url.Parse(links[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Scheme != "v2rayn" || parsed.Host != "naive" {
+		t.Fatalf("unexpected v2rayN URI: %q", links[0])
+	}
+	encoded := strings.TrimPrefix(parsed.Path, "/")
+	decoded, err := base64.RawURLEncoding.DecodeString(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var profile struct {
+		ConfigType     int
+		CoreType       int
+		ConfigVersion  int
+		Address        string
+		Port           int
+		Username       string
+		Password       string
+		Remarks        string
+		StreamSecurity string
+		Sni            string
+		Cert           string
+		AllowInsecure  string
+		ProtoExtraObj  struct {
+			Uot                 bool
+			NaiveQuic           bool
+			CongestionControl   string
+			InsecureConcurrency int
+		}
+	}
+	if err = json.Unmarshal(decoded, &profile); err != nil {
+		t.Fatal(err)
+	}
+	if profile.ConfigType != 12 || profile.CoreType != 24 || profile.ConfigVersion != 4 {
+		t.Fatalf("unexpected v2rayN profile identity: %#v", profile)
+	}
+	if profile.Address != "198.51.100.20" || profile.Port != 443 || profile.Username != "browser" || profile.Password != "strong-secret" {
+		t.Fatalf("unexpected v2rayN endpoint or credentials: %#v", profile)
+	}
+	if profile.StreamSecurity != "tls" || profile.Sni != "node.example.com" || profile.AllowInsecure != "" {
+		t.Fatalf("TLS verification was weakened: %#v", profile)
+	}
+	if !strings.Contains(profile.Cert, "BEGIN CERTIFICATE") || strings.Contains(profile.Cert, "PRIVATE KEY") {
+		t.Fatalf("public certificate was not embedded safely")
+	}
+	if !profile.ProtoExtraObj.Uot || !profile.ProtoExtraObj.NaiveQuic || profile.ProtoExtraObj.CongestionControl != "bbr2" {
+		t.Fatalf("advanced Naive settings were lost: %#v", profile.ProtoExtraObj)
+	}
+	if profile.ProtoExtraObj.InsecureConcurrency != 0 {
+		t.Fatalf("secure default changed: %#v", profile.ProtoExtraObj)
+	}
+}
+
+func TestNaiveV2rayNLinkRetainsPortableURLForTrustedTLS(t *testing.T) {
+	inbound := &model.Inbound{
+		Type: "naive", Tag: "naive-public", CoreType: model.CoreTypeSingBox, TlsId: 1,
+		Tls: &model.Tls{
+			Id:     1,
+			Server: json.RawMessage(`{"enabled":true,"server_name":"node.example.com"}`),
+			Client: json.RawMessage(`{}`),
+		},
+		Addrs:   json.RawMessage(`[{"server":"node.example.com","server_port":443,"remark":""}]`),
+		OutJson: json.RawMessage(`{"quic":true,"udp_over_tcp":{"enabled":true}}`),
+		Options: json.RawMessage(`{"listen_port":443,"network":"udp"}`),
+	}
+	links := LinkGenerator(
+		json.RawMessage(`{"naive":{"username":"browser","password":"strong-secret"}}`),
+		inbound,
+		"node.example.com",
+		"",
+	)
+	if len(links) != 2 || !strings.HasPrefix(links[0], "v2rayn://naive/") || !strings.HasPrefix(links[1], "naive+quic://") {
+		t.Fatalf("trusted TLS links = %#v", links)
 	}
 }
 

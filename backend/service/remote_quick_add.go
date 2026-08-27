@@ -14,8 +14,9 @@ import (
 
 	"github.com/Hhz0823/1s-ui/database"
 	"github.com/Hhz0823/1s-ui/database/model"
+	panelutil "github.com/Hhz0823/1s-ui/util"
 	"github.com/Hhz0823/1s-ui/util/common"
-	boxtls "github.com/sagernet/sing-box/common/tls"
+	"golang.org/x/net/http/httpguts"
 )
 
 const maxRemoteQuickAddCount = 100
@@ -46,18 +47,26 @@ var remoteQuickAddClientProtocols = map[string]bool{
 }
 
 type RemoteQuickAddRequest struct {
-	CoreType         string `json:"core_type"`
-	Protocol         string `json:"protocol"`
-	Tag              string `json:"tag"`
-	Count            int    `json:"count"`
-	Port             int    `json:"port"`
-	Password         string `json:"password"`
-	Method           string `json:"method"`
-	ObfsPassword     string `json:"obfs_password"`
-	HandshakeServer  string `json:"handshake_server"`
-	ExpectedRevision uint64 `json:"expected_revision"`
-	Actor            string `json:"actor"`
-	PublicHost       string `json:"public_host"`
+	CoreType                   string            `json:"core_type"`
+	Protocol                   string            `json:"protocol"`
+	Tag                        string            `json:"tag"`
+	Count                      int               `json:"count"`
+	Port                       int               `json:"port"`
+	Password                   string            `json:"password"`
+	Method                     string            `json:"method"`
+	ObfsPassword               string            `json:"obfs_password"`
+	HandshakeServer            string            `json:"handshake_server"`
+	NaiveUsername              string            `json:"naive_username"`
+	NaiveServer                string            `json:"naive_server"`
+	NaiveMode                  string            `json:"naive_mode"`
+	NaiveTLSID                 uint              `json:"naive_tls_id"`
+	NaiveExtraHeaders          map[string]string `json:"naive_extra_headers"`
+	NaiveUDPOverTCP            bool              `json:"naive_udp_over_tcp"`
+	NaiveInsecureConcurrency   int               `json:"naive_insecure_concurrency"`
+	NaiveQUICCongestionControl string            `json:"naive_quic_congestion_control"`
+	ExpectedRevision           uint64            `json:"expected_revision"`
+	Actor                      string            `json:"actor"`
+	PublicHost                 string            `json:"public_host"`
 }
 
 type RemoteQuickAddItem struct {
@@ -88,6 +97,21 @@ func (s *LocalControlService) QuickAddInbounds(request RemoteQuickAddRequest) (*
 	if publicHost == "" {
 		return nil, common.NewError("managed server public host is required before quick add")
 	}
+	if request.Protocol == "naive" {
+		request.NaiveServer, err = normalizeAgentPublicHost(request.NaiveServer)
+		if err != nil {
+			return nil, common.NewError("invalid NaiveProxy server: ", err)
+		}
+		if request.NaiveServer == "" {
+			request.NaiveServer = publicHost
+		}
+		if request.NaiveTLSID > 0 {
+			var tlsConfig model.Tls
+			if err = database.GetDB().First(&tlsConfig, request.NaiveTLSID).Error; err != nil {
+				return nil, common.NewError("selected NaiveProxy TLS configuration does not exist")
+			}
+		}
+	}
 	if request.CoreType == model.CoreTypeXray {
 		check := s.ConfigService.CheckXray()
 		if check.Disabled {
@@ -114,9 +138,17 @@ func (s *LocalControlService) QuickAddInbounds(request RemoteQuickAddRequest) (*
 	revision := request.ExpectedRevision
 	tlsID := uint(0)
 	if remoteQuickAddTLSProtocols[request.Protocol] {
-		tlsID, revision, err = s.createRemoteQuickAddTLS(tags[0], revision, actor, publicHost)
-		if err != nil {
-			return nil, err
+		if request.Protocol == "naive" && request.NaiveTLSID > 0 {
+			tlsID = request.NaiveTLSID
+		} else {
+			tlsServerName := tags[0]
+			if request.Protocol == "naive" {
+				tlsServerName = request.NaiveServer
+			}
+			tlsID, revision, err = s.createRemoteQuickAddTLS(tlsServerName, revision, actor, publicHost)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -127,6 +159,13 @@ func (s *LocalControlService) QuickAddInbounds(request RemoteQuickAddRequest) (*
 		clientName := ""
 		if remoteQuickAddClientProtocols[request.Protocol] {
 			clientName = "user-" + common.Random(8)
+			if request.Protocol == "naive" {
+				clientName = request.NaiveUsername
+				if request.Count > 1 {
+					clientName = fmt.Sprintf("%s-%d", clientName, index+1)
+				}
+				clientName = availableRemoteQuickAddClientName(clientName)
+			}
 			clientID, revision, err = s.createRemoteQuickAddClient(request, clientName, password, revision, actor, publicHost)
 			if err != nil {
 				return nil, common.NewErrorf("quick add stopped after %d/%d nodes: %v", len(created), request.Count, err)
@@ -195,7 +234,76 @@ func validateRemoteQuickAddRequest(request *RemoteQuickAddRequest) error {
 	if request.Protocol == "shadowsocks" && !relayShadowsocksMethods[request.Method] {
 		return common.NewErrorf("unsupported Shadowsocks method %q", request.Method)
 	}
+	if request.Protocol == "naive" {
+		if err := validateRemoteNaiveQuickAdd(request); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func validateRemoteNaiveQuickAdd(request *RemoteQuickAddRequest) error {
+	request.NaiveUsername = strings.TrimSpace(request.NaiveUsername)
+	if request.NaiveUsername == "" {
+		request.NaiveUsername = "naive"
+	}
+	if len([]rune(request.NaiveUsername)) > 100 {
+		return common.NewError("NaiveProxy identity is too long")
+	}
+	for _, r := range request.NaiveUsername {
+		if unicode.IsControl(r) {
+			return common.NewError("NaiveProxy identity contains control characters")
+		}
+	}
+	request.NaiveMode = strings.ToLower(strings.TrimSpace(request.NaiveMode))
+	if request.NaiveMode == "" {
+		request.NaiveMode = "https"
+	}
+	if request.NaiveMode != "https" && request.NaiveMode != "quic" {
+		return common.NewError("NaiveProxy protocol identity must be https or quic")
+	}
+	if request.NaiveInsecureConcurrency < 0 || request.NaiveInsecureConcurrency > 4 {
+		return common.NewError("NaiveProxy insecure concurrency must be between 0 and 4")
+	}
+	if request.NaiveMode == "quic" && request.NaiveInsecureConcurrency != 0 {
+		return common.NewError("NaiveProxy insecure concurrency is only supported with HTTPS")
+	}
+	request.NaiveQUICCongestionControl = strings.ToLower(strings.TrimSpace(request.NaiveQUICCongestionControl))
+	if request.NaiveQUICCongestionControl == "" {
+		request.NaiveQUICCongestionControl = "bbr"
+	}
+	if !map[string]bool{"bbr": true, "bbr2": true, "cubic": true, "reno": true}[request.NaiveQUICCongestionControl] {
+		return common.NewError("unsupported NaiveProxy QUIC congestion control")
+	}
+	if len(request.NaiveExtraHeaders) > 32 {
+		return common.NewError("NaiveProxy accepts at most 32 extra headers")
+	}
+	normalizedHeaders := make(map[string]string, len(request.NaiveExtraHeaders))
+	for name, value := range request.NaiveExtraHeaders {
+		name = strings.TrimSpace(name)
+		value = strings.TrimSpace(value)
+		if !httpguts.ValidHeaderFieldName(name) || !httpguts.ValidHeaderFieldValue(value) || len(value) > 4096 {
+			return common.NewErrorf("invalid NaiveProxy extra header %q", name)
+		}
+		switch strings.ToLower(name) {
+		case "proxy-authorization", "padding", "content-length", "transfer-encoding", "connection":
+			return common.NewErrorf("NaiveProxy extra header %q is reserved", name)
+		}
+		normalizedHeaders[name] = value
+	}
+	request.NaiveExtraHeaders = normalizedHeaders
+	return nil
+}
+
+func availableRemoteQuickAddClientName(base string) string {
+	name := base
+	for suffix := 0; ; suffix++ {
+		var count int64
+		if err := database.GetDB().Model(&model.Client{}).Where("name = ?", name).Count(&count).Error; err != nil || count == 0 {
+			return name
+		}
+		name = fmt.Sprintf("%s-%d", base, suffix+2)
+	}
 }
 
 func normalizeRemoteActor(value string) (string, error) {
@@ -356,6 +464,30 @@ func buildRemoteQuickAddInbound(request RemoteQuickAddRequest, tag string, port 
 		inbound["handshake"] = map[string]interface{}{"server": handshake, "server_port": 443}
 	case "tuic":
 		inbound["congestion_control"] = "cubic"
+	case "naive":
+		if request.NaiveMode == "quic" {
+			inbound["network"] = "udp"
+			inbound["quic_congestion_control"] = request.NaiveQUICCongestionControl
+		} else {
+			inbound["network"] = "tcp"
+		}
+		inbound["addrs"] = []interface{}{map[string]interface{}{
+			"server": request.NaiveServer, "server_port": port, "remark": "",
+		}}
+		naiveOutbound := map[string]interface{}{"quic": request.NaiveMode == "quic"}
+		if request.NaiveMode == "quic" {
+			naiveOutbound["quic_congestion_control"] = request.NaiveQUICCongestionControl
+		}
+		if request.NaiveMode == "https" && request.NaiveInsecureConcurrency > 0 {
+			naiveOutbound["insecure_concurrency"] = request.NaiveInsecureConcurrency
+		}
+		if len(request.NaiveExtraHeaders) > 0 {
+			naiveOutbound["extra_headers"] = request.NaiveExtraHeaders
+		}
+		if request.NaiveUDPOverTCP {
+			naiveOutbound["udp_over_tcp"] = map[string]interface{}{"enabled": true}
+		}
+		inbound["out_json"] = naiveOutbound
 	case "anytls":
 		inbound["padding_scheme"] = []string{
 			"stop=8", "0=30-30", "1=100-400",
@@ -433,7 +565,8 @@ func (s *LocalControlService) createRemoteQuickAddTLS(serverName string, revisio
 	if cleanName == "" {
 		cleanName = "managed-node"
 	}
-	privateKey, certificate, err := boxtls.GenerateCertificate(nil, nil, time.Now, cleanName, time.Now().AddDate(0, 12, 0))
+	now := time.Now()
+	privateKey, certificate, err := panelutil.GenerateSelfSignedTLS(serverName, now, now.AddDate(0, 12, 0))
 	if err != nil {
 		return 0, revision, err
 	}
@@ -466,10 +599,12 @@ func (s *LocalControlService) createRemoteQuickAddTLS(serverName string, revisio
 		"name": name,
 		"server": map[string]interface{}{
 			"enabled":     true,
+			"server_name": serverName,
 			"key":         strings.Split(strings.TrimSpace(string(privateKey)), "\n"),
 			"certificate": strings.Split(strings.TrimSpace(string(certificate)), "\n"),
 		},
 		"client": map[string]interface{}{
+			"certificate":                    strings.Split(strings.TrimSpace(string(certificate)), "\n"),
 			"pinned_peer_certificate_sha256": []string{base64.StdEncoding.EncodeToString(certificateHash[:])},
 		},
 	}

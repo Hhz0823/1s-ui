@@ -13,6 +13,7 @@ import (
 	"github.com/Hhz0823/1s-ui/database"
 	"github.com/Hhz0823/1s-ui/database/model"
 	"github.com/Hhz0823/1s-ui/logger"
+	panelutil "github.com/Hhz0823/1s-ui/util"
 
 	"github.com/sagernet/sing-box/common/tls"
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -431,7 +432,8 @@ func (s *ServerService) generateECHKeyPair(serverName string) []string {
 }
 
 func (s *ServerService) generateTLSKeyPair(serverName string) []string {
-	privateKeyPem, publicKeyPem, err := tls.GenerateCertificate(nil, nil, time.Now, serverName, time.Now().AddDate(0, 12, 0))
+	now := time.Now()
+	privateKeyPem, publicKeyPem, err := panelutil.GenerateSelfSignedTLS(serverName, now, now.AddDate(0, 12, 0))
 	if err != nil {
 		return []string{"Failed to generate TLS keypair: ", err.Error()}
 	}
