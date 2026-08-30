@@ -52,6 +52,17 @@ func TestQuickAddListenAddressFollowsPublicEntryFamily(t *testing.T) {
 	}
 }
 
+func TestRemoteQuickAddTLSUsesPublicEntryInsteadOfDisplayTag(t *testing.T) {
+	request := RemoteQuickAddRequest{Protocol: "hysteria2", Tag: "美国-🇺🇸三网优化9.30"}
+	if got := remoteQuickAddTLSServerName(request, "198.51.100.20"); got != "198.51.100.20" {
+		t.Fatalf("TLS server name = %q", got)
+	}
+	request = RemoteQuickAddRequest{Protocol: "naive", NaiveServer: "[2001:db8::20]"}
+	if got := remoteQuickAddTLSServerName(request, "198.51.100.20"); got != "2001:db8::20" {
+		t.Fatalf("Naive TLS server name = %q", got)
+	}
+}
+
 func TestValidateRemoteQuickAddForcesXrayShadowsocks256(t *testing.T) {
 	request := RemoteQuickAddRequest{
 		CoreType: model.CoreTypeXray, Protocol: "shadowsocks", Method: "aes-128-gcm",

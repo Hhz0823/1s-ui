@@ -770,9 +770,10 @@ const createQuickNode = async () => {
 
   let tlsId = 0
   if (needsTls.includes(proto)) {
+    const connectionHost = location.hostname.replace(/^\[|\]$/g, '')
     tlsId = proto === 'naive' && quickAdd.value.naive.tls_id > 0
       ? Number(quickAdd.value.naive.tls_id)
-      : await genSelfSignedTls(proto === 'naive' ? naiveServer : tags[0])
+      : await genSelfSignedTls(proto === 'naive' ? naiveServer : connectionHost)
     if (tlsId === 0) {
       quickAdd.value.loading = false
       push.error('TLS generation failed. Please create TLS certificate in TLS Settings first.')

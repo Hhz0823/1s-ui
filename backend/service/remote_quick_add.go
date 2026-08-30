@@ -141,10 +141,7 @@ func (s *LocalControlService) QuickAddInbounds(request RemoteQuickAddRequest) (*
 		if request.Protocol == "naive" && request.NaiveTLSID > 0 {
 			tlsID = request.NaiveTLSID
 		} else {
-			tlsServerName := tags[0]
-			if request.Protocol == "naive" {
-				tlsServerName = request.NaiveServer
-			}
+			tlsServerName := remoteQuickAddTLSServerName(request, publicHost)
 			tlsID, revision, err = s.createRemoteQuickAddTLS(tlsServerName, revision, actor, publicHost)
 			if err != nil {
 				return nil, err
@@ -198,6 +195,13 @@ func (s *LocalControlService) QuickAddInbounds(request RemoteQuickAddRequest) (*
 		})
 	}
 	return &RemoteQuickAddResponse{Revision: revision, Created: created}, nil
+}
+
+func remoteQuickAddTLSServerName(request RemoteQuickAddRequest, publicHost string) string {
+	if request.Protocol == "naive" && request.NaiveServer != "" {
+		return strings.Trim(request.NaiveServer, "[]")
+	}
+	return strings.Trim(publicHost, "[]")
 }
 
 func validateRemoteQuickAddRequest(request *RemoteQuickAddRequest) error {
@@ -579,7 +583,7 @@ func (s *LocalControlService) createRemoteQuickAddTLS(serverName string, revisio
 		return 0, revision, err
 	}
 	certificateHash := sha256.Sum256(parsed.Raw)
-	name := "auto-" + serverName
+	name := "auto-" + cleanName
 	for copyIndex := 0; ; copyIndex++ {
 		candidate := name
 		if copyIndex > 0 {
