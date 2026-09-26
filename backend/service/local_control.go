@@ -73,6 +73,7 @@ func (s *LocalControlService) Capabilities() agent.PanelStatus {
 			agent.CapabilityRelayV1,
 			agent.CapabilityPortTrafficV1,
 			agent.CapabilityPanelAccessV1,
+			agent.CapabilitySdwanV1,
 		},
 	}
 }

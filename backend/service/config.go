@@ -123,6 +123,7 @@ func (s *ConfigService) GetConfigWithDB(data string, db *gorm.DB) (*[]byte, erro
 	if err != nil {
 		return nil, err
 	}
+	applySdwanConfig(db, &singboxConfig)
 	rawConfig, err := json.MarshalIndent(singboxConfig, "", "  ")
 	if err != nil {
 		return nil, err

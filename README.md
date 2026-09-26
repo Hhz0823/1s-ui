@@ -19,7 +19,7 @@
 
 **语言 Languages:** [简体中文](#简体中文) · [English](#english) · [日本語](#日本語) · [한국어](#한국어) · [Tiếng Việt](#tiếng-việt) · [فارسی](#فارسی)
 
-**导航:** [页面截图](#页面截图) · [群控架构](#群控架构) · [快速部署](#快速部署) · [功能矩阵](#功能矩阵) · [群控与远程管理](#群控与远程管理) · [一键中转](#一键中转) · [安全](#安全与权限)
+**导航:** [页面截图](#页面截图) · [群控架构](#群控架构) · [快速部署](#快速部署) · [功能矩阵](#功能矩阵) · [群控与远程管理](#群控与远程管理) · [一键中转](#一键中转) · [SD-WAN 智能组网](#sd-wan-智能组网) · [客户端导入](#客户端导入兼容性) · [安全](#安全与权限)
 
 ---
 
@@ -189,8 +189,10 @@ s-ui update
 | 入站限速 | sing-box 单入站聚合上传/下载限速，单位 Mbps，`0` 为不限速；TCP/UDP 共用同一端口限额 |
 | 快速创建 | 一次创建 1–100 条节点，连续端口、标签、用户、TLS 和安全默认值 |
 | TLS | ACME、ECH、Reality、Pinned Certificate SHA256、证书生成与集中管理 |
-| 分享与订阅 | Clash、JSON、标准 URI；v2rayN 7.23.4 实机验证 |
+| 分享与订阅 | Clash、JSON、标准 URI；兼容 v2rayN 与 Shadowrocket（小火箭）的 SIP002、`socks://` 与自签证书链接 |
 | 一键中转 | IPv6 出口池或上游 SOCKS5，自动创建入站、出站、用户和路由 |
+| SD-WAN 智能组网 | 多台受管服务器合并为一个入口：主控自动部署专用上行通道，按实时延迟选择最快出口，故障约 5 秒内自动切换 |
+| 出站导入 | 支持 SOCKS5/SOCKS4、HTTP(S)、Hysteria2 端口跳跃与 `user:pass` 认证、VMess、VLESS、Trojan、Shadowsocks、TUIC、AnyTLS、Naive 链接 |
 | 界面 | 默认实色；可选玻璃/清透、自定义背景、模糊、菜单布局和紧凑密度 |
 | 反向代理 | 在服务端面板查看和管理 Caddy / Nginx 状态、域名与配置应用 |
 
@@ -241,6 +243,44 @@ Agent 主动出站连接中心面板，远端无需开放 Agent 控制端口：
 IPv6 池模式只会向选定网卡添加地址，不修改系统默认路由。每个地址都经过 DAD 和公网出口验证，失败会回滚。VPS 必须拥有服务商已路由或授权的 IPv6 前缀；仅添加随机 `/64` 地址无法绕过源地址过滤。
 
 实现参考 [help660vip/auto-add-ipv6](https://github.com/help660vip/auto-add-ipv6) 的流程，但 1S-UI 使用内置 Go 逻辑，不执行第三方远程脚本。
+
+### SD-WAN 智能组网
+
+SD-WAN 把主控和多台受管服务器合并成一张网：用户只连接主控的入口入站（订阅不变），主控自动选择当前延迟最低的服务器出网。
+
+```mermaid
+flowchart LR
+    U["用户 v2rayN / 小火箭"] -->|"原有订阅"| M["主控入口入站"]
+    M --> G{"sdwan-auto<br/>按实时延迟选择"}
+    G -->|"最快"| A["服务器 A · sdwan-uplink"]
+    G -.->|"备用"| B["服务器 B · sdwan-uplink"]
+    A --> I["互联网"]
+    B --> I
+```
+
+1. 主控运行在 **完整主控制端**，子服务器通过 Agent 在线并已升级到本版本。
+2. 打开 **SD-WAN 组网**，在“可加入的服务器”中点击 **加入组网**。主控通过 Agent 在该服务器自动创建专用上行入站 `sdwan-uplink` 和内部用户，凭据只保存在主控，不会出现在用户订阅中。
+3. 在“组网设置”选择 **入口入站**（哪些入站的用户流量走组网）并启用 **SD-WAN 路由**。
+4. 主控生成 `sdwan-auto`（sing-box `urltest`）组：按测速间隔持续测量每台服务器的真实出口延迟，只有新服务器比当前服务器快超过“切换容差”时才切换，避免抖动；当前出口连接失败后，看门狗约 5 秒内强制重测并切换到下一台。
+
+| 选项 | 说明 |
+| --- | --- |
+| 上行协议 | `Shadowsocks 2022`（默认，TCP/UDP、开销低）或 `Hysteria2`（QUIC、抗丢包，适合跨境长线路；主控固定信任该服务器自动生成的证书，不跳过校验） |
+| 主控直连也作为候选 | 主控自身直连更快时直接出网 |
+| 优先匹配自定义路由规则 | 开启后路由列表中的规则先匹配，未命中的流量再走 SD-WAN；嗅探与 DNS 劫持规则始终先执行 |
+
+- 受管服务器的防火墙需放行 `sdwan-uplink` 使用的端口（TCP，Hysteria2 另需 UDP），端口显示在组网服务器卡片上。
+- 没有启用 SD-WAN 路由时，`sdwan-auto` 组仍会创建并测速，可先观察延迟，也可以在路由列表中手动引用 `sdwan-auto`。
+- 移出组网会同时删除该服务器上的 `sdwan-uplink` 入站、内部用户和自动证书；服务器离线时请在其面板手动删除。
+
+### 客户端导入兼容性
+
+- 分享链接按 v2rayN 与 Shadowrocket（小火箭）的解析方式生成：Shadowsocks 使用 SIP002 URL 安全 Base64，SOCKS 使用 `socks://BASE64(用户:密码)@主机:端口`（v2rayN 不识别 `socks5://`），IPv6 地址自动加方括号，备注统一 URL 编码。
+- 使用自动生成的自签证书时，链接同时携带证书指纹（`pcs` / `pinSHA256`）和 `allowInsecure=1` / `insecure=1` 兼容标记：支持指纹的客户端仍会校验证书，不支持指纹的客户端（小火箭、v2rayN 内置 sing-box）也能正常连接。使用受信任的 CA 证书时不会添加该标记。
+- VLESS 仅在 TLS/Reality + TCP 传输时下发 `xtls-rprx-vision`，WebSocket/gRPC 节点不再出现 flow 不匹配。
+- 订阅附加的流量/到期信息写入节点备注，不再直接拼接在链接末尾导致无法导入。
+- 一键创建：SOCKS/HTTP/Mixed 会自动生成用户（不再是无认证的开放代理，并可生成导入链接）；sing-box VMess 改用 WebSocket 传输；ShadowTLS 需要配合独立的 Shadowsocks 入站（detour）且 v2rayN 无法导入，已从一键创建中移除，可在完整入站编辑器中手动配置。
+- 出站导入：新增 SOCKS5/SOCKS4、HTTP(S) 链接；Hysteria2 支持 `主机:443,20000-30000` 端口跳跃、`user:pass` 认证，并去除 sing-box 不支持的 `fastopen` 与证书指纹字段，导入后可直接保存运行。
 
 ### v1.6.1 更新重点
 
@@ -309,6 +349,8 @@ IPv6 池模式只会向选定网卡添加地址，不修改系统默认路由。
 - 1–100 node quick creation with safe protocol defaults and automatic used-port skipping.
 - sing-box by default, plus optional per-inbound Xray protocols including XHTTP, RAW, gRPC, WebSocket, Hysteria2, Dokodemo-door, and WireGuard.
 - IPv6 egress pools and upstream SOCKS5 relays with BitBrowser Excel/plain-text export.
+- SD-WAN: users connect to the controller while it automatically deploys private uplinks on managed servers, exits through the lowest-latency server and fails over within seconds.
+- Share links built for v2rayN and Shadowrocket (SIP002, `socks://`, pinned self-signed TLS with compatibility flags) and outbound import of SOCKS5/HTTP/Hysteria2 port-hopping links.
 - Default solid UI, responsive desktop/mobile layouts, optional backgrounds and glass/clear styles.
 
 ### Resource profiles

@@ -37,6 +37,7 @@ const (
 	CapabilityRelayV1         = "relay.v1"
 	CapabilityPortTrafficV1   = "port.traffic.v1"
 	CapabilityPanelAccessV1   = "panel.access.v1"
+	CapabilitySdwanV1         = "sdwan.v1"
 )
 
 const (
@@ -51,6 +52,8 @@ const (
 	RPCMethodRelayExport     = "relay.bitbrowser_export"
 	RPCMethodPortTraffic     = "port.traffic"
 	RPCMethodPanelAccess     = "panel.access"
+	RPCMethodSdwanProvision  = "sdwan.provision"
+	RPCMethodSdwanRemove     = "sdwan.remove"
 )
 
 // Command types the panel may send to an online agent.

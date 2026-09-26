@@ -122,6 +122,7 @@ func (s *SettingService) GetAllSetting() (*map[string]string, error) {
 	delete(allSetting, "globalResetLast")
 	delete(allSetting, agentEnrollmentKey)
 	delete(allSetting, controllerModeKey)
+	delete(allSetting, sdwanConfigKey)
 	for key, value := range s.GetDeploymentStatus() {
 		allSetting[key] = value
 	}
@@ -498,7 +499,7 @@ func (s *SettingService) Save(tx *gorm.DB, data json.RawMessage) error {
 	for key, obj := range settings {
 		if strings.HasPrefix(key, "deployment") || strings.HasPrefix(key, "frontendApply") ||
 			key == "apiListen" || key == "frontendEntryManagedBy" || key == "frontendGatewayConfigPath" || key == "frontendRuntimeConfigPath" ||
-			key == controllerModeKey || key == agentEnrollmentKey {
+			key == controllerModeKey || key == agentEnrollmentKey || key == sdwanConfigKey {
 			continue
 		}
 		// Secure file existence check
