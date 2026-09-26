@@ -160,13 +160,6 @@
               </template>
             </v-text-field>
           </v-col>
-          <v-col cols="12" v-if="quickAdd.hasHandshake">
-            <v-text-field
-              v-model="quickAdd.handshakeServer"
-              :label="$t('types.shdwTls.hs')"
-              hide-details
-            ></v-text-field>
-          </v-col>
           <NaiveQuickAdd
             v-if="quickAdd.protocol === 'naive'"
             :data="quickAdd.naive"
@@ -420,11 +413,9 @@ const quickAdd = ref({
   password: '',
   method: '2022-blake3-aes-256-gcm',
   obfsPassword: '',
-  handshakeServer: 'www.microsoft.com',
   hasPassword: false,
   hasMethod: false,
   hasObfs: false,
-  hasHandshake: false,
   naive: createNaiveQuickAddOptions(location.hostname),
   loading: false,
 })
@@ -462,7 +453,6 @@ watch(() => quickAdd.value.protocol, (val) => {
   quickAdd.value.hasPassword = val === 'shadowsocks'
   quickAdd.value.hasMethod = val === 'shadowsocks' && quickAdd.value.core_type !== CoreTypes.Xray
   quickAdd.value.hasObfs = val === 'hysteria2' && quickAdd.value.core_type !== CoreTypes.Xray
-  quickAdd.value.hasHandshake = val === 'shadowtls'
   if (quickAdd.value.core_type === CoreTypes.Xray && val === 'shadowsocks') {
     quickAdd.value.method = '2022-blake3-aes-256-gcm'
   }
@@ -546,7 +536,6 @@ const singBoxProtocolOptions = [
   { title: 'Trojan', value: 'trojan' },
   { title: 'VLESS', value: 'vless' },
   { title: 'Hysteria2', value: 'hysteria2' },
-  { title: 'ShadowTLS', value: 'shadowtls' },
   { title: 'TUIC', value: 'tuic' },
   { title: 'Naive', value: 'naive' },
   { title: 'AnyTLS', value: 'anytls' },
@@ -780,7 +769,9 @@ const createQuickNode = async () => {
       return
     }
   }
-  const needsClient = ['shadowsocks', 'vmess', 'vless', 'trojan', 'naive', 'hysteria2', 'tuic', 'anytls', 'shadowtls']
+  // SOCKS/HTTP/Mixed also get a user: without one the proxy is open to anyone
+  // and no share link can be generated for v2rayN/Shadowrocket.
+  const needsClient = ['mixed', 'socks', 'http', 'shadowsocks', 'vmess', 'vless', 'trojan', 'naive', 'hysteria2', 'tuic', 'anytls']
   let createdCount = 0
   const isXray = quickAdd.value.core_type === CoreTypes.Xray
   for (let index = 0; index < count; index++) {
@@ -813,7 +804,9 @@ const createQuickNode = async () => {
         break
       case 'vmess':
         ;(inbound as any).tls_id = tlsId
-        ;(inbound as any).transport = isXray ? { type: 'ws', path: '/', host: location.hostname } : { type: 'http' }
+        // sing-box HTTP transport becomes HTTP/2 under TLS and does not import
+        // correctly into v2rayN/Shadowrocket; WebSocket is universally supported.
+        ;(inbound as any).transport = isXray ? { type: 'ws', path: '/', host: location.hostname } : { type: 'ws', path: '/' }
         inbound.addrs = []
         inbound.out_json = {}
         break
@@ -828,11 +821,6 @@ const createQuickNode = async () => {
         ;(inbound as any).transport = isXray ? { type: 'ws', path: '/', host: location.hostname } : {}
         inbound.addrs = []
         inbound.out_json = {}
-        break
-      case 'shadowtls':
-        ;(inbound as any).version = 3
-        ;(inbound as any).password = nodePassword || RandomUtil.randomShadowsocksPassword(16)
-        ;(inbound as any).handshake = { server: quickAdd.value.handshakeServer || 'www.microsoft.com', server_port: 443 }
         break
       case 'hysteria2':
         ;(inbound as any).tls_id = tlsId
@@ -883,6 +871,15 @@ const createQuickNode = async () => {
     if (needsClient.includes(proto)) {
       const protoConfig: any = {}
       switch (proto) {
+        case 'mixed':
+        case 'socks':
+        case 'http': {
+          const proxyPassword = RandomUtil.randomSeq(16)
+          for (const key of ['mixed', 'socks', 'http']) {
+            protoConfig[key] = { username: clientName, password: proxyPassword }
+          }
+          break
+        }
         case 'shadowsocks': protoConfig.shadowsocks = { name: clientName, password: (inbound as any).password }; break
         case 'vmess': protoConfig.vmess = { name: clientName, uuid, alterId: 0 }; break
         case 'vless': protoConfig.vless = { name: clientName, uuid, flow: isXray ? '' : 'xtls-rprx-vision' }; break
@@ -891,7 +888,6 @@ const createQuickNode = async () => {
         case 'hysteria2': protoConfig.hysteria2 = { name: clientName, password: nodePassword }; break
         case 'tuic': protoConfig.tuic = { name: clientName, uuid, password: nodePassword }; break
         case 'anytls': protoConfig.anytls = { name: clientName, password: nodePassword }; break
-        case 'shadowtls': protoConfig.shadowtls = { name: clientName, password: (inbound as any).password }; break
       }
       const client = { enable: true, name: clientName, config: protoConfig, inbounds: [], links: [], volume: 0, expiry: 0, up: 0, down: 0, desc: '', group: '' }
       const clientBody = new URLSearchParams({ object: 'clients', action: 'new', data: JSON.stringify(client) })

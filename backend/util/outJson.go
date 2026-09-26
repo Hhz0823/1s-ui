@@ -87,14 +87,21 @@ func FillOutJson(i *model.Inbound, hostname string) error {
 
 // addTls function
 func addTls(out *map[string]interface{}, tls *model.Tls) {
+	if tls == nil {
+		return
+	}
 	var tlsServer, tlsConfig map[string]interface{}
 	err := json.Unmarshal(tls.Server, &tlsServer)
 	if err != nil {
 		return
 	}
-	err = json.Unmarshal(tls.Client, &tlsConfig)
-	if err != nil {
-		return
+	if len(tls.Client) > 0 {
+		if err = json.Unmarshal(tls.Client, &tlsConfig); err != nil {
+			return
+		}
+	}
+	if tlsConfig == nil {
+		tlsConfig = map[string]interface{}{}
 	}
 
 	if enabled, ok := tlsServer["enabled"]; ok {
@@ -118,20 +125,34 @@ func addTls(out *map[string]interface{}, tls *model.Tls) {
 	if cipherSuites, ok := tlsServer["cipher_suites"]; ok {
 		tlsConfig["cipher_suites"] = cipherSuites
 	}
-	if reality, ok := tlsServer["reality"].(map[string]interface{}); ok && reality["enabled"].(bool) {
-		realityConfig := tlsConfig["reality"].(map[string]interface{})
-		realityConfig["enabled"] = true
-		if shortIDs, ok := reality["short_id"].([]interface{}); ok && len(shortIDs) > 0 {
-			realityConfig["short_id"] = shortIDs[common.RandomInt(len(shortIDs))]
+	if reality, ok := tlsServer["reality"].(map[string]interface{}); ok {
+		if enabled, _ := reality["enabled"].(bool); enabled {
+			realityConfig, _ := tlsConfig["reality"].(map[string]interface{})
+			if realityConfig == nil {
+				realityConfig = map[string]interface{}{}
+			}
+			realityConfig["enabled"] = true
+			if shortIDs, ok := reality["short_id"].([]interface{}); ok && len(shortIDs) > 0 {
+				realityConfig["short_id"] = shortIDs[common.RandomInt(len(shortIDs))]
+			}
+			tlsConfig["reality"] = realityConfig
 		}
-		tlsConfig["reality"] = realityConfig
 	}
-	if ech, ok := tlsServer["ech"].(map[string]interface{}); ok && ech["enabled"].(bool) {
-		echConfig := tlsConfig["ech"].(map[string]interface{})
-		echConfig["enabled"] = true
-		echConfig["pq_signature_schemes_enabled"] = ech["pq_signature_schemes_enabled"]
-		echConfig["dynamic_record_sizing_disabled"] = ech["dynamic_record_sizing_disabled"]
-		tlsConfig["ech"] = echConfig
+	if ech, ok := tlsServer["ech"].(map[string]interface{}); ok {
+		if enabled, _ := ech["enabled"].(bool); enabled {
+			echConfig, _ := tlsConfig["ech"].(map[string]interface{})
+			if echConfig == nil {
+				echConfig = map[string]interface{}{}
+			}
+			echConfig["enabled"] = true
+			if value, exists := ech["pq_signature_schemes_enabled"]; exists {
+				echConfig["pq_signature_schemes_enabled"] = value
+			}
+			if value, exists := ech["dynamic_record_sizing_disabled"]; exists {
+				echConfig["dynamic_record_sizing_disabled"] = value
+			}
+			tlsConfig["ech"] = echConfig
+		}
 	}
 
 	(*out)["tls"] = tlsConfig
@@ -262,4 +283,86 @@ func vmessOut(out *map[string]interface{}, inbound map[string]interface{}) {
 	if transport, ok := inbound["transport"]; ok {
 		(*out)["transport"] = transport
 	}
+}
+
+// NormalizeSingBoxOutbound removes panel-only or client-specific fields that
+// sing-box rejects with "unknown field", so imported links, stored outbounds
+// and JSON subscriptions stay loadable:
+//   - certificate SHA-256 pins (pinned_peer_certificate_sha256 / pinSHA256)
+//     are share-link metadata; sing-box only understands SPKI pins. When the
+//     certificate itself is not embedded, verification falls back to insecure,
+//     matching how v2rayN runs such nodes on its sing-box core.
+//   - hysteria2 "fastopen" comes from share links and is not an outbound option.
+//   - XTLS Vision only works on raw TCP with TLS/Reality.
+func NormalizeSingBoxOutbound(outbound map[string]interface{}) {
+	if outbound == nil {
+		return
+	}
+	outboundType, _ := outbound["type"].(string)
+	if tlsConfig, ok := outbound["tls"].(map[string]interface{}); ok {
+		pinned := false
+		for _, key := range []string{"pinned_peer_certificate_sha256", "pinSHA256", "pcs"} {
+			if value, exists := tlsConfig[key]; exists {
+				if len(stringList(value)) > 0 {
+					pinned = true
+				}
+				delete(tlsConfig, key)
+			}
+		}
+		if pinned && CertPEMFromTLS(tlsConfig) == "" && len(stringList(tlsConfig["certificate_public_key_sha256"])) == 0 {
+			tlsConfig["insecure"] = true
+		}
+		if outboundType == "naive" {
+			// sing-box refuses insecure Naive outbounds; the embedded certificate
+			// is the only supported way to trust a self-signed server.
+			delete(tlsConfig, "insecure")
+		}
+	}
+	switch outboundType {
+	case "hysteria2", "hysteria", "tuic":
+		delete(outbound, "fastopen")
+	case "vless":
+		if flow, _ := outbound["flow"].(string); flow != "" && !vlessVisionAllowed(outbound) {
+			delete(outbound, "flow")
+		}
+	}
+	if transport, ok := outbound["transport"].(map[string]interface{}); ok {
+		if transportType, _ := transport["type"].(string); transportType == "" {
+			delete(outbound, "transport")
+		}
+	}
+}
+
+func vlessVisionAllowed(outbound map[string]interface{}) bool {
+	tlsConfig, _ := outbound["tls"].(map[string]interface{})
+	if enabled, _ := tlsConfig["enabled"].(bool); !enabled {
+		return false
+	}
+	if transport, ok := outbound["transport"].(map[string]interface{}); ok {
+		transportType, _ := transport["type"].(string)
+		return transportType == "" || transportType == "tcp"
+	}
+	return true
+}
+
+// NormalizeSingBoxOutboundJSON applies NormalizeSingBoxOutbound to a raw JSON
+// object and returns the original bytes when nothing had to change.
+func NormalizeSingBoxOutboundJSON(raw []byte) ([]byte, error) {
+	var outbound map[string]interface{}
+	if err := json.Unmarshal(raw, &outbound); err != nil {
+		return nil, err
+	}
+	before, err := json.Marshal(outbound)
+	if err != nil {
+		return nil, err
+	}
+	NormalizeSingBoxOutbound(outbound)
+	after, err := json.Marshal(outbound)
+	if err != nil {
+		return nil, err
+	}
+	if string(before) == string(after) {
+		return raw, nil
+	}
+	return after, nil
 }

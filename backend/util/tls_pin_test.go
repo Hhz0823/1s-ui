@@ -115,7 +115,9 @@ func TestHysteria2LinkEscapesPasswordForV2rayN(t *testing.T) {
 	if len(links) != 1 {
 		t.Fatalf("expected one link, got %d", len(links))
 	}
-	const expected = "hysteria2://testAuth%2Fwith%2Bsymbols%3D@198.51.100.10:30827?security=tls&pinSHA256=000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f&obfs=salamander&obfs-password=testObfs%2Fwith%2Bsymbols%3D%3D&fastopen=0#hysteria2-30827"
+	// insecure=1 keeps pinned self-signed nodes usable in clients that ignore
+	// pinSHA256 (Shadowrocket, sing-box inside v2rayN); the pin is still exported.
+	const expected = "hysteria2://testAuth%2Fwith%2Bsymbols%3D@198.51.100.10:30827?security=tls&insecure=1&pinSHA256=000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f&obfs=salamander&obfs-password=testObfs%2Fwith%2Bsymbols%3D%3D&fastopen=0#hysteria2-30827"
 	if links[0] != expected {
 		t.Fatalf("unexpected v2rayN link:\nwant %q\ngot  %q", expected, links[0])
 	}
@@ -292,18 +294,21 @@ func TestGeneratedTLSLinksMatchV2rayNPinFormat(t *testing.T) {
 	rawTransport := map[string]interface{}{"transport": map[string]interface{}{"type": "tcp"}}
 
 	tests := []struct {
-		name         string
-		link         string
-		wantInsecure bool
-		wantALPN     string
+		name              string
+		link              string
+		wantInsecure      bool
+		wantAllowInsecure bool
+		wantALPN          string
 	}{
 		{
-			name: "vless",
-			link: vlessLink(map[string]interface{}{"uuid": uuid}, rawTransport, addrs)[0],
+			name:              "vless",
+			link:              vlessLink(map[string]interface{}{"uuid": uuid}, rawTransport, addrs)[0],
+			wantAllowInsecure: true,
 		},
 		{
-			name: "trojan",
-			link: trojanLink(map[string]interface{}{"password": "test-password"}, rawTransport, addrs)[0],
+			name:              "trojan",
+			link:              trojanLink(map[string]interface{}{"password": "test-password"}, rawTransport, addrs)[0],
+			wantAllowInsecure: true,
 		},
 		{
 			name:         "anytls",
@@ -334,6 +339,9 @@ func TestGeneratedTLSLinksMatchV2rayNPinFormat(t *testing.T) {
 			}
 			if got := query.Get("insecure"); (got == "1") != test.wantInsecure {
 				t.Fatalf("unexpected insecure compatibility flag %q", got)
+			}
+			if got := query.Get("allowInsecure"); (got == "1") != test.wantAllowInsecure {
+				t.Fatalf("unexpected allowInsecure compatibility flag %q", got)
 			}
 			if got := query.Get("alpn"); got != test.wantALPN {
 				t.Fatalf("unexpected ALPN %q", got)

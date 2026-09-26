@@ -38,9 +38,6 @@
               </template>
             </v-text-field>
           </v-col>
-          <v-col v-if="quickAdd.protocol === 'shadowtls'" cols="12">
-            <v-text-field v-model="quickAdd.handshake_server" :label="$t('types.shdwTls.hs')" hide-details />
-          </v-col>
           <NaiveQuickAdd
             v-if="quickAdd.protocol === 'naive'"
             :data="quickAdd.naive"
@@ -175,7 +172,6 @@ const quickAdd = reactive({
   port: RandomUtil.randomIntRange(10000, 60000),
   method: '2022-blake3-aes-256-gcm',
   obfs_password: '',
-  handshake_server: 'www.microsoft.com',
   naive: createNaiveQuickAddOptions(''),
 })
 
@@ -198,7 +194,7 @@ const coreOptions = computed(() => {
 const singBoxProtocolItems = [
   { title: 'Mixed', value: 'mixed' }, { title: 'SOCKS', value: 'socks' }, { title: 'HTTP', value: 'http' },
   { title: 'Shadowsocks', value: 'shadowsocks' }, { title: 'VMess', value: 'vmess' }, { title: 'Trojan', value: 'trojan' },
-  { title: 'VLESS', value: 'vless' }, { title: 'Hysteria2', value: 'hysteria2' }, { title: 'ShadowTLS', value: 'shadowtls' },
+  { title: 'VLESS', value: 'vless' }, { title: 'Hysteria2', value: 'hysteria2' },
   { title: 'TUIC', value: 'tuic' }, { title: 'Naive', value: 'naive' }, { title: 'AnyTLS', value: 'anytls' },
   { title: 'Direct', value: 'direct' },
 ]
@@ -349,7 +345,6 @@ const createQuickNodes = async () => {
         port,
         method: quickAdd.method,
         obfs_password: quickAdd.obfs_password,
-        handshake_server: quickAdd.handshake_server,
         password: quickAdd.protocol === 'naive' ? quickAdd.naive.password : undefined,
         naive_username: quickAdd.naive.username,
         naive_server: quickAdd.naive.server,

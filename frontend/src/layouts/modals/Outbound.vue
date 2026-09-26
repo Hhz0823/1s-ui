@@ -194,12 +194,15 @@ export default {
       this.loading = false
     },
     async linkConvert() {
+      this.link = this.link.trim()
       if (this.link.length>0){
         this.loading = true
         const msg = await HttpUtils.post('api/linkConvert', { link: this.link })
         this.loading = false
-        if (msg.success) {
-          this.outbound = msg.obj
+        if (msg.success && msg.obj?.type) {
+          // Merge with the type defaults so every protocol component finds the
+          // fields it binds to (tls, transport, multiplex...).
+          this.outbound = createOutbound(msg.obj.type, msg.obj)
           if (this.$props.id > 0) this.outbound.id = this.$props.id
           this.tab = "t1"
           this.link = ""

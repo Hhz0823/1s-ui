@@ -117,10 +117,8 @@ func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, b
 		proxy["type"] = t
 
 		server, _ := obMap["server"].(string)
-		if len(server) > 0 && strings.Contains(server, ":") && !strings.Contains(server, ".") && !(strings.HasPrefix(server, "[") && strings.HasSuffix(server, "]")) {
-			server = "'[" + server + "]'"
-		}
-		proxy["server"] = server
+		// mihomo expects bare IPv6 literals; brackets or embedded quotes break it.
+		proxy["server"] = strings.Trim(server, "[]")
 
 		proxy["port"] = obMap["server_port"]
 
@@ -250,8 +248,15 @@ func (s *ClashService) ConvertToClashMeta(outbounds *[]map[string]interface{}, b
 			if insecure, ok := tls["insecure"].(bool); ok && insecure {
 				proxy["skip-cert-verify"] = insecure
 			}
-			if fp := util.CertSha256Hex(util.CertPEMFromTLS(tls)); fp != "" {
-				proxy["fingerprint"] = fp
+			if certificate := util.CertPEMFromTLS(tls); certificate != "" {
+				if fp := util.CertSha256Hex(certificate); fp != "" {
+					proxy["fingerprint"] = fp
+				}
+				// Clients without fingerprint support (Shadowrocket, Stash) cannot
+				// validate a self-signed certificate; mihomo still enforces the pin.
+				if util.CertIsSelfSigned(certificate) {
+					proxy["skip-cert-verify"] = true
+				}
 			}
 			// ech outbounds
 			if ech, ok := tls["ech"].(map[string]interface{}); ok && ech["enabled"].(bool) {

@@ -67,13 +67,12 @@ func (s *SubService) getClientInfo(c *model.Client) string {
 		result = append(result, fmt.Sprintf("%s%s", s.formatTraffic(vol), ""))
 	}
 	if c.Expiry > 0 {
-		result = append(result, fmt.Sprintf("%d %s ", (c.Expiry-now)/86400, "Days"))
+		result = append(result, fmt.Sprintf("%d %s", (c.Expiry-now)/86400, "Days"))
 	}
 	if len(result) > 0 {
 		return " " + strings.Join(result, " ")
-	} else {
-		return " "
 	}
+	return ""
 }
 
 func (s *SubService) formatTraffic(trafficBytes int64) string {

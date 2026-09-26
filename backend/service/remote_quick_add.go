@@ -21,11 +21,13 @@ import (
 
 const maxRemoteQuickAddCount = 100
 
+// ShadowTLS is intentionally absent: it only works as a front for a separate
+// Shadowsocks inbound (detour) and no share-link format imports it into v2rayN.
 var remoteQuickAddProtocols = map[string]map[string]bool{
 	model.CoreTypeSingBox: {
 		"mixed": true, "socks": true, "http": true, "shadowsocks": true,
 		"vmess": true, "trojan": true, "vless": true, "hysteria2": true,
-		"shadowtls": true, "tuic": true, "naive": true, "anytls": true,
+		"tuic": true, "naive": true, "anytls": true,
 		"direct": true,
 	},
 	model.CoreTypeXray: {
@@ -40,9 +42,12 @@ var remoteQuickAddTLSProtocols = map[string]bool{
 	"tuic": true, "naive": true, "anytls": true,
 }
 
+// Every protocol with a share link gets its own user. SOCKS/HTTP/Mixed used to
+// be created without credentials, which left an open proxy and no import link.
 var remoteQuickAddClientProtocols = map[string]bool{
+	"mixed": true, "socks": true, "http": true,
 	"shadowsocks": true, "vmess": true, "vless": true, "trojan": true,
-	"hysteria2": true, "shadowtls": true, "tuic": true, "naive": true,
+	"hysteria2": true, "tuic": true, "naive": true,
 	"anytls": true,
 }
 
@@ -434,7 +439,9 @@ func buildRemoteQuickAddInbound(request RemoteQuickAddRequest, tag string, port 
 		if isXray {
 			inbound["transport"] = map[string]interface{}{"type": "ws", "path": "/", "host": publicHost}
 		} else {
-			inbound["transport"] = map[string]interface{}{"type": "http"}
+			// sing-box's HTTP transport is HTTP/2 under TLS, which v2rayN and
+			// Shadowrocket import as TCP+HTTP obfuscation; WebSocket works everywhere.
+			inbound["transport"] = map[string]interface{}{"type": "ws", "path": "/"}
 		}
 	case "vless":
 		if isXray {
@@ -458,14 +465,6 @@ func buildRemoteQuickAddInbound(request RemoteQuickAddRequest, tag string, port 
 			}
 			inbound["obfs"] = map[string]interface{}{"type": "salamander", "password": obfsPassword}
 		}
-	case "shadowtls":
-		handshake := strings.TrimSpace(request.HandshakeServer)
-		if handshake == "" {
-			handshake = "www.microsoft.com"
-		}
-		inbound["version"] = 3
-		inbound["password"] = password
-		inbound["handshake"] = map[string]interface{}{"server": handshake, "server_port": 443}
 	case "tuic":
 		inbound["congestion_control"] = "cubic"
 	case "naive":
@@ -512,6 +511,10 @@ func (s *LocalControlService) createRemoteQuickAddClient(request RemoteQuickAddR
 	uuidValue := randomUUID()
 	configValue := map[string]interface{}{}
 	switch request.Protocol {
+	case "mixed", "socks", "http":
+		for _, key := range []string{"mixed", "socks", "http"} {
+			configValue[key] = map[string]interface{}{"username": name, "password": password}
+		}
 	case "shadowsocks":
 		configValue["shadowsocks"] = map[string]interface{}{"name": name, "password": password}
 	case "vmess":
@@ -526,8 +529,6 @@ func (s *LocalControlService) createRemoteQuickAddClient(request RemoteQuickAddR
 		configValue["trojan"] = map[string]interface{}{"name": name, "password": password}
 	case "hysteria2":
 		configValue["hysteria2"] = map[string]interface{}{"name": name, "password": password}
-	case "shadowtls":
-		configValue["shadowtls"] = map[string]interface{}{"name": name, "password": password}
 	case "tuic":
 		configValue["tuic"] = map[string]interface{}{"name": name, "uuid": uuidValue, "password": password}
 	case "naive":

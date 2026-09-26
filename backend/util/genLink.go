@@ -61,7 +61,7 @@ func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname stri
 	}
 
 	var tls map[string]interface{}
-	if i.TlsId > 0 {
+	if i.TlsId > 0 && i.Tls != nil {
 		tls = prepareTls(i.Tls)
 	}
 
@@ -71,8 +71,10 @@ func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname stri
 	}
 
 	var Addrs []map[string]interface{}
-	if err := json.Unmarshal(i.Addrs, &Addrs); err != nil {
-		return []string{}
+	if len(i.Addrs) > 0 {
+		if err := json.Unmarshal(i.Addrs, &Addrs); err != nil {
+			return []string{}
+		}
 	}
 	if len(Addrs) == 0 {
 		Addrs = append(Addrs, map[string]interface{}{
@@ -80,14 +82,17 @@ func LinkGenerator(clientConfig json.RawMessage, i *model.Inbound, hostname stri
 			"server_port": (*inbound)["listen_port"],
 			"remark":      joinRemark(clientRemark, i.Tag),
 		})
-		if i.TlsId > 0 {
+		if tls != nil {
 			Addrs[0]["tls"] = tls
 		}
 	} else {
 		for index, addr := range Addrs {
 			addrRemark, _ := addr["remark"].(string)
 			Addrs[index]["remark"] = joinRemark(clientRemark, i.Tag+addrRemark)
-			if i.TlsId > 0 {
+			if _, hasServer := addr["server"].(string); !hasServer {
+				Addrs[index]["server"] = hostname
+			}
+			if tls != nil {
 				newTls := map[string]interface{}{}
 				for k, v := range tls {
 					newTls[k] = v
@@ -191,8 +196,14 @@ func prepareTls(t *model.Tls) map[string]interface{} {
 		case "enabled", "server_name", "alpn":
 			oTls[k] = v
 		case "reality":
-			reality := v.(map[string]interface{})
-			clientReality := oTls["reality"].(map[string]interface{})
+			reality, _ := v.(map[string]interface{})
+			if reality == nil {
+				continue
+			}
+			clientReality, _ := oTls["reality"].(map[string]interface{})
+			if clientReality == nil {
+				clientReality = map[string]interface{}{}
+			}
 			clientReality["enabled"] = reality["enabled"]
 			if shortIDs, hasSIds := reality["short_id"].([]interface{}); hasSIds && len(shortIDs) > 0 {
 				clientReality["short_id"] = shortIDs[common.RandomInt(len(shortIDs))]
@@ -203,37 +214,37 @@ func prepareTls(t *model.Tls) map[string]interface{} {
 	return oTls
 }
 
+// socksLink uses the v2rayN/v2rayNG share format: socks://BASE64URL(user:pass)@host:port.
+// v2rayN does not recognise the socks5:// scheme at all, and Shadowrocket reads
+// the same shape, so a single format keeps both clients importable.
 func socksLink(userConfig map[string]interface{}, addrs []map[string]interface{}) []string {
 	var links []string
+	username, _ := userConfig["username"].(string)
+	password, _ := userConfig["password"].(string)
 	for _, addr := range addrs {
-		username, _ := userConfig["username"].(string)
-		password, _ := userConfig["password"].(string)
-		links = append(links, fmt.Sprintf(
-			"socks5://%s:%s@%s",
-			escapeLinkUserInfo(username),
-			escapeLinkUserInfo(password),
-			linkHostPort(addr),
-		))
+		userInfo := ""
+		if username != "" || password != "" {
+			userInfo = base64.RawURLEncoding.EncodeToString([]byte(username+":"+password)) + "@"
+		}
+		links = append(links, addRawParams("socks://"+userInfo+linkHostPort(addr), nil, linkRemark(addr)))
 	}
 	return links
 }
 
 func httpLink(userConfig map[string]interface{}, addrs []map[string]interface{}) []string {
 	var links []string
-	protocol := "http"
+	username, _ := userConfig["username"].(string)
+	password, _ := userConfig["password"].(string)
 	for _, addr := range addrs {
-		if addr["tls"] != nil {
+		protocol := "http"
+		if tlsConfig, ok := addr["tls"].(map[string]interface{}); ok && tlsEnabled(tlsConfig) {
 			protocol = "https"
 		}
-		username, _ := userConfig["username"].(string)
-		password, _ := userConfig["password"].(string)
-		links = append(links, fmt.Sprintf(
-			"%s://%s:%s@%s",
-			protocol,
-			escapeLinkUserInfo(username),
-			escapeLinkUserInfo(password),
-			linkHostPort(addr),
-		))
+		userInfo := ""
+		if username != "" || password != "" {
+			userInfo = escapeLinkUserInfo(username) + ":" + escapeLinkUserInfo(password) + "@"
+		}
+		links = append(links, addRawParams(protocol+"://"+userInfo+linkHostPort(addr), nil, linkRemark(addr)))
 	}
 	return links
 }
@@ -257,14 +268,93 @@ func shadowsocksLink(
 	}
 	userPass = append(userPass, pass)
 
-	uriBase := fmt.Sprintf("ss://%s", toBase64([]byte(fmt.Sprintf("%s:%s", method, strings.Join(userPass, ":")))))
+	// SIP002 userinfo must be URL-safe base64. Standard base64 can contain "/",
+	// which ends the authority and makes v2rayN/Shadowrocket reject the link.
+	userInfo := base64.RawURLEncoding.EncodeToString([]byte(method + ":" + strings.Join(userPass, ":")))
 
 	var links []string
 	for _, addr := range addrs {
-		port, _ := addr["server_port"].(float64)
-		links = append(links, fmt.Sprintf("%s@%s:%.0f#%s", uriBase, addr["server"].(string), port, addr["remark"].(string)))
+		links = append(links, addRawParams("ss://"+userInfo+"@"+linkHostPort(addr), nil, linkRemark(addr)))
 	}
 	return links
+}
+
+func linkRemark(addr map[string]interface{}) string {
+	remark, _ := addr["remark"].(string)
+	return remark
+}
+
+func tlsEnabled(tlsConfig map[string]interface{}) bool {
+	if tlsConfig == nil {
+		return false
+	}
+	enabled, ok := tlsConfig["enabled"].(bool)
+	// Addresses may override only part of the TLS object; treat a TLS object
+	// without an explicit flag as enabled, as the inbound owns the switch.
+	return enabled || !ok
+}
+
+// tlsNeedsInsecureCompat reports whether a share link must carry the client
+// "skip verification" flag. Clients such as Shadowrocket, and the sing-box core
+// inside v2rayN, ignore certificate pins, so self-signed certificates would fail
+// verification there. The pin is still exported for clients that enforce it.
+func tlsNeedsInsecureCompat(tlsConfig map[string]interface{}) bool {
+	if tlsConfig == nil {
+		return false
+	}
+	if reality, ok := tlsConfig["reality"].(map[string]interface{}); ok {
+		if enabled, _ := reality["enabled"].(bool); enabled {
+			return false
+		}
+	}
+	if insecure, _ := tlsConfig["insecure"].(bool); insecure {
+		return true
+	}
+	if getPinnedPeerCertSha256(tlsConfig) != "" {
+		return true
+	}
+	if pin, _ := tlsConfig["pinSHA256"].(string); strings.TrimSpace(pin) != "" {
+		return true
+	}
+	return CertIsSelfSigned(CertPEMFromTLS(tlsConfig))
+}
+
+func decodeOutJSON(inbound map[string]interface{}) map[string]interface{} {
+	result := map[string]interface{}{}
+	switch raw := inbound["out_json"].(type) {
+	case json.RawMessage:
+		_ = json.Unmarshal(raw, &result)
+	case []byte:
+		_ = json.Unmarshal(raw, &result)
+	case string:
+		_ = json.Unmarshal([]byte(raw), &result)
+	case map[string]interface{}:
+		return raw
+	}
+	if result == nil {
+		result = map[string]interface{}{}
+	}
+	return result
+}
+
+func stringList(value interface{}) []string {
+	switch values := value.(type) {
+	case []interface{}:
+		result := make([]string, 0, len(values))
+		for _, item := range values {
+			if text, ok := item.(string); ok && text != "" {
+				result = append(result, text)
+			}
+		}
+		return result
+	case []string:
+		return values
+	case string:
+		if values != "" {
+			return []string{values}
+		}
+	}
+	return nil
 }
 
 func naiveLink(
@@ -528,24 +618,29 @@ func hysteriaLink(
 		} else {
 			params = append(params, LinkParam{"fastopen", "0"})
 		}
-		var outJson map[string]interface{}
-		if err := json.Unmarshal(inbound["out_json"].(json.RawMessage), &outJson); err != nil {
-			return []string{} // Handle error
-		}
-		if mport, ok := outJson["server_ports"].([]interface{}); ok {
-			mportList := make([]string, len(mport))
-			for i, v := range mport {
-				mportList[i] = v.(string)
-			}
-			params = append(params, LinkParam{"mport", strings.Join(mportList, ",")})
+		if mport := serverPortsForLink(decodeOutJSON(inbound)); mport != "" {
+			params = append(params, LinkParam{"mport", mport})
 		}
 
-		port, _ := addr["server_port"].(float64)
-		uri := fmt.Sprintf("%s%s:%.0f", baseUri, addr["server"].(string), port)
-		links = append(links, addParams(uri, params, addr["remark"].(string)))
+		uri := baseUri + linkHostPort(addr)
+		links = append(links, addParams(uri, params, linkRemark(addr)))
 	}
 
 	return links
+}
+
+// serverPortsForLink converts sing-box port hopping ranges (1000:2000) to the
+// share-link form (1000-2000) understood by v2rayN, Shadowrocket and Hysteria.
+func serverPortsForLink(outJson map[string]interface{}) string {
+	ports := stringList(outJson["server_ports"])
+	if len(ports) == 0 {
+		return ""
+	}
+	converted := make([]string, 0, len(ports))
+	for _, portRange := range ports {
+		converted = append(converted, strings.ReplaceAll(strings.TrimSpace(portRange), ":", "-"))
+	}
+	return strings.Join(converted, ",")
 }
 
 func hysteria2Link(
@@ -586,26 +681,12 @@ func hysteria2Link(
 		} else {
 			params = append(params, LinkParam{"fastopen", "0"})
 		}
-		var outJson map[string]interface{}
-		if err := json.Unmarshal(inbound["out_json"].(json.RawMessage), &outJson); err != nil {
-			return []string{} // Handle error
-		}
-		if mport, ok := outJson["server_ports"].([]interface{}); ok {
-			mportList := make([]string, len(mport))
-			for i, v := range mport {
-				mportList[i] = v.(string)
-			}
-			params = append(params, LinkParam{"mport", strings.Join(mportList, ",")})
+		if mport := serverPortsForLink(decodeOutJSON(inbound)); mport != "" {
+			params = append(params, LinkParam{"mport", mport})
 		}
 
-		port, _ := addr["server_port"].(float64)
-		server := strings.Trim(addr["server"].(string), "[]")
-		uri := fmt.Sprintf(
-			"hysteria2://%s@%s",
-			escapeLinkUserInfo(password),
-			net.JoinHostPort(server, fmt.Sprintf("%.0f", port)),
-		)
-		links = append(links, addRawParams(uri, params, addr["remark"].(string)))
+		uri := fmt.Sprintf("hysteria2://%s@%s", escapeLinkUserInfo(password), linkHostPort(addr))
+		links = append(links, addRawParams(uri, params, linkRemark(addr)))
 	}
 
 	return links
@@ -622,11 +703,10 @@ func anytlsLink(
 		var params []LinkParam
 		if tls, ok := addr["tls"].(map[string]interface{}); ok {
 			getTlsParams(&params, tls, "insecure")
-			ensurePinnedTLSClientCompatibility(&params)
 		}
 
 		uri := fmt.Sprintf("anytls://%s@%s", escapeLinkUserInfo(password), linkHostPort(addr))
-		links = append(links, addRawParams(uri, params, addr["remark"].(string)))
+		links = append(links, addRawParams(uri, params, linkRemark(addr)))
 	}
 
 	return links
@@ -645,12 +725,11 @@ func tuicLink(
 		var params []LinkParam
 		if tls, ok := addr["tls"].(map[string]interface{}); ok {
 			getTlsParams(&params, tls, "insecure")
-			ensurePinnedTLSClientCompatibility(&params)
 			if !hasLinkParam(params, "alpn") {
 				params = append(params, LinkParam{"alpn", "h3"})
 			}
 		}
-		if congestionControl, ok := inbound["congestion_control"].(string); ok {
+		if congestionControl, ok := inbound["congestion_control"].(string); ok && congestionControl != "" {
 			params = append(params, LinkParam{"congestion_control", congestionControl})
 		}
 
@@ -660,7 +739,7 @@ func tuicLink(
 			escapeLinkUserInfo(password),
 			linkHostPort(addr),
 		)
-		links = append(links, addRawParams(uri, params, addr["remark"].(string)))
+		links = append(links, addRawParams(uri, params, linkRemark(addr)))
 	}
 
 	return links
@@ -678,15 +757,18 @@ func vlessLink(
 	for _, addr := range addrs {
 		params := make([]LinkParam, len(baseParams))
 		copy(params, baseParams)
-		if tls, ok := addr["tls"].(map[string]interface{}); ok && tls["enabled"].(bool) {
+		params = append([]LinkParam{{"encryption", "none"}}, params...)
+		if tls, ok := addr["tls"].(map[string]interface{}); ok && tlsEnabled(tls) {
+			params = adjustHTTPTransportParams(params, true)
 			getTlsParams(&params, tls, "allowInsecure")
-			if flow, ok := userConfig["flow"].(string); ok {
+			// XTLS Vision only works on raw TCP. Exporting it for WS/gRPC makes
+			// clients refuse the node or the server report a flow mismatch.
+			if flow, ok := userConfig["flow"].(string); ok && flow != "" && isTcpTransport(params) {
 				params = append(params, LinkParam{"flow", flow})
 			}
 		}
-		port, _ := addr["server_port"].(float64)
-		uri := fmt.Sprintf("vless://%s@%s:%.0f", uuid, addr["server"].(string), port)
-		uri = addParams(uri, params, addr["remark"].(string))
+		uri := fmt.Sprintf("vless://%s@%s", uuid, linkHostPort(addr))
+		uri = addParams(uri, params, linkRemark(addr))
 		links = append(links, uri)
 	}
 
@@ -705,19 +787,19 @@ func xrayVlessLink(
 	for _, addr := range addrs {
 		params := make([]LinkParam, len(baseParams))
 		copy(params, baseParams)
+		params = append([]LinkParam{{"encryption", "none"}}, params...)
 		if tls, ok := addr["tls"].(map[string]interface{}); ok {
 			if enabled, _ := tls["enabled"].(bool); enabled {
 				getXrayTlsParams(&params, tls, "allowInsecure")
 				if isTcpTransport(params) {
-					if flow, ok := userConfig["flow"].(string); ok {
+					if flow, ok := userConfig["flow"].(string); ok && flow != "" {
 						params = append(params, LinkParam{"flow", flow})
 					}
 				}
 			}
 		}
-		port, _ := addr["server_port"].(float64)
-		uri := fmt.Sprintf("vless://%s@%s:%.0f", uuid, addr["server"].(string), port)
-		uri = addParams(uri, params, addr["remark"].(string))
+		uri := fmt.Sprintf("vless://%s@%s", uuid, linkHostPort(addr))
+		uri = addParams(uri, params, linkRemark(addr))
 		links = append(links, uri)
 	}
 
@@ -741,8 +823,11 @@ func xrayTrojanLink(
 				getXrayTlsParams(&params, tls, "allowInsecure")
 			}
 		}
+		if !hasLinkParam(params, "security") {
+			params = append(params, LinkParam{"security", "none"})
+		}
 		uri := fmt.Sprintf("trojan://%s@%s", escapeLinkUserInfo(password), linkHostPort(addr))
-		uri = addRawParams(uri, params, addr["remark"].(string))
+		uri = addRawParams(uri, params, linkRemark(addr))
 		links = append(links, uri)
 	}
 
@@ -760,11 +845,15 @@ func trojanLink(
 	for _, addr := range addrs {
 		params := make([]LinkParam, len(baseParams))
 		copy(params, baseParams)
-		if tls, ok := addr["tls"].(map[string]interface{}); ok && tls["enabled"].(bool) {
+		if tls, ok := addr["tls"].(map[string]interface{}); ok && tlsEnabled(tls) {
+			params = adjustHTTPTransportParams(params, true)
 			getTlsParams(&params, tls, "allowInsecure")
+		} else {
+			// Trojan links default to TLS in every client; say so explicitly.
+			params = append(params, LinkParam{"security", "none"})
 		}
 		uri := fmt.Sprintf("trojan://%s@%s", escapeLinkUserInfo(password), linkHostPort(addr))
-		uri = addRawParams(uri, params, addr["remark"].(string))
+		uri = addRawParams(uri, params, linkRemark(addr))
 		links = append(links, uri)
 	}
 
@@ -781,9 +870,11 @@ func xrayVmessLink(
 	var links []string
 
 	baseParams := map[string]interface{}{
-		"v":   "2",
-		"id":  uuid,
-		"aid": 0,
+		"v":    "2",
+		"id":   uuid,
+		"aid":  "0",
+		"scy":  "auto",
+		"type": "none",
 	}
 
 	var net, host, path, serviceName, mode string
@@ -824,10 +915,9 @@ func xrayVmessLink(
 			obj[k] = v
 		}
 
-		obj["add"], _ = addr["server"].(string)
-		port, _ := addr["server_port"].(float64)
-		obj["port"] = fmt.Sprintf("%.0f", port)
-		obj["ps"], _ = addr["remark"].(string)
+		obj["add"] = strings.Trim(linkServer(addr), "[]")
+		obj["port"] = linkPort(addr)
+		obj["ps"] = linkRemark(addr)
 		populateXrayVmessTlsParams(obj, addr["tls"])
 
 		jsonStr, _ := json.Marshal(obj)
@@ -847,51 +937,39 @@ func vmessLink(
 	transportParams := getTransportParams(inbound["transport"])
 	var links []string
 
-	baseParams := map[string]interface{}{
-		"v":   "2",
-		"id":  uuid,
-		"aid": 0,
-	}
-
-	var net, typ, host, path string
-	for _, p := range transportParams {
-		switch p.Key {
-		case "type":
-			net = p.Value
-		case "headerType":
-			typ = p.Value
-		case "host":
-			host = p.Value
-		case "path":
-			path = p.Value
-		}
-	}
-
-	if net == "tcp" {
-		baseParams["net"] = "tcp"
-	} else {
-		baseParams["net"] = net
-	}
-
 	for _, addr := range addrs {
-		obj := make(map[string]interface{})
-		for k, v := range baseParams {
-			obj[k] = v
+		tls, _ := addr["tls"].(map[string]interface{})
+		params := adjustHTTPTransportParams(append([]LinkParam(nil), transportParams...), tls != nil && tlsEnabled(tls))
+		obj := map[string]interface{}{
+			"v":    "2",
+			"id":   uuid,
+			"aid":  "0",
+			"scy":  "auto",
+			"type": "none",
+		}
+		for _, p := range params {
+			switch p.Key {
+			case "type":
+				switch p.Value {
+				case "http":
+					obj["net"] = "h2"
+				default:
+					obj["net"] = p.Value
+				}
+			case "headerType":
+				obj["type"] = p.Value
+			case "host":
+				obj["host"] = p.Value
+			case "path":
+				obj["path"] = p.Value
+			case "serviceName":
+				obj["path"] = p.Value
+			}
 		}
 
-		obj["add"], _ = addr["server"].(string)
-		port, _ := addr["server_port"].(float64)
-		obj["port"] = fmt.Sprintf("%.0f", port)
-		obj["ps"], _ = addr["remark"].(string)
-		if typ != "" {
-			obj["type"] = typ
-		}
-		if host != "" {
-			obj["host"] = host
-		}
-		if path != "" {
-			obj["path"] = path
-		}
+		obj["add"] = strings.Trim(linkServer(addr), "[]")
+		obj["port"] = linkPort(addr)
+		obj["ps"] = linkRemark(addr)
 		populateVmessTlsParams(obj, addr["tls"])
 
 		jsonStr, _ := json.Marshal(obj)
@@ -903,55 +981,73 @@ func vmessLink(
 }
 
 func populateVmessTlsParams(obj map[string]interface{}, tlsConfig interface{}) {
-	if tlsMap, ok := tlsConfig.(map[string]interface{}); ok && tlsMap["enabled"].(bool) {
+	if tlsMap, ok := tlsConfig.(map[string]interface{}); ok && tlsEnabled(tlsMap) {
 		obj["tls"] = "tls"
 		var tlsParams []LinkParam
 		getTlsParams(&tlsParams, tlsMap, "allowInsecure")
-		for _, p := range tlsParams {
-			switch p.Key {
-			case "security":
-				// ignore, as "tls" is already set
-			case "allowInsecure":
-				obj["allowInsecure"] = 1
-			case "sni":
-				obj["sni"] = p.Value
-			case "fp":
-				obj["fp"] = p.Value
-			case "alpn":
-				obj["alpn"] = p.Value
-			case "pcs":
-				obj["pcs"] = p.Value
-			}
-		}
+		populateVmessTLSObject(obj, tlsParams)
 	} else {
 		obj["tls"] = "none"
 	}
 }
 
 func populateXrayVmessTlsParams(obj map[string]interface{}, tlsConfig interface{}) {
-	if tlsMap, ok := tlsConfig.(map[string]interface{}); ok && tlsMap["enabled"].(bool) {
+	if tlsMap, ok := tlsConfig.(map[string]interface{}); ok && tlsEnabled(tlsMap) {
 		obj["tls"] = "tls"
 		var tlsParams []LinkParam
 		getXrayTlsParams(&tlsParams, tlsMap, "allowInsecure")
-		for _, p := range tlsParams {
-			switch p.Key {
-			case "security":
-			case "allowInsecure":
-				obj["allowInsecure"] = 1
-			case "sni":
-				obj["sni"] = p.Value
-			case "fp":
-				obj["fp"] = p.Value
-			case "alpn":
-				obj["alpn"] = p.Value
-			case "pcs":
-				obj["pinSHA256"] = p.Value
-				obj["pcs"] = p.Value
-			}
+		populateVmessTLSObject(obj, tlsParams)
+		if pcs, ok := obj["pcs"].(string); ok && pcs != "" {
+			obj["pinSHA256"] = pcs
 		}
 	} else {
 		obj["tls"] = "none"
 	}
+}
+
+func populateVmessTLSObject(obj map[string]interface{}, tlsParams []LinkParam) {
+	for _, p := range tlsParams {
+		switch p.Key {
+		case "security":
+			// "tls" is already set
+		case "allowInsecure":
+			// Same shape as 3x-ui/v2rayN exports: a JSON boolean.
+			obj["allowInsecure"] = true
+		case "sni":
+			obj["sni"] = p.Value
+		case "fp":
+			obj["fp"] = p.Value
+		case "alpn":
+			obj["alpn"] = p.Value
+		case "pcs":
+			obj["pcs"] = p.Value
+		}
+	}
+}
+
+func linkServer(addr map[string]interface{}) string {
+	server, _ := addr["server"].(string)
+	return server
+}
+
+func linkPort(addr map[string]interface{}) string {
+	switch port := addr["server_port"].(type) {
+	case float64:
+		return fmt.Sprintf("%.0f", port)
+	case int:
+		return fmt.Sprintf("%d", port)
+	case uint:
+		return fmt.Sprintf("%d", port)
+	case int64:
+		return fmt.Sprintf("%d", port)
+	case uint64:
+		return fmt.Sprintf("%d", port)
+	case json.Number:
+		return port.String()
+	case string:
+		return port
+	}
+	return "0"
 }
 
 func toBase64(d []byte) string {
@@ -959,7 +1055,10 @@ func toBase64(d []byte) string {
 }
 
 func addParams(uri string, params []LinkParam, remark string) string {
-	URL, _ := url.Parse(uri)
+	URL, err := url.Parse(uri)
+	if err != nil {
+		return addRawParams(uri, params, remark)
+	}
 	URL.RawQuery = encodeLinkParams(params)
 	URL.Fragment = remark
 	return URL.String()
@@ -994,9 +1093,7 @@ func escapeLinkUserInfo(value string) string {
 }
 
 func linkHostPort(addr map[string]interface{}) string {
-	server := strings.Trim(addr["server"].(string), "[]")
-	port, _ := addr["server_port"].(float64)
-	return net.JoinHostPort(server, fmt.Sprintf("%.0f", port))
+	return net.JoinHostPort(strings.Trim(linkServer(addr), "[]"), linkPort(addr))
 }
 
 func getTransportParams(t interface{}) []LinkParam {
@@ -1035,7 +1132,7 @@ func getTransportParams(t interface{}) []LinkParam {
 			params = append(params, LinkParam{"path", path})
 		}
 		if headers, ok := trasport["headers"].(map[string]interface{}); ok {
-			if host, ok := headers["Host"].(string); ok {
+			if host := firstHeaderValue(headers, "Host"); host != "" {
 				params = append(params, LinkParam{"host", host})
 			}
 		}
@@ -1106,7 +1203,8 @@ func isTcpTransport(params []LinkParam) bool {
 }
 
 func getTlsParams(params *[]LinkParam, tls map[string]interface{}, insecureKey string) {
-	if reality, ok := tls["reality"].(map[string]interface{}); ok && reality["enabled"].(bool) {
+	reality, _ := tls["reality"].(map[string]interface{})
+	if realityEnabled, _ := reality["enabled"].(bool); realityEnabled {
 		*params = append(*params, LinkParam{"security", "reality"})
 		if pbk, ok := reality["public_key"].(string); ok {
 			*params = append(*params, LinkParam{"pbk", pbk})
@@ -1116,7 +1214,7 @@ func getTlsParams(params *[]LinkParam, tls map[string]interface{}, insecureKey s
 		}
 	} else {
 		*params = append(*params, LinkParam{"security", "tls"})
-		if insecure, ok := tls["insecure"].(bool); ok && insecure {
+		if tlsNeedsInsecureCompat(tls) {
 			*params = append(*params, LinkParam{insecureKey, "1"})
 		}
 		if disableSni, ok := tls["disable_sni"].(bool); ok && disableSni {
@@ -1124,19 +1222,15 @@ func getTlsParams(params *[]LinkParam, tls map[string]interface{}, insecureKey s
 		}
 	}
 	if utls, ok := tls["utls"].(map[string]interface{}); ok {
-		if fingerprint, ok := utls["fingerprint"].(string); ok {
+		if fingerprint, ok := utls["fingerprint"].(string); ok && fingerprint != "" {
 			*params = append(*params, LinkParam{"fp", fingerprint})
 		}
 	}
-	if sni, ok := tls["server_name"].(string); ok {
+	if sni, ok := tls["server_name"].(string); ok && sni != "" {
 		*params = append(*params, LinkParam{"sni", sni})
 	}
-	if alpn, ok := tls["alpn"].([]interface{}); ok {
-		alpnList := make([]string, len(alpn))
-		for i, v := range alpn {
-			alpnList[i] = v.(string)
-		}
-		*params = append(*params, LinkParam{"alpn", strings.Join(alpnList, ",")})
+	if alpn := stringList(tls["alpn"]); len(alpn) > 0 {
+		*params = append(*params, LinkParam{"alpn", strings.Join(alpn, ",")})
 	}
 	if pcs := getPinnedPeerCertSha256(tls); pcs != "" {
 		*params = append(*params, LinkParam{"pcs", pinnedPeerCertSha256ForLink(pcs)})
@@ -1163,12 +1257,45 @@ func hasLinkParam(params []LinkParam, key string) bool {
 	return false
 }
 
-func ensurePinnedTLSClientCompatibility(params *[]LinkParam) {
-	// v2rayN 7.23.x does not pass pcs to sing-box outbounds. Retain the pin for
-	// capable clients and add the compatibility fallback for generated certs.
-	if hasLinkParam(*params, "pcs") && !hasLinkParam(*params, "insecure") {
-		*params = append(*params, LinkParam{"insecure", "1"})
+// adjustHTTPTransportParams maps sing-box's HTTP transport to the network that
+// share-link clients expect: HTTP/2 ("http", i.e. h2) when TLS is enabled, and
+// the TCP + HTTP header shape for plain connections.
+func adjustHTTPTransportParams(params []LinkParam, tlsOn bool) []LinkParam {
+	if !tlsOn {
+		return params
 	}
+	isHTTP := false
+	for _, param := range params {
+		if param.Key == "headerType" && param.Value == "http" {
+			isHTTP = true
+		}
+	}
+	if !isHTTP {
+		return params
+	}
+	result := make([]LinkParam, 0, len(params))
+	for _, param := range params {
+		switch {
+		case param.Key == "type" && param.Value == "tcp":
+			result = append(result, LinkParam{"type", "http"})
+		case param.Key == "headerType":
+		default:
+			result = append(result, param)
+		}
+	}
+	return result
+}
+
+func firstHeaderValue(headers map[string]interface{}, name string) string {
+	for key, value := range headers {
+		if !strings.EqualFold(key, name) {
+			continue
+		}
+		if values := stringList(value); len(values) > 0 {
+			return values[0]
+		}
+	}
+	return ""
 }
 
 func xrayPinSHA256ForLink(value string) string {

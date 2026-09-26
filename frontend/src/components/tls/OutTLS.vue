@@ -198,15 +198,16 @@
           </v-text-field>
         </v-col>
       </v-row>
-      <template v-if="tls.pinned_peer_certificate_sha256 != undefined">
+      <template v-if="tls.certificate_public_key_sha256 != undefined">
         <v-row>
-          <v-col class="v-card-subtitle">Pinned Certificate SHA256</v-col>
+          <v-col class="v-card-subtitle">Certificate Public Key SHA256</v-col>
         </v-row>
         <v-row>
           <v-col cols="12">
             <v-textarea
               label="SHA256 (one per line)"
-              hide-details
+              hint="sing-box 1.13+: base64 SHA-256 of the certificate public key (SPKI)"
+              persistent-hint
               :model-value="pinnedSha256Text"
               @update:model-value="pinnedSha256Text = $event"
               placeholder="base64-encoded-sha256-hash">
@@ -254,7 +255,7 @@
                 <v-switch v-model="optionFragment" color="primary" :label="$t('tls.fragment')" hide-details></v-switch>
               </v-list-item>
               <v-list-item>
-                <v-switch v-model="optionPinned" color="primary" label="Pinned SHA256" hide-details></v-switch>
+                <v-switch v-model="optionPinned" color="primary" label="Public Key SHA256" hide-details></v-switch>
               </v-list-item>
             </v-list>
           </v-card>
@@ -395,13 +396,18 @@ export default {
       get(): number { return parseInt(this.tls.fragment_fallback_delay?.replace('ms','')?? '500')?? 500 },
       set(v:number) { this.$props.outbound.tls.fragment_fallback_delay = v>0 ? `${v}ms` : undefined }
     },
+    // sing-box outbounds only support SPKI pins; the old certificate-hash field
+    // (pinned_peer_certificate_sha256) was rejected by sing-box as unknown.
     optionPinned: {
-      get(): boolean { return this.tls.pinned_peer_certificate_sha256 != undefined },
-      set(v:boolean) { this.$props.outbound.tls.pinned_peer_certificate_sha256 = v ? [] : undefined }
+      get(): boolean { return this.tls.certificate_public_key_sha256 != undefined },
+      set(v:boolean) {
+        delete this.$props.outbound.tls.pinned_peer_certificate_sha256
+        this.$props.outbound.tls.certificate_public_key_sha256 = v ? [] : undefined
+      }
     },
     pinnedSha256Text: {
-      get(): string { return this.tls.pinned_peer_certificate_sha256 ? this.tls.pinned_peer_certificate_sha256.join('\n') : '' },
-      set(v:string) { this.$props.outbound.tls.pinned_peer_certificate_sha256 = v.split('\n').map((s:string)=>s.trim()).filter((s:string)=>s.length>0) }
+      get(): string { return this.tls.certificate_public_key_sha256 ? this.tls.certificate_public_key_sha256.join('\n') : '' },
+      set(v:string) { this.$props.outbound.tls.certificate_public_key_sha256 = v.split('\n').map((s:string)=>s.trim()).filter((s:string)=>s.length>0) }
     }
   }
 }

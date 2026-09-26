@@ -1,12 +1,25 @@
 package util
 
-import "encoding/base64"
+import (
+	"encoding/base64"
+	"strings"
+)
 
-// Function to return decoded bytes if a string is Base64 encoded
+// StrOrBase64Encoded returns the decoded text when str is base64 (standard or
+// URL-safe, padded or not, optionally wrapped over several lines), otherwise
+// str unchanged. Plain share-link lists are never decoded.
 func StrOrBase64Encoded(str string) string {
-	decoded, err := base64.StdEncoding.DecodeString(str)
-	if err == nil {
-		return string(decoded)
+	trimmed := strings.TrimSpace(str)
+	if trimmed == "" || strings.Contains(trimmed, "://") {
+		return str
+	}
+	compact := strings.NewReplacer("\r", "", "\n", "", " ", "", "\t", "").Replace(trimmed)
+	for _, encoding := range []*base64.Encoding{
+		base64.StdEncoding, base64.RawStdEncoding, base64.URLEncoding, base64.RawURLEncoding,
+	} {
+		if decoded, err := encoding.DecodeString(compact); err == nil {
+			return string(decoded)
+		}
 	}
 	return str
 }
