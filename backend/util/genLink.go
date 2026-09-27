@@ -789,21 +789,19 @@ func xrayVlessLink(
 		params := make([]LinkParam, len(baseParams))
 		copy(params, baseParams)
 		params = append([]LinkParam{{"encryption", encryption}}, params...)
-		secured := encryption != "none"
+		tlsOn := false
 		if tls, ok := addr["tls"].(map[string]interface{}); ok {
 			if enabled, _ := tls["enabled"].(bool); enabled {
 				getXrayTlsParams(&params, tls, "allowInsecure")
-				secured = true
+				tlsOn = true
 			}
 		}
 		if !hasLinkParam(params, "security") {
 			params = append(params, LinkParam{"security", "none"})
 		}
-		// XTLS Vision runs on raw TCP under TLS, REALITY or VLESS Encryption.
-		if secured && isTcpTransport(params) {
-			if flow, ok := userConfig["flow"].(string); ok && flow != "" {
-				params = append(params, LinkParam{"flow", flow})
-			}
+		if flow, ok := userConfig["flow"].(string); ok && flow != "" &&
+			XrayVlessVisionAllowed(linkTransportType(params), encryption != "none", tlsOn) {
+			params = append(params, LinkParam{"flow", flow})
 		}
 		uri := fmt.Sprintf("vless://%s@%s", uuid, linkHostPort(addr))
 		uri = addParams(uri, params, linkRemark(addr))
@@ -1212,12 +1210,35 @@ func getXrayTransportParams(t interface{}) []LinkParam {
 }
 
 func isTcpTransport(params []LinkParam) bool {
+	transport := linkTransportType(params)
+	return transport == "tcp" || transport == "raw"
+}
+
+// linkTransportType is the link's "type" parameter; links without one are
+// raw TCP.
+func linkTransportType(params []LinkParam) string {
 	for _, p := range params {
 		if p.Key == "type" {
-			return p.Value == "tcp" || p.Value == "raw"
+			return p.Value
 		}
 	}
-	return true
+	return "tcp"
+}
+
+// XrayVlessVisionAllowed reports whether a user's XTLS Vision flow is kept on
+// an Xray VLESS node, on the server and in its links alike. Xray-core runs
+// Vision directly on raw TCP under TLS or REALITY, and on any transport
+// underneath VLESS Encryption; elsewhere it fails with "XTLS only supports
+// TLS and REALITY directly". Off raw TCP the panel keeps Vision only when
+// VLESS Encryption comes with TLS or REALITY, as on the REALITY + XHTTP +
+// Vision node: XHTTP nodes with VLESS Encryption alone never exported it, so
+// the default Vision flow of their users must not start requiring it.
+func XrayVlessVisionAllowed(transport string, vlessEncryption, tls bool) bool {
+	switch transport {
+	case "", "tcp", "raw":
+		return vlessEncryption || tls
+	}
+	return vlessEncryption && tls
 }
 
 func getTlsParams(params *[]LinkParam, tls map[string]interface{}, insecureKey string) {

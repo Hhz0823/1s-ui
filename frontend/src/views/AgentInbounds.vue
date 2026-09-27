@@ -49,6 +49,7 @@
             :data="quickAdd.vless"
             :xray-available="xrayAvailable"
             :sing-box-reality="singBoxReality"
+            :unsupported-variants="supportsXhttpVision ? [] : ['reality-xhttp-vision']"
             :port="Number(quickAdd.port)"
           />
           <v-col v-else-if="quickAdd.protocol === 'vless'" cols="12">
@@ -200,6 +201,7 @@ const supportsQuickAdd = computed(() => Boolean(node.value?.managed) && capabili
 const supportsNaiveQuickAdd = computed(() => capabilities.value.has('inbounds.quick_add.naive.v1'))
 // Servers without it build the self-signed TLS node whatever the dialog asks.
 const supportsVlessVariants = computed(() => capabilities.value.has('inbounds.quick_add.vless.v2'))
+const supportsXhttpVision = computed(() => capabilities.value.has('inbounds.quick_add.vless.xhttp_vision'))
 const singBoxReality = computed(() => capabilities.value.has('sdwan.reality'))
 const supportsRelay = computed(() => Boolean(node.value?.managed) && capabilities.value.has('relay.v1'))
 const xrayAvailable = computed(() => Boolean(node.value?.report?.cores?.xray_version))

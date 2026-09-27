@@ -315,23 +315,26 @@ flowchart LR
 
 ### 一键创建 VLESS 与 NaiveProxy
 
-一键创建（本机与受管服务器使用同一套后端逻辑）的 VLESS 可选 5 种模式，默认 **REALITY + Vision**。选择仅 Xray-core 支持的模式时会自动切换到 Xray-core：
+一键创建（本机与受管服务器使用同一套后端逻辑）的 VLESS 可选 6 种模式，默认 **REALITY + Vision**。选择仅 Xray-core 支持的模式时会自动切换到 Xray-core：
 
-| 模式 | 内核 | v2rayN | v2rayNG | 小火箭（Shadowrocket） | Anywhere |
-| --- | --- | --- | --- | --- | --- |
-| REALITY + Vision（默认，推荐） | sing-box / Xray-core | ✅ | ✅ | ✅ | ✅ |
-| REALITY + XHTTP | Xray-core | ✅ | ✅ | ✅ | ✅ |
-| VLESS Encryption + Vision | Xray-core | ✅ | ✅ | 未确认 | iOS 26+ |
-| VLESS Encryption + XHTTP | Xray-core | ✅ | ✅ | 未确认 | iOS 26+ |
-| TLS + 自签名证书 | sing-box / Xray-core | ✅ | ✅ | ✅ | 需先在 Trusted Certificates 添加链接中的 `pcs` 指纹 |
-| NaiveProxy（HTTPS / HTTP/2） | sing-box | ✅（分享链接） | ❌ 客户端未实现 | 手动添加：NaiveProxy 类型，旧版为 HTTPS/HTTP2 并开启 Padding | ❌ 客户端未实现 |
+| 模式 | 内核 | v2rayN | v2rayNG | 小火箭（Shadowrocket） | Anywhere | PassWall / PassWall 2 |
+| --- | --- | --- | --- | --- | --- | --- |
+| REALITY + Vision（默认，推荐） | sing-box / Xray-core | ✅ | ✅ | ✅ | ✅ | ✅ |
+| REALITY + XHTTP | Xray-core | ✅ | ✅ | ✅ | ✅ | ✅ |
+| REALITY + XHTTP + Vision（含 VLESS Encryption） | Xray-core | ✅ | ✅ | 未确认 | iOS 26+ | ✅ |
+| VLESS Encryption + Vision | Xray-core | ✅ | ✅ | 未确认 | iOS 26+ | ✅ 订阅导入；在节点页粘贴链接会丢失 flow，需手动选 `xtls-rprx-vision` |
+| VLESS Encryption + XHTTP | Xray-core | ✅ | ✅ | 未确认 | iOS 26+ | ✅ |
+| TLS + 自签名证书 | sing-box / Xray-core | ✅ | ✅ | ✅ | 需先在 Trusted Certificates 添加链接中的 `pcs` 指纹 | ✅ |
+| NaiveProxy（HTTPS / HTTP/2） | sing-box | ✅（分享链接） | ❌ 客户端未实现 | 手动添加：NaiveProxy 类型，旧版为 HTTPS/HTTP2 并开启 Padding | ❌ 客户端未实现 | 可解析 `naive+https` 链接（未实测） |
 
 - **REALITY**：每批节点生成独立的 x25519 密钥和 Short ID，客户端使用 Chrome 指纹；伪装目标留空时服务器自动探测最快可达的 TLS 1.3 + HTTP/2 网站。自动候选已排除 Xray-core 警告会增加 IP 被封概率的 Apple、iCloud、Microsoft 及 `.cn/.ru/.ir` 网站；REALITY 在 443 端口（未被占用时）最自然。
 - **Xray-core 版本**：Xray-core 26.9.8 起 REALITY 服务端会拒绝不带 X25519MLKEM768 密钥交换的 ClientHello（小火箭 2.2.92、iOS 26 以下的 Anywhere）。面板安装的是最新稳定版 26.3.27，不受影响；sing-box 的 REALITY 服务端也不受影响，需要最广兼容时选择 sing-box。
 - **VLESS Encryption**：抗量子的 `mlkem768x25519plus`（ML-KEM-768 + X25519），不需要 TLS 层，可叠加 XTLS Vision；服务端私钥只保存在面板，链接中只有客户端公钥。
-- **XHTTP**：随机路径、`mode=auto`，不下发 `flow`（Vision 仅用于 TCP）。
+- **XHTTP**：随机路径、`mode=auto`。REALITY + XHTTP 和 VLESS Encryption + XHTTP 不下发 `flow`。
+- **REALITY + XHTTP + Vision**：Xray-core 只在 VLESS Encryption 之上允许 XTLS Vision 走 XHTTP（否则报错 “XTLS only supports TLS and REALITY directly”，已用 26.3.27 与 26.9.9 实测），因此该模式同时启用抗量子 VLESS Encryption，链接同时带 `encryption`、`flow=xtls-rprx-vision`、`security=reality` 与 `type=xhttp`。只有这种组合会在 XHTTP 上保留用户的 Vision flow；只开 VLESS Encryption 的 XHTTP 节点仍不下发，老链接不受影响。
+- **PassWall / PassWall 2**：订阅导入和在节点页粘贴链接都已按其解析代码逐项校验，并按它生成的 Xray 出站配置实测连通。XHTTP 节点会自动使用 Xray-core；当前 PassWall 生成的配置需要 Xray-core 26.7.11 及以上。
 - **NaiveProxy**：一键创建默认改为 HTTPS / HTTP/2（小火箭只支持这一种），QUIC / HTTP/3 仍可选。sing-box 的 Naive 入站只接受带 NaiveProxy Padding 的请求，普通 HTTPS 代理客户端无法连接；v2rayNG 与 Anywhere 请使用 VLESS REALITY 节点。
-- 所有模式都有回归测试：链接按 v2rayN、v2rayNG 与 Anywhere 的真实解析规则逐项校验，并用真实 Xray-core（26.3.27 与 26.9.9）客户端仅凭分享链接连接面板生成的服务端、实际转发流量。
+- 所有模式都有回归测试：链接按 v2rayN、v2rayNG、Anywhere 与 PassWall / PassWall 2 的真实解析规则逐项校验，并用真实 Xray-core（26.3.27 与 26.9.9）客户端仅凭分享链接（以及按 PassWall 的方式）连接面板生成的服务端、实际转发流量。
 
 ### 面板界面：宝塔 / 1Panel 风格
 
@@ -422,7 +425,7 @@ flowchart LR
 - IPv6 egress pools and upstream SOCKS5 relays with BitBrowser Excel/plain-text export.
 - SD-WAN: users connect to the controller while it deploys private uplinks on every managed server (VLESS Reality over TCP plus Hysteria2 over QUIC by default), always exits through the fastest path and fails over within seconds; built-in detection (latency, jitter, loss, bandwidth, kernel, clock) and one-click tuning (BBR/fq kernel profile, protocol upgrade, uplink repair, adaptive switch tolerance).
 - Share links built for v2rayN and Shadowrocket (SIP002, `socks://`, pinned self-signed TLS with compatibility flags) and outbound import of SOCKS5/HTTP/Hysteria2 port-hopping links.
-- One-click VLESS nodes in five modes: REALITY + Vision (default, sing-box or Xray-core), REALITY + XHTTP, post-quantum VLESS Encryption + Vision or XHTTP, and self-signed TLS. Links are checked against the v2rayN, v2rayNG and Anywhere parsers, and real Xray-core clients carry traffic using nothing but the share link. One-click NaiveProxy now defaults to HTTPS (HTTP/2).
+- One-click VLESS nodes in six modes: REALITY + Vision (default, sing-box or Xray-core), REALITY + XHTTP, REALITY + XHTTP + Vision (Xray-core runs Vision on XHTTP only on top of VLESS Encryption, which the node therefore adds), post-quantum VLESS Encryption + Vision or XHTTP, and self-signed TLS. Links are checked against the v2rayN, v2rayNG, Anywhere and PassWall / PassWall 2 parsers, and real Xray-core clients carry traffic using nothing but the share link. One-click NaiveProxy now defaults to HTTPS (HTTP/2).
 - BaoTa / 1Panel style panel UI by default: grouped sidebar with breadcrumbs, a server dashboard (load, CPU, memory, disk and swap gauges, live traffic/disk IO charts, system and core status) and toolbar + table list pages with drag-to-reorder routing and DNS rules; BaoTa green, 1Panel blue and 1Panel dark themes, with the glass, solid and clear styles still available.
 
 ### Resource profiles
