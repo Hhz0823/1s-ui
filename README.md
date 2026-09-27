@@ -347,7 +347,7 @@ flowchart LR
 - **NaiveProxy**：一键创建默认改为 HTTPS / HTTP/2（小火箭只支持这一种），QUIC / HTTP/3 仍可选。sing-box 的 Naive 入站只接受带 NaiveProxy Padding 的请求，普通 HTTPS 代理客户端无法连接；v2rayNG 与 Anywhere 请使用 VLESS REALITY 节点。
 - **NaiveProxy 证书**：v2rayN 用 sing-box 的 Naive 出站（Chromium 内核）连接，Chromium 自 2026-03-15 起拒绝有效期超过 200 天的服务器证书（2027-03-15 起 100 天，2029-03-15 起 47 天），即使证书是用户自己信任的也一样（`ERR_CERT_VALIDITY_TOO_LONG`）。因此一键创建的 Naive 节点改用面板私有 CA：分享链接携带并锁定 CA 证书，服务器证书有效期 45 天，面板在到期前 15 天自动续期，客户端无需重新导入。升级前创建的 Naive 节点会在升级后自动换成私有 CA，**需要重新导入一次**。手动选择的 TLS 配置若证书有效期超过 200 天，一键创建会直接提示。
 - **下行分离（下载走 CDN）**：REALITY + XHTTP、REALITY + XHTTP + Vision 与 VLESS Encryption + XHTTP 可以打开「下行分离」并填写 CDN 域名：上传仍直连服务器 IP，下载经 CDN 回源到本机，适合回程线路差的服务器。
-  - 域名要求：在 CDN 开启代理（Cloudflare 橙色云朵）并解析到本服务器 IP；Cloudflare 的 SSL/TLS 模式设为「完全（Full）」；防火墙与云服务器安全组放行 CDN 端口。CDN 端口默认从 Cloudflare 的 HTTPS 端口 443、2053、2083、2087、2096、8443 中选空闲的，也可手动指定。
+  - 域名要求：在 CDN 开启代理（Cloudflare 橙色云朵）并解析到本服务器 IP；Cloudflare 的 SSL/TLS 模式设为「完全（Full）」；防火墙与云服务器安全组放行 CDN 端口；不要对该域名启用会质询非浏览器客户端的 Bot Fight Mode 或 WAF 规则。CDN 端口默认从 Cloudflare 的 HTTPS 端口 443、2053、2083、2087、2096、8443 中选空闲的，也可手动指定。
   - 创建前面板会在 CDN 端口临时提供一个随机令牌，并经 `https://域名:端口` 取回：域名未开启代理、没有指向本机、端口被防火墙拦截或 SSL 模式不对时直接给出原因，不会创建任何节点。节点地址固定为服务器本身（即使用 CDN 域名打开面板也不会写成 CDN 域名）。
   - 实现：XHTTP 只在同一个 XHTTP 入站内配对上下行，所以该节点在 Xray 中是一个不带安全层的 XHTTP 入站（抽象 Unix 套接字）、节点端口上带 REALITY 的入口，以及 CDN 端口上的 TLS 入口，两个入口都用 VLESS 回落交给同一个 XHTTP 入站。
   - 客户端：分享链接在 XHTTP 的 `extra` 中携带 `downloadSettings`，v2rayN、v2rayNG、PassWall / PassWall 2 与 Anywhere 会按它走 CDN 下载；不支持的客户端（如小火箭）上下行都直连，同样可用。已用真实 Xray-core 在两端、中间模拟 CDN 实测三种模式。

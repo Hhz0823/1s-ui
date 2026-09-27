@@ -293,6 +293,8 @@ func cdnProbeGet(ctx context.Context, target, domain string, insecure bool) (*ht
 // cdnProbeStatusError explains what a CDN answered instead of the token.
 func cdnProbeStatusError(domain string, port, status int) error {
 	switch status {
+	case 403:
+		return common.NewErrorf("the CDN blocked the request to %s (HTTP 403); turn off bot protection (Cloudflare: Bot Fight Mode) and WAF rules that challenge non-browser clients for this domain", domain)
 	case 521, 522, 523:
 		return common.NewErrorf("the CDN cannot connect to port %d of this server (HTTP %d): make sure %s points to this server's IP and that the firewall or security group allows TCP %d", port, status, domain, port)
 	case 525:

@@ -204,6 +204,14 @@ func TestQuickAddCDNRefusesDomainsThatMissThisServer(t *testing.T) {
 	}
 }
 
+func TestCDNProbeExplainsCDNErrors(t *testing.T) {
+	for status, want := range map[int]string{403: "Bot Fight Mode", 521: "firewall", 522: "security group", 525: "Full", 526: "Full (strict)", 530: "HTTP 530"} {
+		if err := cdnProbeStatusError(fakeCDNDomain, 8443, status); err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("%d: %v", status, err)
+		}
+	}
+}
+
 func TestQuickAddCDNValidation(t *testing.T) {
 	for _, test := range []struct {
 		variant, domain string
