@@ -1817,7 +1817,7 @@ install_s-ui() {
             last_version=$(curl -Ls "https://api.github.com/repos/Hhz0823/1s-ui/releases?per_page=5" | grep '"tag_name":' | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
         fi
         if [[ ! -n "$last_version" ]]; then
-            echo -e "${red}获取 s-ui 版本失败：api.github.com 和 github.com 都无法访问，请稍后重试，或在命令末尾加上版本号（例如 v1.6.2）${plain}"
+            echo -e "${red}获取 s-ui 版本失败：api.github.com 和 github.com 都无法访问，请稍后重试，或在命令末尾加上版本号（例如 v1.6.3）${plain}"
             exit 1
         fi
         echo -e "已获取 s-ui 版本：${last_version}，开始安装..."

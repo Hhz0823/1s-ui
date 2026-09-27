@@ -9,7 +9,7 @@ on:
       tag:
         description: "发布标签"
         required: true
-        default: "v1.6.2"
+        default: "v1.6.3"
         type: string
 
 permissions:
@@ -189,6 +189,22 @@ jobs:
             *) echo "tag=v$TAG" >> "$GITHUB_OUTPUT" ;;
           esac
 
+      # Checkout cleans the workspace, so it runs before the downloads.
+      - name: 检出发布说明
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 1
+          sparse-checkout: .github/release-notes
+
+      - name: 查找发布说明
+        id: notes
+        env:
+          TAG: ${{ steps.vars.outputs.tag }}
+        run: |
+          if [ -f ".github/release-notes/${TAG}.md" ]; then
+            echo "path=.github/release-notes/${TAG}.md" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: 下载 Linux 构建产物
         uses: actions/download-artifact@v8
         with:
@@ -207,6 +223,7 @@ jobs:
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
           name: s-ui ${{ steps.vars.outputs.tag }}
+          body_path: ${{ steps.notes.outputs.path }}
           target_commitish: ${{ github.sha }}
           fail_on_unmatched_files: true
           overwrite_files: true

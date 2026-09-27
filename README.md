@@ -11,7 +11,7 @@
   [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8)](backend/go.mod)
   [![Vue](https://img.shields.io/badge/Vue-3-42b883)](frontend/package.json)
 
-  **[Linux v1.6.2](https://github.com/Hhz0823/1s-ui/releases/tag/v1.6.2)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
+  **[Linux v1.6.3](https://github.com/Hhz0823/1s-ui/releases/tag/v1.6.3)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
 </div>
 
 > 1S-UI 基于 [alireza0/s-ui](https://github.com/alireza0/s-ui) 二次开发，仅用于学习、研究与技术交流。请遵守当地法律法规。
@@ -351,6 +351,13 @@ flowchart LR
 - **列表页**：入站、用户、出站、节点、服务、TLS、管理员、路由和 DNS 统一为「操作按钮 + 搜索 + 表格」，行内文字操作（编辑 / 克隆 / 流量 / 删除），删除统一二次确认，并支持每页数量与「全部」。
 - **路由与 DNS 规则**：表格保留匹配顺序，可拖动行或用箭头调整顺序，显示匹配条件摘要（悬停查看明细）和「有未保存的更改」提示。
 - **主题**：新增宝塔绿（默认）、1Panel 蓝与 1Panel 暗色，原有主题仍可在右上角切换；「设置 → 界面」可切回玻璃、实色或清透风格。
+
+### v1.6.3 更新重点
+
+- **宝塔 / 1Panel 风格面板**：分组侧栏与面包屑、服务器仪表盘（负载 / CPU / 内存 / 磁盘 / 交换分区仪表与实时曲线）、工具栏 + 表格列表页；新增宝塔绿、1Panel 蓝与 1Panel 暗色主题，详见[面板界面](#面板界面宝塔--1panel-风格)。
+- **一键创建 REALITY + XHTTP + Vision**：Xray-core 只在 VLESS Encryption 之上允许 Vision 走 XHTTP，因此该模式同时启用抗量子 VLESS Encryption；可导入 v2rayN、v2rayNG、PassWall / PassWall 2 与 iOS 26+ 的 Anywhere，兼容性见[一键创建 VLESS 与 NaiveProxy](#一键创建-vless-与-naiveproxy)。
+- **PassWall / PassWall 2**：所有 VLESS 模式都按它的订阅与粘贴链接解析规则校验并实测连通。
+- **连不上 GitHub 也能安装 Xray-core、更新面板**：api.github.com 不可用时改用 github.com；再不行时 Xray-core 从加速镜像安装经过测试的 v26.3.27 并按官方校验值校验；设置中新增「GitHub 加速地址」，下载不再因总超时中断。
 
 ### v1.6.2 更新重点
 
