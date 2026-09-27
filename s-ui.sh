@@ -63,7 +63,7 @@ before_show_menu() {
 }
 
 install() {
-    bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/master/install.sh)
+    bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
     if [[ $? == 0 ]]; then
         if [[ $# == 0 ]]; then
             start
@@ -82,7 +82,7 @@ update() {
         fi
         return 0
     fi
-    bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/master/install.sh)
+    bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
     if [[ $? == 0 ]]; then
         LOGI "更新完成，面板已自动重启"
         exit 0
@@ -100,7 +100,7 @@ custom_version() {
 
     [[ "${panel_version}" != v* ]] && panel_version="v${panel_version}"
 
-    download_link="https://raw.githubusercontent.com/Hhz0823/1s-ui/master/install.sh"
+    download_link="https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh"
 
     install_command="bash <(curl -Ls $download_link) $panel_version"
 
@@ -297,7 +297,7 @@ show_log() {
 }
 
 update_shell() {
-    wget -O /usr/bin/s-ui -N --no-check-certificate https://github.com/Hhz0823/1s-ui/raw/master/s-ui.sh
+    wget -O /usr/bin/s-ui -N --no-check-certificate https://github.com/Hhz0823/1s-ui/raw/main/s-ui.sh
     if [[ $? != 0 ]]; then
         echo ""
         LOGE "下载脚本失败，请检查当前机器是否可以连接 Github"
