@@ -335,7 +335,7 @@ flowchart LR
 - **一键创建修复**：SOCKS/HTTP/Mixed 自动生成用户，sing-box VMess 改用 WebSocket，移除无法导入的 ShadowTLS。
 - **出站导入修复**：支持 SOCKS5/SOCKS4/HTTP(S) 链接、Hysteria2 端口跳跃与 `user:pass` 认证，旧的无效出站不再导致 sing-box 无法启动。
 - REALITY 自动伪装目标排除 Xray-core 警告的 Apple、iCloud、Microsoft 网站；修复 Windows 版编译失败。
-- 安全：升级 `google.golang.org/grpc` 至 1.83.1、`golang.org/x/crypto` 至 0.56.0，修复 govulncheck 报告的 4 个可达漏洞（gRPC 服务端崩溃与 HTTP/2 内存耗尽、SSH 通道死锁 DoS）。
+- 安全：升级 `google.golang.org/grpc` 至 1.83.2、`golang.org/x/crypto` 至 0.56.0，修复 govulncheck 报告的 4 个可达漏洞（gRPC 服务端崩溃与 HTTP/2 内存耗尽、SSH 通道死锁 DoS）。
 
 ### v1.6.1 更新重点
 
