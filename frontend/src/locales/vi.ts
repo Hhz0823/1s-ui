@@ -1098,6 +1098,10 @@
     s: "s",
     ms: "ms",
   },
+  uiOutdated: {
+    title: "Giao diện web đã cũ",
+    text: "Trang này là giao diện v{ui} trong khi bảng điều khiển chạy v{panel}, nên các tính năng mới (như lựa chọn REALITY / Vision khi tạo nút nhanh) không hiển thị. Bảng điều khiển sẽ tự tải giao diện phù hợp; hãy tải lại trang sau khi hoàn tất. Bạn cũng có thể chạy lại lệnh cài đặt trên máy chủ.",
+  },
   hostReq: {
     title: "Control plane cluster dưới khuyến nghị",
     hint: "Control plane Agent khuyến nghị ≥2 CPU và ≥2GB RAM. Panel proxy thường không có cứng tối thiểu. Panel này đã có Agent.",

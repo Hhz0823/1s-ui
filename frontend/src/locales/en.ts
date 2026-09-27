@@ -1147,6 +1147,10 @@
     s: "s",
     ms: "ms",
   },
+  uiOutdated: {
+    title: "The web UI is out of date",
+    text: "This page is the v{ui} UI while the panel runs v{panel}, so newer features (such as the REALITY / Vision choices of one-click nodes) are missing. The panel downloads the matching UI by itself; reload the page once it has. You can also run the install command on the server again.",
+  },
   hostReq: {
     title: "Cluster control plane under recommended specs",
     hint: "Multi-server Agent control plane recommends at least 2 CPU cores and 2 GB RAM. A normal proxy panel has no hard minimum. This panel has agents enrolled; underspec hosts may lag, drop commands, or OOM.",

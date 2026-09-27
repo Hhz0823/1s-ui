@@ -6,7 +6,20 @@ import vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import { fileURLToPath, URL } from 'node:url'
 import { randomBytes } from 'crypto'
+import { readFileSync } from 'node:fs'
 import postcss from 'postcss'
+
+// The panel reads version.json to tell whether the installed UI matches it.
+const appVersion: string = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
+
+function emitVersionFile(): Plugin {
+  return {
+    name: 'emit-version-file',
+    generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ version: appVersion }) + '\n' })
+    },
+  }
+}
 
 function getUniqueFileName(template) {
   if (template.includes('.js') || template.includes('.css')) {
@@ -57,6 +70,7 @@ export default defineConfig(({ mode }) => {
         },
       }),
       preserveStandardBackdropFilter(),
+      emitVersionFile(),
     ],
     build: {
       manifest: false,
@@ -75,7 +89,7 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    define: { 'process.env': {} },
+    define: { 'process.env': {}, __APP_VERSION__: JSON.stringify(appVersion) },
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),

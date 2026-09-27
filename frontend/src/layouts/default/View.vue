@@ -24,6 +24,18 @@
           {{ currentMemGb }} GB
         </div>
       </v-alert>
+      <v-alert
+        v-if="uiOutdated"
+        type="warning"
+        variant="tonal"
+        density="comfortable"
+        class="mb-4 host-req-alert"
+        border="start"
+        icon="mdi-update"
+      >
+        <div class="text-subtitle-2 font-weight-bold">{{ $t('uiOutdated.title') }}</div>
+        <div class="text-body-2 mt-1">{{ $t('uiOutdated.text', { ui: uiOutdated.ui, panel: uiOutdated.panel }) }}</div>
+      </v-alert>
       <router-view />
     </div>
   </v-main>
@@ -36,6 +48,7 @@ import Data from '@/store/modules/data'
 import { i18n } from '@/locales'
 
 const hostReq = computed(() => Data().hostRequirements)
+const uiOutdated = computed(() => Data().uiOutdated)
 const route = useRoute()
 const routeAnimating = ref(false)
 let routeAnimationTimer = 0

@@ -54,6 +54,10 @@ func (c *CronJob) Start(loc *time.Location, trafficAge int, statsBucketSeconds i
 		renew := cron.NewChain(cron.SkipIfStillRunning(cron.DiscardLogger)).Then(NewTLSRenewJob())
 		c.cron.AddJob("@every 6h", renew)
 		time.AfterFunc(30*time.Second, renew.Run)
+		// Keep the web UI at the panel's version
+		repairUI := cron.NewChain(cron.SkipIfStillRunning(cron.DiscardLogger)).Then(NewFrontendRepairJob())
+		c.cron.AddJob("@every 1h", repairUI)
+		time.AfterFunc(20*time.Second, repairUI.Run)
 	}()
 
 	return nil

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/Hhz0823/1s-ui/config"
+	"github.com/Hhz0823/1s-ui/logger"
 )
 
 const (
@@ -279,6 +280,26 @@ func runPanelUpdate(release githubRelease, asset releaseAsset) {
 	}
 	defer os.Remove(archivePath)
 
+	// The web UI is a separate asset and is updated with the binary.
+	frontendRepair.Lock()
+	defer frontendRepair.Unlock()
+	frontendStage := ""
+	if frontendInstalled() {
+		frontendArchive, err := downloadFrontendAsset(releaseFrontendAsset(release), func(source string) {
+			setPanelUpdateState("downloading", "downloading web UI from "+source)
+		})
+		if err != nil {
+			finishPanelUpdate("failed", err.Error())
+			return
+		}
+		defer os.Remove(frontendArchive)
+		if frontendStage, err = stageFrontend(frontendArchive); err != nil {
+			finishPanelUpdate("failed", err.Error())
+			return
+		}
+		defer os.RemoveAll(frontendStage)
+	}
+
 	setPanelUpdateState("installing", "extracting and validating the release")
 	extractDir, err := os.MkdirTemp("", "s-ui-update-")
 	if err != nil {
@@ -293,6 +314,12 @@ func runPanelUpdate(release githubRelease, asset releaseAsset) {
 	if err := installPanelFiles(extractDir); err != nil {
 		finishPanelUpdate("failed", err.Error())
 		return
+	}
+	if frontendStage != "" {
+		// The new panel installs its UI at startup if this fails.
+		if err := swapFrontend(frontendStage); err != nil {
+			logger.Warning("install the web UI: ", err)
+		}
 	}
 
 	setPanelUpdateState("restarting", "release installed; restarting panel")
