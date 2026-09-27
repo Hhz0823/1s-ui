@@ -146,6 +146,21 @@ func TestAnalyzeSdwanReportFindsProblems(t *testing.T) {
 		t.Fatalf("score = %d", report.Score)
 	}
 
+	// A path whose uplink is missing on the server is a rebuild, not a
+	// firewall problem.
+	missing := &SdwanReport{
+		CoreRunning: true, Tolerance: 50, Controller: SdwanTuningStatus{Supported: true},
+		Nodes: []SdwanNodeReport{{
+			NodeID: 5, Name: "de", Online: true, Supported: true, Diagnosed: true, CoreRunning: true,
+			Desired: []string{SdwanProtocolShadowsocks}, Tuning: &SdwanTuningStatus{Supported: true}, Uplinks: []SdwanUplinkStatus{},
+			Paths: []SdwanPathReport{{Protocol: SdwanProtocolShadowsocks, Tag: "sdwan-node-5-ss", Port: 39741, Measured: true, Samples: 5, Failures: 5, Loss: 100}},
+		}},
+	}
+	analyzeSdwanReport(missing, SdwanSettings{Enabled: true, EntryInbounds: []string{"in"}})
+	if findSdwanAdvice(missing, "uplink_down", 5) == nil || findSdwanAdvice(missing, "node_unreachable", 5) != nil || findSdwanAdvice(missing, "path_unreachable", 5) != nil {
+		t.Fatalf("missing uplink findings = %#v", missing.Advice)
+	}
+
 	healthy := &SdwanReport{
 		CoreRunning: true, Tolerance: 50, Controller: SdwanTuningStatus{Supported: true},
 		Nodes: []SdwanNodeReport{{
@@ -453,6 +468,9 @@ func TestSdwanOptimizeUpgradesTunesAndRemeasures(t *testing.T) {
 	}
 	if !slices.Equal(protocols, desired) || findSdwanAdvice(after, "protocol_upgrade", 7) != nil {
 		t.Fatalf("paths after tuning = %v, want %v", protocols, desired)
+	}
+	if remaining := countFixableSdwanAdvice(after); remaining != 0 {
+		t.Fatalf("one-click tuning left %d fixable findings: %#v", remaining, after.Advice)
 	}
 	if after.Score <= before.Score || after.BestTag == "" || !strings.HasPrefix(after.Selected, "sdwan-node-7-") {
 		t.Fatalf("score %d -> %d, best %q, selected %q, advice %#v", before.Score, after.Score, after.BestTag, after.Selected, after.Advice)

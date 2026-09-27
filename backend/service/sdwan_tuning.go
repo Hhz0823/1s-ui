@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -32,7 +33,10 @@ type SdwanTuningStatus struct {
 	BBRAvailable      bool              `json:"bbr_available"`
 	Values            map[string]string `json:"values"`
 	Pending           []string          `json:"pending"`
-	Optimized         bool              `json:"optimized"`
+	// Blocked lists pending settings this kernel rejected when tuning last
+	// ran, with the reason; tuning again cannot fix them.
+	Blocked   map[string]string `json:"blocked,omitempty"`
+	Optimized bool              `json:"optimized"`
 }
 
 type SdwanTuningFailure struct {
@@ -115,6 +119,33 @@ func (procSysctl) MemTotal() uint64 {
 var (
 	sdwanSysctl   sysctlBackend = procSysctl{}
 	sdwanTuningMu sync.Mutex
+	// What this kernel rejected, remembered so it is reported as unavailable
+	// instead of as fixable on every run.
+	sdwanTuningMemoryMu sync.Mutex
+	sdwanTuningBlocked  = map[string]string{}
+	sdwanFqUnavailable  bool
+)
+
+func sdwanTuningMemory() (map[string]string, bool) {
+	sdwanTuningMemoryMu.Lock()
+	defer sdwanTuningMemoryMu.Unlock()
+	return maps.Clone(sdwanTuningBlocked), sdwanFqUnavailable
+}
+
+func rememberSdwanTuning(blocked map[string]string, fqUnavailable bool) {
+	sdwanTuningMemoryMu.Lock()
+	defer sdwanTuningMemoryMu.Unlock()
+	sdwanTuningBlocked = maps.Clone(blocked)
+	sdwanFqUnavailable = fqUnavailable
+}
+
+const (
+	sdwanQdiscKey      = "net.core.default_qdisc"
+	sdwanCongestionKey = "net.ipv4.tcp_congestion_control"
+	sdwanQdiscFallback = "fq_codel"
+	// Reasons the page translates (sdwan.reasons.*).
+	sdwanNoBBRError     = "no_bbr"
+	sdwanNoFairQueueing = "no_fq"
 )
 
 var sdwanBBRVariants = []string{"bbr", "bbr2", "bbr3", "bbrplus", "bbr2plus"}
@@ -161,9 +192,9 @@ func lastField(value string) int64 {
 func sysctlSatisfied(key, current, target string) bool {
 	current = strings.TrimSpace(current)
 	switch key {
-	case "net.ipv4.tcp_congestion_control":
+	case sdwanCongestionKey:
 		return slices.Contains(sdwanBBRVariants, current)
-	case "net.core.default_qdisc":
+	case sdwanQdiscKey:
 		return current == "fq" || current == "cake" || current == "fq_pie"
 	case "net.ipv4.tcp_fastopen":
 		value, err := strconv.ParseInt(current, 10, 64)
@@ -179,6 +210,15 @@ func sysctlSatisfied(key, current, target string) bool {
 	default:
 		return current == target
 	}
+}
+
+// sdwanSettingSatisfied also accepts fq_codel on kernels built without fq:
+// BBR paces by itself there and fq_codel still gives fair queueing.
+func sdwanSettingSatisfied(key, current, target string, fqUnavailable bool) bool {
+	if key == sdwanQdiscKey && fqUnavailable && strings.TrimSpace(current) == sdwanQdiscFallback {
+		return true
+	}
+	return sysctlSatisfied(key, current, target)
 }
 
 func sdwanBBRAvailable(backend sysctlBackend) bool {
@@ -202,6 +242,7 @@ func readSdwanTuning(backend sysctlBackend) SdwanTuningStatus {
 	}
 	status.Supported = true
 	status.BBRAvailable = sdwanBBRAvailable(backend)
+	blocked, fqUnavailable := sdwanTuningMemory()
 	for _, setting := range sdwanTuningProfile(backend.MemTotal(), true) {
 		current, err := backend.Read(setting.Key)
 		if err != nil {
@@ -211,8 +252,14 @@ func readSdwanTuning(backend sysctlBackend) SdwanTuningStatus {
 			current = ""
 		}
 		status.Values[setting.Key] = current
-		if !sysctlSatisfied(setting.Key, current, setting.Value) {
+		if !sdwanSettingSatisfied(setting.Key, current, setting.Value, fqUnavailable) {
 			status.Pending = append(status.Pending, setting.Key)
+			if reason, ok := blocked[setting.Key]; ok {
+				if status.Blocked == nil {
+					status.Blocked = map[string]string{}
+				}
+				status.Blocked[setting.Key] = reason
+			}
 		}
 	}
 	status.CongestionControl = status.Values["net.ipv4.tcp_congestion_control"]
@@ -247,30 +294,48 @@ func applySdwanTuning(backend sysctlBackend) SdwanTuningResult {
 		bbr = sdwanBBRAvailable(backend)
 	}
 	backend.LoadModule("sch_fq")
+	blocked, fqUnavailable := sdwanTuningMemory()
 	var persisted []sysctlSetting
 	for _, setting := range sdwanTuningProfile(backend.MemTotal(), bbr) {
 		current, readErr := backend.Read(setting.Key)
 		if readErr != nil && errors.Is(readErr, os.ErrNotExist) {
 			continue
 		}
-		if sysctlSatisfied(setting.Key, current, setting.Value) {
+		if sdwanSettingSatisfied(setting.Key, current, setting.Value, fqUnavailable) {
+			delete(blocked, setting.Key)
 			if current != "" {
 				persisted = append(persisted, sysctlSetting{setting.Key, current})
 			}
 			continue
 		}
-		if err := backend.Write(setting.Key, setting.Value); err != nil {
+		err := backend.Write(setting.Key, setting.Value)
+		if err != nil && setting.Key == sdwanQdiscKey {
+			// Kernels built without fq reject it; fall back to fq_codel.
+			if fallbackErr := backend.Write(setting.Key, sdwanQdiscFallback); fallbackErr == nil {
+				fqUnavailable = true
+				delete(blocked, setting.Key)
+				if strings.TrimSpace(current) != sdwanQdiscFallback {
+					result.Applied = append(result.Applied, setting.Key)
+				}
+				persisted = append(persisted, sysctlSetting{setting.Key, sdwanQdiscFallback})
+				continue
+			}
+			err = errors.New(sdwanNoFairQueueing)
+		}
+		if err != nil {
+			blocked[setting.Key] = err.Error()
 			result.Failed = append(result.Failed, SdwanTuningFailure{Key: setting.Key, Error: err.Error()})
 			continue
 		}
+		delete(blocked, setting.Key)
 		result.Applied = append(result.Applied, setting.Key)
 		persisted = append(persisted, setting)
 	}
 	if !bbr {
-		result.Failed = append(result.Failed, SdwanTuningFailure{
-			Key: "net.ipv4.tcp_congestion_control", Error: "the kernel has no BBR congestion control",
-		})
+		blocked[sdwanCongestionKey] = sdwanNoBBRError
+		result.Failed = append(result.Failed, SdwanTuningFailure{Key: sdwanCongestionKey, Error: sdwanNoBBRError})
 	}
+	rememberSdwanTuning(blocked, fqUnavailable)
 	if len(persisted) > 0 {
 		result.Persisted = backend.Persist(persisted) == nil
 	}

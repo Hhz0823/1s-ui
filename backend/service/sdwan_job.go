@@ -346,12 +346,39 @@ func (s *SdwanService) runSdwanOptimize(ctx context.Context, run *sdwanJobRun) e
 	if err != nil {
 		return err
 	}
+	s.applyMeasuredTolerance(run, after)
 	run.update(func(job *SdwanJob) { job.Report = after })
 	if len(currentSdwanJob().Changes) == 0 {
 		run.log("info", "optimize_nothing", nil)
 	}
 	run.log("success", "optimize_done", sdwanParams("before", strconv.Itoa(before.Score), "after", strconv.Itoa(after.Score)))
 	return nil
+}
+
+// applyMeasuredTolerance sets the tolerance recommended by the final
+// measurement: it depends on the jitter of the paths that exist after the
+// repair, so it cannot be chosen earlier.
+func (s *SdwanService) applyMeasuredTolerance(run *sdwanJobRun, report *SdwanReport) {
+	if report.RecommendedTolerance <= 0 || !hasSdwanAdvice(report, "tolerance", 0) {
+		return
+	}
+	sdwanMu.Lock()
+	defer sdwanMu.Unlock()
+	db := database.GetDB()
+	settings, _ := loadSdwanSettings(db)
+	previous := settings.Tolerance
+	settings.Tolerance = report.RecommendedTolerance
+	if err := storeSdwanSettings(db, settings); err != nil {
+		run.log("error", "settings_failed", sdwanParams("error", err.Error()))
+		return
+	}
+	run.change("tolerance_changed", sdwanParams("from", strconv.Itoa(previous), "to", strconv.Itoa(settings.Tolerance)))
+	if err := s.apply(); err != nil {
+		run.log("error", "core_restart_failed", sdwanParams("error", err.Error()))
+		return
+	}
+	report.Tolerance = settings.Tolerance
+	analyzeSdwanReport(report, settings)
 }
 
 func (s *SdwanService) tuneSdwanKernels(run *sdwanJobRun, report *SdwanReport) {
@@ -829,9 +856,13 @@ func analyzeSdwanReport(report *SdwanReport, settings SdwanSettings) {
 	}
 	if !report.Controller.Supported {
 		add(SdwanAdvice{Code: "controller_tuning_unsupported", Severity: sdwanSeverityInfo, Params: sdwanParams("reason", report.Controller.Reason)})
-	} else if len(report.Controller.Pending) > 0 {
+	} else if fixable, blocked, reason := splitSdwanPending(report.Controller); len(fixable) > 0 {
 		add(SdwanAdvice{Code: "controller_tuning", Severity: sdwanSeverityWarning, Fixable: true, Params: sdwanParams(
-			"count", strconv.Itoa(len(report.Controller.Pending)), "keys", strings.Join(report.Controller.Pending, ", "),
+			"count", strconv.Itoa(len(fixable)), "keys", strings.Join(fixable, ", "),
+		)})
+	} else if len(blocked) > 0 {
+		add(SdwanAdvice{Code: "controller_tuning_blocked", Severity: sdwanSeverityInfo, Params: sdwanParams(
+			"keys", strings.Join(blocked, ", "), "reason", reason,
 		)})
 	}
 
@@ -861,6 +892,9 @@ func analyzeSdwanReport(report *SdwanReport, settings SdwanSettings) {
 			nodeAdvice("protocol_upgrade", sdwanSeverityWarning, true, "",
 				"current", strings.Join(current, "+"), "desired", strings.Join(node.Desired, "+"))
 		}
+		// Paths whose uplink is missing or stopped on the server: rebuilding
+		// the uplink is the fix, not the firewall.
+		down := map[string]bool{}
 		if node.Diagnosed {
 			if !node.CoreRunning {
 				nodeAdvice("node_core_down", sdwanSeverityError, false, "")
@@ -870,6 +904,7 @@ func analyzeSdwanReport(report *SdwanReport, settings SdwanSettings) {
 					if path.Disabled || (index >= 0 && node.Uplinks[index].Running) {
 						continue
 					}
+					down[path.Protocol] = true
 					nodeAdvice("uplink_down", sdwanSeverityError, true, path.Protocol,
 						"protocol", path.Protocol, "port", strconv.Itoa(path.Port))
 				}
@@ -877,9 +912,12 @@ func analyzeSdwanReport(report *SdwanReport, settings SdwanSettings) {
 			if node.Tuning != nil {
 				if !node.Tuning.Supported {
 					nodeAdvice("node_tuning_unsupported", sdwanSeverityInfo, false, "", "reason", node.Tuning.Reason)
-				} else if len(node.Tuning.Pending) > 0 {
+				} else if fixable, blocked, reason := splitSdwanPending(*node.Tuning); len(fixable) > 0 {
 					nodeAdvice("node_tuning", sdwanSeverityWarning, true, "",
-						"count", strconv.Itoa(len(node.Tuning.Pending)), "keys", strings.Join(node.Tuning.Pending, ", "))
+						"count", strconv.Itoa(len(fixable)), "keys", strings.Join(fixable, ", "))
+				} else if len(blocked) > 0 {
+					nodeAdvice("node_tuning_blocked", sdwanSeverityInfo, false, "",
+						"keys", strings.Join(blocked, ", "), "reason", reason)
 				}
 			}
 			if node.ClockSkewMS != nil {
@@ -912,6 +950,7 @@ func analyzeSdwanReport(report *SdwanReport, settings SdwanSettings) {
 		var blocked []string
 		for pathIndex := range node.Paths {
 			path := &node.Paths[pathIndex]
+			path.Best = false
 			path.Selected = report.Selected != "" && path.Tag == report.Selected
 			if !path.Measured {
 				continue
@@ -923,6 +962,9 @@ func analyzeSdwanReport(report *SdwanReport, settings SdwanSettings) {
 				continue
 			}
 			if !path.Reachable {
+				if down[path.Protocol] {
+					continue
+				}
 				transport := sdwanPathTransport(path.Protocol)
 				blocked = append(blocked, transport+" "+strconv.Itoa(path.Port))
 				if reachable > 0 {
@@ -944,7 +986,7 @@ func analyzeSdwanReport(report *SdwanReport, settings SdwanSettings) {
 				best = path
 			}
 		}
-		if measured > 0 && reachable == 0 {
+		if measured > 0 && reachable == 0 && len(blocked) > 0 {
 			nodeAdvice("node_unreachable", sdwanSeverityError, false, "", "ports", strings.Join(blocked, ", "))
 		}
 	}
@@ -963,6 +1005,22 @@ func analyzeSdwanReport(report *SdwanReport, settings SdwanSettings) {
 	}
 	report.Advice = advice
 	report.Score = sdwanHealthScore(report)
+}
+
+// splitSdwanPending separates pending kernel settings that tuning can apply
+// from those this kernel rejected, with one of the reasons.
+func splitSdwanPending(status SdwanTuningStatus) (fixable, blocked []string, reason string) {
+	for _, key := range status.Pending {
+		if why, ok := status.Blocked[key]; ok {
+			blocked = append(blocked, key)
+			if reason == "" {
+				reason = why
+			}
+			continue
+		}
+		fixable = append(fixable, key)
+	}
+	return fixable, blocked, reason
 }
 
 func sdwanHealthScore(report *SdwanReport) int {
