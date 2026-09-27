@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -23,17 +22,35 @@ import (
 
 	"github.com/Hhz0823/1s-ui/config"
 	"github.com/Hhz0823/1s-ui/database"
+	"github.com/Hhz0823/1s-ui/logger"
 )
 
 const (
-	xrayReleaseAPI     = "https://api.github.com/repos/XTLS/Xray-core/releases/latest"
+	xrayRepo           = "XTLS/Xray-core"
+	xrayReleaseAPI     = "https://api.github.com/repos/" + xrayRepo + "/releases/latest"
 	maxXrayArchiveSize = 128 << 20
 	maxXrayMemberSize  = 96 << 20
+
+	// xrayFallbackTag is installed when GitHub cannot say which release is
+	// the latest: the Xray-core version the panel is tested with.
+	xrayFallbackTag = "v26.3.27"
 )
+
+// xrayFallbackDigests are the SHA2-256 values XTLS published in the .dgst
+// files of xrayFallbackTag, so any mirror can serve those archives.
+var xrayFallbackDigests = map[string]string{
+	"Xray-linux-64.zip":        "23cd9af937744d97776ee35ecad4972cf4b2109d1e0fe6be9930467608f7c8ae",
+	"Xray-linux-32.zip":        "d1eeb0d9a9106eefd286fbb73595c2dfe1c48c56aa91ba1c9aefe04f188d0927",
+	"Xray-linux-arm64-v8a.zip": "4d30283ae614e3057f730f67cd088a42be6fdf91f8639d82cb69e48cde80413c",
+	"Xray-linux-arm32-v5.zip":  "0da9a632e15e82504831f61bf6b46c21e3081bcc79ad46bdc16e7dc2f0dc9088",
+	"Xray-linux-arm32-v6.zip":  "0c6e751e2bba3f3ff09a793dd6a6bc45fd6fd89f49b49dfc0cf6d922dc123bec",
+	"Xray-linux-arm32-v7a.zip": "c7265ae13c63ca0241a037df4ef960ad37938c8a67d984cc08834b2cfdf5654b",
+	"Xray-linux-s390x.zip":     "a209bcea3df9b0dc1ef5938695679ba1308ad9678a671279d7b1b6c5ceec09c7",
+}
 
 var (
 	xrayReleaseAPIURL = xrayReleaseAPI
-	xrayHTTPClient    = &http.Client{Timeout: 45 * time.Second}
+	xrayHTTPClient    = newGitHubHTTPClient()
 	xrayInstallState  = struct {
 		sync.Mutex
 		value XrayInstallProgress
@@ -194,13 +211,13 @@ func (s *XrayInstallService) Uninstall() (XrayInstallStatus, error) {
 }
 
 func runXrayInstall(enableAfterInstall bool) {
-	release, asset, err := fetchLatestXrayRelease()
+	release, asset, err := resolveXrayRelease()
 	if err != nil {
 		finishXrayInstall("failed", "", err.Error())
 		return
 	}
 	setXrayInstallProgress("downloading", release.TagName, "downloading the official Xray-core archive")
-	archivePath, err := downloadXrayArchive(asset)
+	archivePath, err := downloadXrayArchive(release.TagName, asset)
 	if err != nil {
 		finishXrayInstall("failed", release.TagName, err.Error())
 		return
@@ -263,8 +280,79 @@ func xrayInstallCapability() (bool, string) {
 	return true, "ready"
 }
 
+// resolveXrayRelease picks the archive to install: the latest stable release
+// from the GitHub API or from github.com, else xrayFallbackTag. Archives from
+// the API carry its SHA-256, those found on github.com the one in XTLS's .dgst
+// file there.
+func resolveXrayRelease() (xrayRelease, releaseAsset, error) {
+	wanted := xrayReleaseAssetName(runtime.GOARCH, strings.TrimSpace(os.Getenv("GOARM")))
+	if wanted == "" {
+		return xrayRelease{}, releaseAsset{}, fmt.Errorf("this CPU architecture has no automatic Xray-core package")
+	}
+	var attempts githubAttempts
+	release, asset, err := fetchLatestXrayRelease()
+	if err == nil {
+		return release, asset, nil
+	}
+	attempts.add(urlHost(xrayReleaseAPIURL), err)
+	github := githubSource{trusted: true}
+	tag, err := githubLatestTag(xrayHTTPClient, github, xrayRepo)
+	if err == nil {
+		asset = releaseAsset{Name: wanted, BrowserDownloadURL: githubAssetURL(xrayRepo, tag, wanted)}
+		// Without the .dgst file the archive is only fetched from GitHub or
+		// the administrator's mirror.
+		asset.Digest, _ = fetchXrayDigest(asset.BrowserDownloadURL)
+		return xrayRelease{TagName: tag}, asset, nil
+	}
+	attempts.add(github.name(), err)
+	if digest := xrayFallbackDigests[wanted]; digest != "" {
+		logger.Warning("installing the tested Xray-core ", xrayFallbackTag, ": ", attempts.err("Xray-core release lookup"))
+		return xrayRelease{TagName: xrayFallbackTag}, releaseAsset{
+			Name:               wanted,
+			BrowserDownloadURL: githubAssetURL(xrayRepo, xrayFallbackTag, wanted),
+			Digest:             "sha256:" + digest,
+		}, nil
+	}
+	return xrayRelease{}, releaseAsset{}, attempts.err("Xray-core release lookup")
+}
+
+// fetchXrayDigest reads the SHA2-256 line of the .dgst file XTLS publishes
+// next to every archive.
+func fetchXrayDigest(assetURL string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), githubLookupTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, assetURL+".dgst", nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", "1s-ui-xray-installer")
+	response, err := xrayHTTPClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("Xray-core digest returned %s", response.Status)
+	}
+	body, err := io.ReadAll(io.LimitReader(response.Body, 4096))
+	if err != nil {
+		return "", err
+	}
+	for _, line := range strings.Split(string(body), "\n") {
+		if value, found := strings.CutPrefix(strings.TrimSpace(line), "SHA2-256="); found {
+			value = strings.ToLower(strings.TrimSpace(value))
+			if decoded, err := hex.DecodeString(value); err == nil && len(decoded) == sha256.Size {
+				return "sha256:" + value, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("Xray-core digest file has no SHA2-256")
+}
+
 func fetchLatestXrayRelease() (xrayRelease, releaseAsset, error) {
-	req, err := http.NewRequest(http.MethodGet, xrayReleaseAPIURL, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), githubLookupTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, xrayReleaseAPIURL, nil)
 	if err != nil {
 		return xrayRelease{}, releaseAsset{}, err
 	}
@@ -321,75 +409,13 @@ func xrayReleaseAssetName(goarch, goarm string) string {
 	}
 }
 
-func downloadXrayArchive(asset releaseAsset) (string, error) {
-	parsed, err := url.Parse(asset.BrowserDownloadURL)
-	if err != nil || parsed.Scheme != "https" || parsed.Host != "github.com" || !strings.HasPrefix(parsed.Path, "/XTLS/Xray-core/releases/download/") {
+func downloadXrayArchive(tag string, asset releaseAsset) (string, error) {
+	if !isGitHubAssetURL(asset.BrowserDownloadURL, xrayRepo) {
 		return "", fmt.Errorf("Xray-core release has an untrusted download URL")
 	}
-	req, err := http.NewRequest(http.MethodGet, asset.BrowserDownloadURL, nil)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Accept", "application/octet-stream")
-	req.Header.Set("User-Agent", "1s-ui-xray-installer")
-	response, err := xrayHTTPClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("Xray-core download returned %s", response.Status)
-	}
-	if response.ContentLength > maxXrayArchiveSize {
-		return "", fmt.Errorf("Xray-core archive exceeds %d MiB", maxXrayArchiveSize>>20)
-	}
-	file, err := os.CreateTemp("", "1s-ui-xray-*.zip")
-	if err != nil {
-		return "", err
-	}
-	name := file.Name()
-	success := false
-	defer func() {
-		_ = file.Close()
-		if !success {
-			_ = os.Remove(name)
-		}
-	}()
-	hash := sha256.New()
-	written, err := io.Copy(io.MultiWriter(file, hash), io.LimitReader(response.Body, maxXrayArchiveSize+1))
-	if err != nil {
-		return "", err
-	}
-	if written > maxXrayArchiveSize {
-		return "", fmt.Errorf("Xray-core archive exceeds %d MiB", maxXrayArchiveSize>>20)
-	}
-	if err := verifyReleaseDigest(asset.Digest, hash.Sum(nil)); err != nil {
-		return "", err
-	}
-	if err := file.Close(); err != nil {
-		return "", err
-	}
-	success = true
-	return name, nil
-}
-
-func verifyReleaseDigest(digest string, actual []byte) error {
-	digest = strings.TrimSpace(digest)
-	if digest == "" {
-		return nil
-	}
-	algorithm, expected, found := strings.Cut(digest, ":")
-	if !found || !strings.EqualFold(algorithm, "sha256") {
-		return fmt.Errorf("Xray-core release uses an unsupported digest")
-	}
-	decoded, err := hex.DecodeString(strings.TrimSpace(expected))
-	if err != nil || len(decoded) != sha256.Size {
-		return fmt.Errorf("Xray-core release digest is invalid")
-	}
-	if !strings.EqualFold(hex.EncodeToString(decoded), hex.EncodeToString(actual)) {
-		return fmt.Errorf("Xray-core archive checksum mismatch")
-	}
-	return nil
+	return downloadGitHubAsset(xrayHTTPClient, asset.BrowserDownloadURL, asset.Digest, maxXrayArchiveSize, "1s-ui-xray-*.zip", func(source string) {
+		setXrayInstallProgress("downloading", tag, "downloading Xray-core "+tag+" from "+source)
+	})
 }
 
 func extractXrayArchive(archivePath, destination string) error {

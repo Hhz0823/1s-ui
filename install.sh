@@ -714,6 +714,22 @@ install_base() {
     esac
 }
 
+# Xray-core release installed when GitHub cannot say which one is the latest;
+# the panel installs the same one in that case.
+XRAY_FALLBACK_VERSION="v26.3.27"
+
+# github_latest_tag prints the latest stable tag of a GitHub repository: from
+# the API, else from the /releases/latest redirect on github.com, which still
+# answers where api.github.com is blocked or rate limited.
+github_latest_tag() {
+    local repo="$1" tag=""
+    tag=$(curl -Ls --connect-timeout 10 --max-time 20 "https://api.github.com/repos/${repo}/releases/latest" 2>/dev/null | grep '"tag_name":' | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+    if [[ ! "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+        tag=$(curl -sI --connect-timeout 10 --max-time 20 "https://github.com/${repo}/releases/latest" 2>/dev/null | tr -d '\r' | grep -i '^location:' | head -1 | sed -nE 's#.*/releases/tag/([^/?#[:space:]]+).*#\1#p')
+    fi
+    [[ "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+ ]] && echo "$tag"
+}
+
 xray_asset() {
     case "$(arch)" in
     amd64) echo 'Xray-linux-64.zip' ;;
@@ -1136,10 +1152,10 @@ install_xray() {
     fi
 
     local xray_version
-    xray_version=$(curl -Ls "https://api.github.com/repos/XTLS/Xray-core/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    xray_version=$(github_latest_tag "XTLS/Xray-core")
     if [[ ! -n "$xray_version" ]]; then
-        echo -e "${yellow}获取 Xray-core 最新版本失败，跳过 Xray 准备${plain}"
-        return 1
+        xray_version="$XRAY_FALLBACK_VERSION"
+        echo -e "${yellow}无法从 GitHub 获取 Xray-core 最新版本，改为安装经过测试的 ${xray_version}${plain}"
     fi
 
     echo -e "${yellow}正在安装 Xray-core ${xray_version}...${plain}"
@@ -1796,12 +1812,12 @@ install_s-ui() {
 
     local last_version
     if [[ -z "$REQUESTED_VERSION" ]]; then
-        last_version=$(curl -Ls "https://api.github.com/repos/Hhz0823/1s-ui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+        last_version=$(github_latest_tag "Hhz0823/1s-ui")
         if [[ ! -n "$last_version" ]]; then
             last_version=$(curl -Ls "https://api.github.com/repos/Hhz0823/1s-ui/releases?per_page=5" | grep '"tag_name":' | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
         fi
         if [[ ! -n "$last_version" ]]; then
-            echo -e "${red}获取 s-ui 版本失败，可能是 Github API 限制导致，请稍后重试${plain}"
+            echo -e "${red}获取 s-ui 版本失败：api.github.com 和 github.com 都无法访问，请稍后重试，或在命令末尾加上版本号（例如 v1.6.2）${plain}"
             exit 1
         fi
         echo -e "已获取 s-ui 版本：${last_version}，开始安装..."

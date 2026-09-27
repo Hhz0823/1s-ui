@@ -5,9 +5,11 @@ package service
 import (
 	"archive/zip"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -187,5 +189,53 @@ func writeTestXrayZip(t *testing.T, target string, files map[string]string) {
 	}
 	if err := file.Close(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestXrayInstallWorksWithoutGitHubAPI covers the two fallbacks: the latest
+// release named by github.com with the SHA2-256 of XTLS's .dgst file, and the
+// tested release with its built-in SHA2-256 when GitHub cannot be reached.
+func TestXrayInstallWorksWithoutGitHubAPI(t *testing.T) {
+	wanted := xrayReleaseAssetName(runtime.GOARCH, strings.TrimSpace(os.Getenv("GOARM")))
+	if wanted == "" {
+		t.Skip("no Xray-core package for this architecture")
+	}
+	fake := newFakeGitHub(t)
+	oldAPI := xrayReleaseAPIURL
+	xrayReleaseAPIURL = closedURL(t)
+	t.Cleanup(func() { xrayReleaseAPIURL = oldAPI })
+
+	fake.latest = "v26.9.9"
+	digestFile := "/" + xrayRepo + "/releases/download/v26.9.9/" + wanted + ".dgst"
+	fake.files[digestFile] = []byte("MD5= 00\nSHA2-256= " + strings.Repeat("ab", 32) + "\n")
+	release, asset, err := resolveXrayRelease()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if release.TagName != "v26.9.9" || asset.Digest != "sha256:"+strings.Repeat("ab", 32) {
+		t.Fatalf("github.com release = %q, digest %q", release.TagName, asset.Digest)
+	}
+
+	fake.githubDown = true
+	release, asset, err = resolveXrayRelease()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if release.TagName != xrayFallbackTag || asset.Digest != "sha256:"+xrayFallbackDigests[wanted] {
+		t.Fatalf("fallback release = %q, digest %q", release.TagName, asset.Digest)
+	}
+	if !isGitHubAssetURL(asset.BrowserDownloadURL, xrayRepo) || !strings.HasSuffix(asset.BrowserDownloadURL, "/"+xrayFallbackTag+"/"+wanted) {
+		t.Fatalf("fallback URL = %q", asset.BrowserDownloadURL)
+	}
+}
+
+func TestXrayFallbackDigestsCoverEveryPackage(t *testing.T) {
+	for _, arch := range []struct{ goarch, goarm string }{
+		{"amd64", ""}, {"386", ""}, {"arm64", ""}, {"arm", "5"}, {"arm", "6"}, {"arm", "7"}, {"s390x", ""},
+	} {
+		name := xrayReleaseAssetName(arch.goarch, arch.goarm)
+		if digest, err := hex.DecodeString(xrayFallbackDigests[name]); err != nil || len(digest) != sha256.Size {
+			t.Fatalf("%s has no SHA2-256 for %s", name, xrayFallbackTag)
+		}
 	}
 }

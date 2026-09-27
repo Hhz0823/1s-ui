@@ -155,6 +155,14 @@ s-ui update
 入站、证书、Xray 二进制和运行配置不会被删除。在线更新不可用时，仍可使用上面的 `s-ui update`
 或安装脚本升级。
 
+**服务器连不上 GitHub（例如 api.github.com 超时）时**，面板更新和 Xray-core 安装会自动换用其他通道：
+
+1. 通过 github.com 的 `/releases/latest` 跳转获取最新版本，并直接从 github.com 下载；Xray-core 按 XTLS 官方 `.dgst` 中的 SHA2-256 校验。
+2. github.com 也不可用时，Xray-core 改装经过测试的 v26.3.27，从 github.com 或内置加速镜像（ghfast.top、gh-proxy.com、ghproxy.net）下载，并按面板内置的官方 SHA2-256 校验，镜像无法篡改。
+3. 面板更新包在没有 GitHub 提供的校验值时，只会从 GitHub 或你自己在 **设置 → 服务端面板 → GitHub 加速地址** 填写的地址下载（例如 `https://ghfast.top/`）。
+
+安装脚本同样会在 api.github.com 不可用时改用 github.com 获取版本号。
+
 ---
 
 ## 简体中文

@@ -178,6 +178,9 @@
             >
               {{ xrayInstallStateText }}
             </v-alert>
+            <v-alert v-if="xrayGitHubFailed" type="info" variant="tonal" density="compact" class="mt-3" icon="mdi-cloud-alert-outline">
+              {{ $t('setting.githubUnreachableHint') }}
+            </v-alert>
             <div class="xray-install-actions">
               <v-btn
                 color="primary"
@@ -319,6 +322,22 @@
             </v-btn>
             <span class="text-caption text-medium-emphasis">{{ $t('setting.versionUpdateHint') }}</span>
           </div>
+          <v-alert v-if="versionGitHubFailed" type="info" variant="tonal" density="compact" class="mt-3" icon="mdi-cloud-alert-outline">
+            {{ $t('setting.githubUnreachableHint') }}
+          </v-alert>
+          <v-row class="mt-3">
+            <v-col cols="12" lg="10">
+              <v-text-field
+                v-model="settings.githubMirror"
+                :label="$t('setting.githubMirror')"
+                placeholder="https://ghfast.top/"
+                :hint="$t('setting.githubMirrorHint')"
+                persistent-hint
+                clearable
+                prepend-inner-icon="mdi-cloud-sync-outline"
+              ></v-text-field>
+            </v-col>
+          </v-row>
         </section>
 
         <v-divider class="my-5" opacity="40"></v-divider>
@@ -1172,6 +1191,7 @@ const settings = ref({
   globalReset: "",
   congestionAlgo: "",
   qdisc: "",
+  githubMirror: "",
 })
 
 const reverseProxyLoading = ref(false)
@@ -1377,13 +1397,23 @@ const loadReverseProxy = async () => {
   reverseProxyLoading.value = false
 }
 
+const versionCheckFailed = ref(false)
+// Install and lookup errors from GitHub say "lookup failed" or "download failed".
+const githubFailure = /(lookup|download) failed/
+const xrayGitHubFailed = computed(() => xrayInstall.value.install.state === 'failed'
+  && githubFailure.test(xrayInstall.value.install.message || ''))
+const versionGitHubFailed = computed(() => versionCheckFailed.value
+  || (versionInfo.value.update.state === 'failed' && githubFailure.test(versionInfo.value.update.message || '')))
+
 const loadVersion = async (): Promise<boolean> => {
   if (versionLoading.value) return false
   versionLoading.value = true
   const msg = await HttpUtils.get('api/version')
-  if (msg.success && msg.obj) {
+  // A failed check still reports the running version.
+  if (msg.obj) {
     versionInfo.value = { ...emptyVersionInfo(), ...msg.obj, update: { ...emptyVersionInfo().update, ...(msg.obj.update || {}) } }
   }
+  versionCheckFailed.value = !msg.success
   versionLoading.value = false
   return msg.success
 }
