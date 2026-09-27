@@ -2557,3 +2557,838 @@ body.ui-style--glass .v-dialog > .v-overlay__content > .v-card > .v-card-actions
     transform: none !important;
   }
 }
+
+/* ===== Panel style (BaoTa / 1Panel) =====
+   Flat server-panel look: labelled side menu, breadcrumb header, full-width
+   light-gray workspace, bordered white cards and tables, 4-6px corners.
+   Dialogs are teleported to body, which also carries the style class. */
+body.ui-style--panel,
+.ui-style--panel {
+  --app-control-radius: 4px;
+  --app-control-radius-lg: 4px;
+  --app-overlay-radius: 6px;
+  --app-list-item-radius: 4px;
+  --app-surface-radius: 6px;
+  --app-section-radius: 4px;
+  --app-dialog-radius: 8px;
+  --app-dialog-control-radius: 4px;
+  --app-dialog-button-radius: 4px;
+  --app-new-control-bg: rgb(var(--v-theme-surface));
+  --app-new-control-border: rgba(var(--v-theme-on-surface), 0.15);
+  --app-new-control-border-hover: rgba(var(--v-theme-primary), 0.6);
+  --app-new-control-blur: none;
+  --app-new-control-shadow: none;
+  --app-new-control-shadow-focus: 0 0 0 2px rgba(var(--v-theme-primary), 0.15);
+  --app-dialog-scrim-bg: rgba(0, 0, 0, 0.45);
+  --app-dialog-scrim-blur: none;
+  --panel-border: rgba(var(--v-theme-on-surface), 0.09);
+  --panel-header-bg: rgba(var(--v-theme-on-surface), 0.035);
+  --panel-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --panel-sidebar-bg: rgb(var(--v-theme-surface));
+  --panel-sidebar-fg: rgba(var(--v-theme-on-surface), 0.78);
+  --panel-sidebar-muted: rgba(var(--v-theme-on-surface), 0.42);
+  --panel-sidebar-hover: rgba(var(--v-theme-primary), 0.06);
+  --panel-sidebar-active-bg: rgba(var(--v-theme-primary), 0.1);
+  --panel-sidebar-active-fg: rgb(var(--v-theme-primary));
+  --panel-sidebar-border: rgba(var(--v-theme-on-surface), 0.08);
+  --panel-sidebar-brand: rgb(var(--v-theme-on-surface));
+}
+
+/* BaoTa: dark side menu, current item filled with the brand green. */
+.ui-style--panel.v-theme--bt {
+  --panel-sidebar-bg: #2f353e;
+  --panel-sidebar-fg: rgba(255, 255, 255, 0.78);
+  --panel-sidebar-muted: rgba(255, 255, 255, 0.38);
+  --panel-sidebar-hover: rgba(255, 255, 255, 0.07);
+  --panel-sidebar-active-bg: rgb(var(--v-theme-primary));
+  --panel-sidebar-active-fg: #ffffff;
+  --panel-sidebar-border: transparent;
+  --panel-sidebar-brand: #ffffff;
+}
+
+/* --- Workspace --- */
+.ui-style--panel.app-root,
+.ui-style--panel .app-main {
+  background: rgb(var(--v-theme-background)) !important;
+}
+
+.ui-style--panel .app-page {
+  width: 100% !important;
+  max-width: none !important;
+  padding: 16px 20px 28px;
+}
+
+@media (max-width: 600px) {
+  .ui-style--panel .app-page {
+    padding: 12px 10px 24px;
+  }
+}
+
+/* --- Side menu --- */
+body.ui-style--panel .app-root .app-drawer.v-navigation-drawer,
+body.ui-style--panel .app-root .app-drawer.v-navigation-drawer.v-navigation-drawer--active {
+  background: var(--panel-sidebar-bg) !important;
+  color: var(--panel-sidebar-fg) !important;
+  border-right: 1px solid var(--panel-sidebar-border) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.ui-style--panel .app-drawer .drawer-header {
+  min-height: 56px;
+  padding: 10px 12px 10px 16px;
+}
+
+.ui-style--panel .app-drawer .drawer-brand {
+  background: none !important;
+  -webkit-text-fill-color: currentColor !important;
+  color: var(--panel-sidebar-brand);
+  font-size: 17px;
+}
+
+.ui-style--panel .app-drawer .drawer-toggle,
+.ui-style--panel .app-drawer .drawer-header .v-btn {
+  color: var(--panel-sidebar-fg) !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.ui-style--panel .app-drawer .drawer-divider {
+  margin: 0;
+  opacity: 1;
+  border-color: var(--panel-sidebar-border) !important;
+}
+
+.ui-style--panel .app-drawer .drawer-menu {
+  padding: 6px 0;
+}
+
+.ui-style--panel .app-drawer .group-label {
+  padding: 10px 20px 3px;
+  color: var(--panel-sidebar-muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.ui-style--panel .app-drawer .menu-item {
+  height: 40px;
+  min-height: 40px;
+  margin: 1px 8px;
+  border: 0 !important;
+  border-radius: 4px !important;
+  color: var(--panel-sidebar-fg) !important;
+}
+
+.ui-style--panel .app-drawer .menu-item:hover {
+  background: var(--panel-sidebar-hover) !important;
+}
+
+.ui-style--panel .app-drawer .menu-item.menu-item--active {
+  background: var(--panel-sidebar-active-bg) !important;
+  color: var(--panel-sidebar-active-fg) !important;
+  box-shadow: none !important;
+}
+
+.ui-style--panel .app-drawer .menu-item .menu-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: inherit !important;
+}
+
+.ui-style--panel .app-drawer .menu-item .menu-icon-wrap {
+  color: inherit !important;
+}
+
+.ui-style--panel .app-drawer .menu-item--logout {
+  margin: 1px 0;
+  color: var(--panel-sidebar-fg) !important;
+}
+
+.ui-style--panel .app-drawer .drawer-footer {
+  padding: 6px 8px;
+}
+
+.ui-style--panel .app-drawer .drawer-footer .menu-item {
+  padding-inline: 8px !important;
+}
+
+.ui-style--panel .app-drawer .drawer-footer .v-list-item-title {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.ui-style--panel .app-drawer .menu-item--logout:hover {
+  color: rgb(var(--v-theme-error)) !important;
+}
+
+/* --- Header --- */
+.ui-style--panel .app-bar.v-app-bar {
+  background: rgb(var(--v-theme-surface)) !important;
+  border-bottom: 1px solid var(--panel-border) !important;
+  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.04) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.ui-style--panel .app-bar .action-btn {
+  opacity: 0.8;
+}
+
+/* --- Page toolbars: actions on the left like BaoTa / 1Panel --- */
+.ui-style--panel .app-page > .page-toolbar,
+.ui-style--panel .app-page > .v-row:first-of-type:not(.resource-grid) {
+  justify-content: flex-start !important;
+  margin-bottom: 14px !important;
+}
+
+.ui-style--panel .app-page > .page-toolbar > .v-col,
+.ui-style--panel .app-page > .v-row:first-of-type:not(.resource-grid) > .v-col,
+.ui-style--panel .app-page .page-toolbar__actions {
+  justify-content: flex-start !important;
+  gap: 8px 10px;
+}
+
+.ui-style--panel .app-page > .page-toolbar > .v-col > .v-btn:not(.v-btn--icon),
+.ui-style--panel .app-page > .v-row:first-of-type:not(.resource-grid) > .v-col > .v-btn:not(.v-btn--icon),
+.ui-style--panel .app-page .page-toolbar__actions > .v-btn:not(.v-btn--icon) {
+  min-width: 0;
+  height: 36px;
+}
+
+/* --- Cards --- */
+.ui-style--panel .app-page .v-card,
+.ui-style--panel .app-page .v-card[rounded],
+.ui-style--panel .app-page .v-card.rounded-xl,
+.ui-style--panel .app-page .v-card.rounded-lg {
+  background: rgb(var(--v-theme-surface)) !important;
+  border: 1px solid var(--panel-border) !important;
+  border-radius: var(--app-surface-radius) !important;
+  box-shadow: var(--panel-card-shadow) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  clip-path: inset(0 round var(--app-surface-radius));
+}
+
+.ui-style--panel .app-page .v-card:hover,
+.ui-style--panel .app-page .v-card[rounded]:hover,
+.ui-style--panel .app-page .v-card.rounded-xl:hover,
+.ui-style--panel .app-page .v-card.rounded-lg:hover {
+  border-color: rgba(var(--v-theme-primary), 0.3) !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05) !important;
+}
+
+.ui-style--panel .app-page .v-card .v-card {
+  border-color: var(--panel-border) !important;
+  box-shadow: none !important;
+}
+
+.ui-style--panel .resource-grid,
+.ui-style--panel .app-page > .v-row:has(> .v-col > .v-card) {
+  justify-content: flex-start;
+}
+
+.ui-style--panel .app-page > .v-row > .v-col > .v-card > .v-card-title,
+.ui-style--panel .resource-card > .v-card-title {
+  justify-content: flex-start;
+  text-align: start;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.ui-style--panel .app-page > .v-row > .v-col > .v-card > .v-card-subtitle,
+.ui-style--panel .resource-card > .v-card-subtitle {
+  text-align: start;
+}
+
+.ui-style--panel .app-page > .v-row > .v-col > .v-card > .v-card-actions,
+.ui-style--panel .resource-actions {
+  justify-content: flex-start !important;
+  border-top: 1px solid var(--panel-border);
+}
+
+/* Section headers inside pages. */
+.ui-style--panel .app-page > .v-row > .v-col.v-card-subtitle,
+.ui-style--panel .app-page .v-expansion-panel-text .v-col.v-card-subtitle {
+  background: var(--panel-header-bg) !important;
+  border-color: var(--panel-border) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.ui-style--panel .app-page .v-expansion-panels {
+  width: 100%;
+}
+
+.ui-style--panel .app-page .v-expansion-panel {
+  background: rgb(var(--v-theme-surface)) !important;
+  border-color: var(--panel-border) !important;
+  box-shadow: var(--panel-card-shadow) !important;
+}
+
+.ui-style--panel .app-page .v-expansion-panel-title {
+  justify-content: flex-start;
+  padding: 0 52px 0 20px !important;
+  text-align: start;
+}
+
+/* --- Tables (Element / 1Panel look) --- */
+.ui-style--panel .app-page .v-data-table,
+.ui-style--panel .app-page .v-table,
+.ui-style--panel .app-data-table {
+  background: rgb(var(--v-theme-surface)) !important;
+  border: 1px solid var(--panel-border) !important;
+  box-shadow: var(--panel-card-shadow) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.ui-style--panel .app-page .v-data-table thead th,
+.ui-style--panel .app-page .v-table thead th {
+  height: 44px !important;
+  background: var(--panel-header-bg) !important;
+  color: rgba(var(--v-theme-on-surface), 0.72) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+/* Stacked phone rows are styled with the list tables below. */
+.ui-style--panel .app-page .v-data-table tbody tr:not(.v-data-table__tr--mobile) > td,
+.ui-style--panel .app-page .v-table tbody tr:not(.v-data-table__tr--mobile) > td {
+  height: 48px !important;
+  font-size: 13.5px;
+  border-bottom: 1px solid var(--panel-border) !important;
+}
+
+.ui-style--panel .app-page .v-data-table tbody tr:hover,
+.ui-style--panel .app-page .v-table tbody tr:hover {
+  background: rgba(var(--v-theme-primary), 0.04) !important;
+}
+
+.ui-style--panel .app-page .v-data-table-footer {
+  border-top: 1px solid var(--panel-border);
+}
+
+/* --- Tabs: plain labels over an underline, like Element / 1Panel --- */
+.ui-style--panel .v-tabs,
+body.ui-style--panel .v-dialog .v-tabs {
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.ui-style--panel .v-tabs .v-tab.v-btn,
+body.ui-style--panel .v-dialog .v-tabs .v-tab.v-btn {
+  min-height: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  color: rgba(var(--v-theme-on-surface), 0.72);
+  font-size: 14px;
+}
+
+/* Lets the slider sit at the bottom of the tab, not of its label. */
+.ui-style--panel .v-tabs .v-tab .v-btn__content,
+body.ui-style--panel .v-dialog .v-tabs .v-tab .v-btn__content {
+  position: static;
+}
+
+.ui-style--panel .v-tabs .v-tab.v-btn:hover,
+body.ui-style--panel .v-dialog .v-tabs .v-tab.v-btn:hover {
+  color: rgb(var(--v-theme-primary));
+}
+
+.ui-style--panel .v-tabs .v-tab.v-tab--selected,
+body.ui-style--panel .v-dialog .v-tabs .v-tab.v-tab--selected {
+  color: rgb(var(--v-theme-primary)) !important;
+  font-weight: 600;
+}
+
+.ui-style--panel .app-page .v-tabs--align-tabs-center .v-slide-group__content {
+  justify-content: flex-start;
+}
+
+.ui-style--panel .app-page .settings-actions {
+  justify-content: flex-start !important;
+  padding-inline: 4px;
+}
+
+/* --- Controls --- */
+.ui-style--panel .v-chip {
+  border-radius: 4px !important;
+}
+
+.ui-style--panel .v-btn.v-btn--variant-tonal:hover,
+.ui-style--panel .v-btn.v-btn--variant-outlined:hover,
+.ui-style--panel .v-btn.v-btn--variant-text:not(.v-btn--icon):hover {
+  box-shadow: none !important;
+  color: rgb(var(--v-theme-primary));
+}
+
+.ui-style--panel .v-menu > .v-overlay__content > .v-card,
+.ui-style--panel .v-menu .menu-card,
+body.ui-style--panel .v-menu > .v-overlay__content > .v-card,
+body.ui-style--panel .v-menu .menu-card {
+  background: rgb(var(--v-theme-surface)) !important;
+  border: 1px solid var(--panel-border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* --- Dialogs --- */
+body.ui-style--panel .v-dialog > .v-overlay__scrim,
+body.ui-style--panel .v-overlay-container > .v-dialog > .v-overlay__scrim {
+  background: rgba(0, 0, 0, 0.45) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.ui-style--panel .v-dialog > .v-overlay__content > .v-card {
+  background: rgb(var(--v-theme-surface)) !important;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.08) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.ui-style--panel .v-dialog > .v-overlay__content > .v-card > .v-card-title {
+  justify-content: flex-start !important;
+  text-align: start !important;
+  padding: 14px 20px !important;
+  font-size: 16px;
+  font-weight: 600;
+  background: transparent;
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+body.ui-style--panel .v-dialog .v-card-text {
+  background: transparent;
+}
+
+body.ui-style--panel .v-dialog .v-field {
+  background: rgb(var(--v-theme-surface)) !important;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.15) !important;
+}
+
+body.ui-style--panel .v-dialog .v-field--focused {
+  border-color: rgb(var(--v-theme-primary)) !important;
+}
+
+body.ui-style--panel .v-dialog > .v-overlay__content > .v-card > .v-card-actions {
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+}
+
+/* Footer buttons: outlined ones read as the plain cancel button and tonal or
+   flat ones as the filled confirm button, like Element / 1Panel dialogs. */
+body.ui-style--panel .v-dialog > .v-overlay__content > .v-card > .v-card-actions .v-btn:not(.v-btn--icon) {
+  min-height: 34px;
+  height: 34px !important;
+  padding-inline: 16px !important;
+  border-radius: var(--app-control-radius) !important;
+}
+
+body.ui-style--panel .v-dialog > .v-overlay__content > .v-card > .v-card-actions .v-btn.v-btn--variant-outlined {
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.2) !important;
+  background: rgb(var(--v-theme-surface)) !important;
+  color: rgba(var(--v-theme-on-surface), 0.85) !important;
+}
+
+body.ui-style--panel .v-dialog > .v-overlay__content > .v-card > .v-card-actions .v-btn.v-btn--variant-outlined:hover {
+  border-color: rgb(var(--v-theme-primary)) !important;
+  background: rgba(var(--v-theme-primary), 0.05) !important;
+  color: rgb(var(--v-theme-primary)) !important;
+}
+
+body.ui-style--panel .v-dialog > .v-overlay__content > .v-card > .v-card-actions .v-btn.v-btn--variant-tonal,
+body.ui-style--panel .v-dialog > .v-overlay__content > .v-card > .v-card-actions .v-btn.v-btn--variant-flat,
+body.ui-style--panel .v-dialog > .v-overlay__content > .v-card > .v-card-actions .v-btn.v-btn--variant-elevated {
+  border: 1px solid currentColor !important;
+  background: currentColor !important;
+}
+
+body.ui-style--panel .v-dialog > .v-overlay__content > .v-card > .v-card-actions .v-btn.v-btn--variant-tonal:hover,
+body.ui-style--panel .v-dialog > .v-overlay__content > .v-card > .v-card-actions .v-btn.v-btn--variant-flat:hover,
+body.ui-style--panel .v-dialog > .v-overlay__content > .v-card > .v-card-actions .v-btn.v-btn--variant-elevated:hover {
+  background: currentColor !important;
+  filter: brightness(1.08);
+}
+
+body.ui-style--panel .v-dialog > .v-overlay__content > .v-card > .v-card-actions .v-btn:is(.v-btn--variant-tonal, .v-btn--variant-flat, .v-btn--variant-elevated) :is(.v-btn__content, .v-btn__prepend, .v-btn__append, .v-btn__loader) {
+  color: #fff;
+}
+
+/* ===== List pages: toolbar + table (all UI styles) ===== */
+.list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-bottom: 14px;
+}
+
+.list-toolbar__actions {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  min-width: 0;
+}
+
+.list-toolbar__actions > .v-btn {
+  margin: 0 !important;
+}
+
+.list-toolbar__search {
+  flex: 0 1 280px;
+  min-width: 200px;
+}
+
+.list-toolbar__search .v-field {
+  min-height: 38px !important;
+}
+
+.list-toolbar__search .v-field__input,
+.list-toolbar__search .v-field__prepend-inner,
+.list-toolbar__search .v-field__append-inner,
+.list-toolbar__search .v-field__clearable {
+  min-height: 38px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  align-items: center;
+}
+
+.list-toolbar__filters {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.list-toolbar__filters .list-toolbar__search {
+  flex: 0 0 240px;
+  min-width: 0;
+}
+
+.list-toolbar__select {
+  flex: 0 0 150px;
+  min-width: 130px;
+}
+
+.list-toolbar__select .v-field,
+.list-toolbar__select .v-field__input,
+.list-toolbar__select .v-field__prepend-inner,
+.list-toolbar__select .v-field__append-inner {
+  min-height: 38px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  align-items: center;
+}
+
+.list-table .list-usage {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+  white-space: nowrap;
+}
+
+.list-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.list-table .list-main {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.list-table .list-sub {
+  color: rgba(var(--v-theme-on-surface), 0.58);
+  font-size: 12px;
+}
+
+.list-table .list-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.list-table .list-ops {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+
+.list-table .list-ops .v-btn,
+.list-table .list-ops .v-btn.v-btn--variant-text:not(.v-btn--icon) {
+  min-width: 0 !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  padding-inline: 6px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.list-table .list-ops .v-btn:hover {
+  text-decoration: underline;
+}
+
+.list-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  white-space: nowrap;
+}
+
+.list-status::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(var(--v-theme-on-surface), 0.25);
+}
+
+.list-status--on {
+  color: rgb(var(--v-theme-success));
+}
+
+.list-status--on::before {
+  background: rgb(var(--v-theme-success));
+}
+
+.list-status--off {
+  color: rgb(var(--v-theme-error));
+}
+
+.list-status--off::before {
+  background: rgb(var(--v-theme-error));
+}
+
+@media (max-width: 960px) {
+  .list-toolbar__filters {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+
+  .list-toolbar__filters .list-toolbar__search {
+    flex: 1 1 200px;
+  }
+}
+
+@media (max-width: 600px) {
+  .list-toolbar__search {
+    flex: 1 1 100%;
+  }
+
+  .list-toolbar__select {
+    flex: 1 1 130px;
+  }
+}
+
+.list-table .v-data-table-footer {
+  padding: 6px 12px;
+}
+
+.list-table .v-data-table-footer__items-per-page .v-field,
+.list-table .v-data-table-footer__items-per-page .v-field__input {
+  min-height: 34px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  align-items: center;
+}
+
+.list-table .v-data-table-footer__items-per-page .v-field__append-inner {
+  min-height: 34px !important;
+  padding-top: 0 !important;
+  align-items: center;
+}
+
+/* Stacked rows on phones read as separate records. */
+.list-table .v-data-table__tr--mobile > td {
+  height: auto !important;
+  min-height: 38px;
+  padding-block: 6px !important;
+  border-bottom: 0 !important;
+}
+
+.list-table .v-data-table__tr--mobile > td:last-child {
+  border-bottom: 8px solid rgb(var(--v-theme-background)) !important;
+}
+
+/* Operation links get the full row width instead of half of it. */
+.list-table .v-data-table__tr--mobile > td:has(.list-ops) {
+  grid-template-columns: auto 1fr;
+}
+
+.list-table .v-data-table__tr--mobile .list-ops {
+  justify-content: flex-end;
+}
+
+.delete-target-tag {
+  margin-top: 8px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.list-table .list-delay {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.list-table .list-delay .v-btn.v-btn--icon {
+  flex-basis: 30px;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+}
+
+/* Settings block above the tables of the routing and DNS pages. */
+.list-panel {
+  margin-bottom: 16px;
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.09);
+  border-radius: var(--app-surface-radius, 8px);
+}
+
+.ui-style--glass .list-panel,
+.ui-style--clear .list-panel {
+  background: rgba(var(--v-theme-surface), 0.62);
+  backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+}
+
+.list-panel__head {
+  display: flex;
+  align-items: center;
+  min-height: 46px;
+  padding: 6px 20px;
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.07);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.list-panel__body {
+  padding: 16px 20px 10px;
+}
+
+.list-panel__checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 20px;
+  margin-top: 6px;
+}
+
+.list-panel__checks .v-checkbox {
+  flex: 0 0 auto;
+}
+
+.list-count {
+  min-width: 22px;
+  padding: 0 7px;
+  border-radius: 10px;
+  background: rgba(var(--v-theme-on-surface), 0.07);
+  color: rgba(var(--v-theme-on-surface), 0.65);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 20px;
+  text-align: center;
+}
+
+.list-hint {
+  margin-inline-start: 4px;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+.list-unsaved {
+  color: rgb(var(--v-theme-warning));
+  font-size: 13px;
+}
+
+.list-table .list-clip {
+  display: inline-block;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* Ordered tables: drag handle, position and arrow buttons. */
+.list-order {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.list-order__handle {
+  color: rgba(var(--v-theme-on-surface), 0.35);
+  cursor: grab;
+}
+
+.list-order__number {
+  min-width: 24px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.list-order .v-btn.v-btn--icon {
+  width: 26px !important;
+  min-width: 26px !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.list-table--ordered tr[draggable="true"] {
+  cursor: grab;
+}
+
+.list-table .list-row--dragging {
+  opacity: 0.45;
+}
+
+.list-table .list-row--drop-before > td {
+  box-shadow: inset 0 2px 0 rgb(var(--v-theme-primary));
+}
+
+.list-table .list-row--drop-after > td {
+  box-shadow: inset 0 -2px 0 rgb(var(--v-theme-primary));
+}
+
+@media (max-width: 600px) {
+  .list-panel__body {
+    padding: 12px 12px 8px;
+  }
+
+  .list-hint {
+    display: none;
+  }
+
+  .list-table .list-clip {
+    max-width: 180px;
+  }
+}

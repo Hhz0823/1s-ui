@@ -42,10 +42,10 @@
             link
             exact
             :to="item.path"
-            :active="route.path === item.path"
+            :active="activePath === item.path"
             :aria-label="$t(item.title)"
             class="menu-item"
-            :class="{ 'menu-item--active': route.path === item.path }"
+            :class="{ 'menu-item--active': activePath === item.path }"
             @click="closeMobileDrawer"
           >
             <template v-slot:prepend>
@@ -101,7 +101,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { logout } from '@/plugins/httputil'
-import Data from '@/store/modules/data'
+import { menuTrail, useMenuGroups } from './menu'
 
 const props = defineProps(['isMobile', 'displayDrawer', 'expanded'])
 const emit = defineEmits(['toggleDrawer', 'closeDrawer'])
@@ -114,56 +114,8 @@ const showDrawer = computed({
   },
 })
 
-const allMenuGroups = [
-  {
-    label: 'menu.group.overview',
-    items: [
-      { title: 'pages.home', icon: 'mdi-view-dashboard-outline', path: '/' },
-      { title: 'pages.portTraffic', icon: 'mdi-chart-timeline-variant', path: '/port-traffic' },
-      { title: 'pages.userTraffic', icon: 'mdi-trophy-outline', path: '/user-traffic' },
-    ],
-  },
-  {
-    label: 'menu.group.proxy',
-    items: [
-      { title: 'pages.inbounds', icon: 'mdi-arrow-down-bold-circle-outline', path: '/inbounds' },
-      { title: 'pages.clients', icon: 'mdi-account-group-outline', path: '/clients' },
-      { title: 'pages.outbounds', icon: 'mdi-arrow-up-bold-circle-outline', path: '/outbounds' },
-      { title: 'pages.endpoints', icon: 'mdi-access-point-network', path: '/endpoints' },
-    ],
-  },
-  {
-    label: 'menu.group.system',
-    items: [
-      { title: 'pages.services', icon: 'mdi-cog-outline', path: '/services' },
-      { title: 'pages.tls', icon: 'mdi-shield-lock-outline', path: '/tls' },
-      { title: 'pages.basics', icon: 'mdi-tune-variant', path: '/basics' },
-    ],
-  },
-  {
-    label: 'menu.group.routing',
-    items: [
-      { title: 'pages.rules', icon: 'mdi-routes', path: '/rules' },
-      { title: 'pages.dns', icon: 'mdi-dns-outline', path: '/dns' },
-    ],
-  },
-  {
-    label: 'menu.group.admin',
-    items: [
-      { title: 'pages.agents', icon: 'mdi-server-network', path: '/agents' },
-      { title: 'pages.sdwan', icon: 'mdi-lan-connect', path: '/sdwan' },
-      { title: 'pages.admins', icon: 'mdi-account-tie-outline', path: '/admins' },
-      { title: 'pages.settings', icon: 'mdi-cog-outline', path: '/settings' },
-    ],
-  },
-]
-const monitorPaths = new Set(['/', '/agents', '/admins', '/settings'])
-const menuGroups = computed(() => {
-  if (Data().controllerMode.profile !== 'monitor') return allMenuGroups
-  return allMenuGroups
-    .map(group => ({ ...group, items: group.items.filter(item => monitorPaths.has(item.path)) }))
-    .filter(group => group.items.length)
-})
+const menuGroups = useMenuGroups()
+const activePath = computed(() => menuTrail(route.path).item?.path)
 
 const Logout = async () => {
   logout()

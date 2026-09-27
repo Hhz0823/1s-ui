@@ -2,617 +2,750 @@
   <LogVue v-model="logModal.visible" :control="logModal" :visible="logModal.visible" />
   <Backup v-model="backupModal.visible" :control="backupModal" :visible="backupModal.visible" />
   <UsageStats v-model:visible="usageStatsModal.visible" />
-  <v-container class="home-dashboard" :class="{ 'home-dashboard--active': reloadItems.length > 0 }" :loading="loading">
-    <v-responsive :class="reloadItems.length>0 ? 'home-dashboard__content home-dashboard__content--active text-center' : 'home-dashboard__content align-center'" >
-      <v-row class="home-logo-row d-flex align-center justify-center">
-        <v-col cols="auto">
-          <v-img src="@/assets/logo.svg" :width="reloadItems.length>0 ? 100 : 200"></v-img>
-        </v-col>
-      </v-row>
-      <v-row class="home-actions-row">
-        <v-col cols="12">
-          <div class="home-actions">
-            <v-dialog v-model="menu" :close-on-content-click="false" transition="scale-transition" max-width="800">
-              <template v-slot:activator="{ props }">
-                <v-btn v-bind="props" class="home-action-btn" hide-details variant="tonal" elevation="3">
-                  {{ $t('main.tiles') }} <v-icon icon="mdi-star-plus" />
+  <div class="dash">
+    <section class="dash-card">
+      <header class="dash-card__head">
+        <span class="dash-card__title">{{ $t('dash.overview') }}</span>
+        <div class="dash-card__tools">
+          <v-btn size="small" variant="text" prepend-icon="mdi-backup-restore" @click="backupModal.visible = true">{{ $t('main.backup.title') }}</v-btn>
+          <v-btn size="small" variant="text" prepend-icon="mdi-text-box-outline" @click="logModal.visible = true">{{ $t('basic.log.title') }}</v-btn>
+          <v-btn size="small" variant="text" prepend-icon="mdi-chart-box-outline" @click="usageStatsModal.visible = true">{{ $t('main.stats.title') }}</v-btn>
+        </div>
+      </header>
+      <div class="dash-overview">
+        <router-link v-for="item in overview" :key="item.key" :to="item.to" class="dash-stat">
+          <span class="dash-stat__label"><v-icon :icon="item.icon" size="16" />{{ item.label }}</span>
+          <span class="dash-stat__value">{{ item.value }}</span>
+        </router-link>
+      </div>
+    </section>
+
+    <section class="dash-card">
+      <header class="dash-card__head">
+        <span class="dash-card__title">{{ $t('dash.status') }}</span>
+      </header>
+      <div class="dash-gauges">
+        <RingGauge
+          v-for="gauge in gauges"
+          :key="gauge.key"
+          :title="gauge.title"
+          :percent="gauge.percent"
+          :caption="gauge.caption"
+          :caption-tone="gauge.captionTone"
+          :tooltip="gauge.tooltip"
+        />
+      </div>
+    </section>
+
+    <div class="dash-grid">
+      <section class="dash-card dash-grid__main">
+        <header class="dash-card__head">
+          <span class="dash-card__title">{{ $t('dash.monitor') }}</span>
+          <div class="dash-tabs" role="tablist">
+            <button
+              v-for="tab in monitorTabs"
+              :key="tab.value"
+              type="button"
+              role="tab"
+              class="dash-tab"
+              :class="{ 'dash-tab--active': monitorTab === tab.value }"
+              :aria-selected="monitorTab === tab.value"
+              @click="monitorTab = tab.value"
+            >{{ tab.title }}</button>
+          </div>
+        </header>
+        <div class="dash-card__body">
+          <div class="dash-legend">
+            <span v-for="entry in monitor.legend" :key="entry.label" class="dash-legend__item">
+              <i v-if="entry.color" class="dash-legend__dot" :style="{ background: entry.color }"></i>
+              <span class="dash-legend__label">{{ entry.label }}</span>
+              <span class="dash-legend__value">{{ entry.value }}</span>
+            </span>
+          </div>
+          <MonitorChart
+            :labels="history.labels"
+            :series="monitor.series"
+            :format="monitor.format"
+            :max="monitor.max"
+            :suggested-max="monitor.max ? undefined : 1024"
+          />
+        </div>
+      </section>
+
+      <div class="dash-grid__side">
+        <section class="dash-card">
+          <header class="dash-card__head">
+            <span class="dash-card__title">{{ $t('dash.system') }}</span>
+            <v-btn icon="mdi-refresh" size="small" variant="text" :title="$t('actions.update')" @click="loadSystem" />
+          </header>
+          <dl class="dash-info">
+            <template v-for="row in systemRows" :key="row.label">
+              <dt>{{ row.label }}</dt>
+              <dd :title="row.title || row.value">
+                <v-chip v-if="row.chip" size="small" variant="tonal" :color="row.chip">{{ row.value }}</v-chip>
+                <template v-else>{{ row.value }}</template>
+              </dd>
+            </template>
+          </dl>
+        </section>
+
+        <section class="dash-card">
+          <header class="dash-card__head">
+            <span class="dash-card__title">{{ $t('dash.cores') }}</span>
+          </header>
+          <div class="dash-core">
+            <div class="dash-core__head">
+              <span class="dash-core__name">sing-box</span>
+              <v-chip size="small" variant="flat" :color="status.sbd?.running ? 'success' : 'error'">
+                {{ status.sbd?.running ? $t('main.info.runningYes') : $t('main.info.runningNo') }}
+              </v-chip>
+              <v-spacer />
+              <v-btn size="small" variant="text" color="warning" prepend-icon="mdi-restart" :loading="loading" @click="restartSingbox">
+                {{ $t('actions.restartSb') }}
+              </v-btn>
+            </div>
+            <div class="dash-core__stats">
+              <span>{{ $t('main.info.memory') }} <b>{{ HumanReadable.sizeFormat(status.sbd?.stats?.Alloc) }}</b></span>
+              <span>{{ $t('main.info.threads') }} <b>{{ status.sbd?.stats?.NumGoroutine ?? '-' }}</b></span>
+              <span>{{ $t('main.info.uptime') }} <b>{{ HumanReadable.formatSecond(status.sbd?.stats?.Uptime) }}</b></span>
+              <span>{{ $t('online') }} <b>{{ onlineSummary }}</b></span>
+            </div>
+          </div>
+          <div v-if="!isOpenWrtLite" class="dash-core">
+            <div class="dash-core__head">
+              <span class="dash-core__name">Xray-core</span>
+              <v-chip size="small" variant="flat" :color="xrayState.color">{{ xrayState.text }}</v-chip>
+              <v-spacer />
+              <v-btn v-if="status.xry?.disabled" size="small" variant="text" color="primary" prepend-icon="mdi-cog-outline" @click="goXraySettings">
+                {{ $t('setting.xrayEnable') }}
+              </v-btn>
+              <v-btn v-else-if="status.xry?.has_inbounds === false" size="small" variant="text" color="primary" prepend-icon="mdi-plus-circle-outline" @click="goXrayInbound">
+                {{ $t('setting.xrayAddInbound') }}
+              </v-btn>
+              <template v-else>
+                <v-btn size="small" variant="text" :color="status.xry?.running ? 'warning' : 'success'" :prepend-icon="status.xry?.running ? 'mdi-restart' : 'mdi-play-circle-outline'" :loading="loading" @click="restartXray">
+                  {{ status.xry?.running ? $t('actions.restartXray') : $t('setting.xrayStart') }}
+                </v-btn>
+                <v-btn v-if="status.xry?.running" size="small" variant="text" color="error" prepend-icon="mdi-stop-circle-outline" :loading="loading" @click="stopXray">
+                  {{ $t('setting.xrayStop') }}
                 </v-btn>
               </template>
-              <v-card rounded="xl">
-                <v-card-title>
-                  <v-row>
-                    <v-col>
-                      {{ $t('main.tiles') }}
-                    </v-col>
-                    <v-spacer></v-spacer>
-                    <v-col cols="auto"><v-icon icon="mdi-close" @click="menu = false"></v-icon></v-col>
-                  </v-row>
-                </v-card-title>
-                <v-divider></v-divider>
-                <v-row v-for="items in menuItems" density="compact">
-                  <v-col cols="12">
-                    <v-card :subtitle="items.title" variant="flat">
-                      <v-card-text>
-                        <v-row density="compact">
-                          <v-col cols="12" md="6" lg="3" v-for="item in items.value">
-                            <v-switch
-                            density="compact"
-                            v-model="reloadItems"
-                            :value="item.value"
-                            color="primary"
-                            :label="item.title"
-                            hide-details></v-switch>
-                          </v-col>
-                        </v-row>
-                      </v-card-text>
-                    </v-card>
-                  </v-col>
-                </v-row>
-              </v-card>
-            </v-dialog>
-            <v-btn class="home-action-btn" variant="tonal" hide-details elevation="3"
-              @click="backupModal.visible = true">{{ $t('main.backup.title') }}<v-icon icon="mdi-backup-restore" />
-            </v-btn>
-            <v-btn class="home-action-btn" variant="tonal" hide-details elevation="3"
-              @click="logModal.visible = true">{{ $t('basic.log.title') }} <v-icon icon="mdi-list-box-outline" />
-            </v-btn>
-            <v-btn class="home-action-btn" variant="tonal" hide-details elevation="3"
-              @click="usageStatsModal.visible = true">{{ $t('main.stats.title') }} <v-icon icon="mdi-chart-box-outline" />
-            </v-btn>
+            </div>
+            <div class="dash-core__stats">
+              <span>{{ $t('main.info.uptime') }} <b>{{ HumanReadable.formatSecond(status.xry?.stats?.Uptime) }}</b></span>
+              <span v-if="status.xry?.path" :title="status.xry?.path">Bin <b>{{ shortPath(status.xry?.path) }}</b></span>
+              <span v-if="status.xry?.last_error" class="text-error" :title="status.xry?.last_error">{{ shortText(status.xry?.last_error) }}</span>
+            </div>
           </div>
-        </v-col>
-      </v-row>
-      <v-row class="home-tiles-row">
-        <v-col class="home-tile-col" cols="12" sm="6" md="4" lg="3" v-for="i in reloadItems" :key="i">
-          <v-card
-            :class="['home-tile-card', 'rounded-lg', {
-              'home-tile-card--gauge': i.charAt(0) == 'g',
-              'home-tile-card--chart': i.charAt(0) == 'h',
-              'home-tile-card--info': i.charAt(0) == 'i',
-            }]"
-            variant="outlined"
-            elevation="5">
-            <v-card-title class="home-tile-title">
-              {{ menuItems.flatMap(cat => cat.value).find(m => m.value == i)?.title }}
-              <template v-if="i == 'i-sys'">
-                <v-icon icon="mdi-update" color="primary"
-                  @click="reloadSys()" size="small" v-tooltip:top="$t('actions.update')"
-                  style="margin-inline-start: 10px;">
-                </v-icon>
-              </template>
-              <template v-if="i == 'h-net'">
-                <v-icon icon="mdi-information" color="primary" size="small"
-                  v-tooltip:top="'↓' + 
-                  HumanReadable.sizeFormat(tilesData.net?.recv) + ' - ' + 
-                  HumanReadable.sizeFormat(tilesData.net?.sent) + '↑'"
-                  style="margin-inline-start: 10px;">
-                </v-icon>
-              </template>
-            </v-card-title>
-            <v-card-text class="home-tile-body" align="center" justify="center">
-              <Gauge :tilesData="tilesData" :type="i" v-if="i.charAt(0) == 'g'" />
-              <History :tilesData="tilesData" :type="i" v-if="i.charAt(0) == 'h'" />
-              <template v-if="i == 'i-sys'">
-                <v-row class="home-info-grid">
-                  <v-col cols="3">{{ $t('main.info.host') }}</v-col>
-                  <v-col cols="9" style="text-wrap: nowrap; overflow: hidden">{{ tilesData.sys?.hostName }}</v-col>
-                  <v-col cols="3">{{ $t('main.info.cpu') }}</v-col>
-                  <v-col cols="9">
-                    <v-chip density="compact" variant="flat" :color="hostReqChipColor">
-                      <v-tooltip activator="parent" location="top" style="direction: ltr;">
-                        {{ tilesData.sys?.cpuType }}
-                        <template v-if="tilesData.sys?.requirements">
-                          <br />{{ $t('hostReq.minLabel') }}: {{ tilesData.sys.requirements.min_cpu_cores }} {{ $t('main.info.core') }} / {{ tilesData.sys.requirements.min_mem_gb }} GB
-                          <template v-if="tilesData.sys.requirements.applies">
-                            <br />mode: cluster (agents: {{ tilesData.sys.requirements.agent_count }})
-                          </template>
-                        </template>
-                      </v-tooltip>
-                     {{ tilesData.sys?.cpuCount }} {{ $t('main.info.core') }}
-                     <template v-if="tilesData.sys?.memTotal">
-                       · {{ (tilesData.sys.memTotal / (1024**3)).toFixed(1) }} GB
-                     </template>
-                    </v-chip>
-                  </v-col>
-                  <v-col cols="3">IP</v-col>
-                  <v-col cols="9">
-                    <v-chip density="compact" color="primary" variant="flat" v-if="tilesData.sys?.ipv4?.length>0">
-                      <v-tooltip activator="parent" location="top" style="direction: ltr;">
-                        <span v-html="tilesData.sys?.ipv4?.join('<br />')"></span>
-                      </v-tooltip>
-                      IPv4
-                    </v-chip>
-                    <v-chip density="compact" color="primary" variant="flat" v-if="tilesData.sys?.ipv6?.length>0">
-                      <v-tooltip activator="parent" location="top" style="direction: ltr;">
-                        <span v-html="tilesData.sys?.ipv6?.join('<br />')"></span>
-                      </v-tooltip>
-                      IPv6
-                    </v-chip>
-                  </v-col>
-                  <v-col cols="3">S-UI</v-col>
-                  <v-col cols="9">
-                    <v-chip density="compact" color="blue">
-                      v{{ tilesData.sys?.appVersion }}
-                    </v-chip>
-                  </v-col>
-                  <v-col cols="3">{{ $t('main.info.uptime') }}</v-col>
-                  <v-col cols="9" v-tooltip:top="$t('main.info.startupTime')
-                    + ': ' + new Date((tilesData.sys?.bootTime || 0) * 1000).toLocaleString(locale)">
-                    {{ HumanReadable.formatSecond((Date.now()/1000) - tilesData.sys?.bootTime) }}
-                  </v-col>
-                </v-row>
-              </template>
-              <template v-if="i == 'i-sbd'">
-                <v-row class="home-info-grid">
-                  <v-col cols="4">{{ $t('main.info.running') }}</v-col>
-                  <v-col cols="8">
-                    <v-chip density="compact" color="success" variant="flat" v-if="tilesData.sbd?.running">{{ $t('main.info.runningYes') }}</v-chip>
-                    <v-chip density="compact" color="error" variant="flat" v-else>{{ $t('main.info.runningNo') }}</v-chip>
-                    <v-chip density="compact" color="transparent" v-if="tilesData.sbd?.running && !loading" style="cursor: pointer;" @click="restartSingbox()">
-                      <v-tooltip activator="parent" location="top">
-                        {{ $t('actions.restartSb') }}
-                      </v-tooltip>
-                      <v-icon icon="mdi-restart" color="warning" />
-                    </v-chip>
-                  </v-col>
-                  <v-col cols="4">{{ $t('main.info.memory') }}</v-col>
-                  <v-col cols="8">
-                    <v-chip density="compact" color="primary" variant="flat" v-if="tilesData.sbd?.stats?.Alloc">
-                      {{ HumanReadable.sizeFormat(tilesData.sbd?.stats?.Alloc) }}
-                    </v-chip> 
-                  </v-col>
-                  <v-col cols="4">{{ $t('main.info.threads') }}</v-col>
-                  <v-col cols="8">
-                    <v-chip density="compact" color="primary" variant="flat" v-if="tilesData.sbd?.stats?.NumGoroutine">
-                      {{ tilesData.sbd?.stats?.NumGoroutine }}
-                    </v-chip>
-                  </v-col>
-                  <v-col cols="4">{{ $t('main.info.uptime') }}</v-col>
-                  <v-col cols="8">{{ HumanReadable.formatSecond(tilesData.sbd?.stats?.Uptime) }}</v-col>
-                  <v-col cols="4">{{ $t('online') }}</v-col>
-                  <v-col cols="8">
-                    <template v-if="tilesData.sbd?.running">
-                      <v-chip density="compact" color="primary" variant="flat" v-if="Data().onlines?.user">
-                        <v-tooltip activator="parent" location="top" overflow="auto">
-                          <span v-text="$t('pages.clients')" style="font-weight: bold;"></span><br/>
-                          <span v-for="user in Data().onlines?.user">{{ user }}<br /></span>
-                        </v-tooltip>
-                        {{ Data().onlines?.user?.length }}
-                      </v-chip>
-                      <v-chip density="compact" color="success" variant="flat" v-if="Data().onlines?.inbound">
-                        <v-tooltip activator="parent" location="top" :text="$t('pages.inbounds')">
-                          <span v-text="$t('pages.inbounds')" style="font-weight: bold;"></span><br/>
-                          <span v-for="i in Data().onlines?.inbound">{{ i }}<br /></span>
-                        </v-tooltip>
-                        {{ Data().onlines?.inbound?.length }}
-                      </v-chip>
-                      <v-chip density="compact" color="info" variant="flat" v-if="Data().onlines?.outbound">
-                        <v-tooltip activator="parent" location="top" :text="$t('pages.outbounds')">
-                          <span v-text="$t('pages.outbounds')" style="font-weight: bold;"></span><br/>
-                          <span v-for="o in Data().onlines?.outbound">{{ o }}<br /></span>
-                        </v-tooltip>
-                        {{ Data().onlines?.outbound?.length }}
-                      </v-chip>
-                    </template>
-                  </v-col>
-                </v-row>
-              </template>
-              <template v-if="i == 'i-xry'">
-                <v-row class="home-info-grid">
-                  <v-col cols="4">{{ $t('main.info.running') }}</v-col>
-                  <v-col cols="8">
-                    <v-chip density="compact" color="warning" variant="flat" v-if="tilesData.xry?.disabled">{{ $t('setting.xrayDisabled') }}</v-chip>
-                    <v-chip density="compact" color="success" variant="flat" v-else-if="tilesData.xry?.running">{{ $t('main.info.runningYes') }}</v-chip>
-                    <v-chip density="compact" color="warning" variant="flat" v-else-if="tilesData.xry?.has_inbounds === false">{{ $t('setting.xrayNotConfigured') }}</v-chip>
-                    <v-chip density="compact" color="error" variant="flat" v-else>{{ $t('main.info.runningNo') }}</v-chip>
-                    <v-chip density="compact" color="transparent" v-if="tilesData.xry?.disabled" style="cursor: pointer;" @click="goXraySettings()">
-                      <v-tooltip activator="parent" location="top">
-                        {{ $t('setting.xrayEnable') }}
-                      </v-tooltip>
-                      <v-icon icon="mdi-cog-outline" color="primary" />
-                    </v-chip>
-                    <v-chip density="compact" color="transparent" v-else-if="tilesData.xry?.has_inbounds === false" style="cursor: pointer;" @click="goXrayInbound()">
-                      <v-tooltip activator="parent" location="top">
-                        {{ $t('setting.xrayAddInbound') }}
-                      </v-tooltip>
-                      <v-icon icon="mdi-plus-circle" color="primary" />
-                    </v-chip>
-                    <v-chip density="compact" color="transparent" v-else-if="!loading" style="cursor: pointer;" @click="restartXray()">
-                      <v-tooltip activator="parent" location="top">
-                        {{ tilesData.xry?.running ? $t('actions.restartXray') : $t('setting.xrayStart') }}
-                      </v-tooltip>
-                      <v-icon :icon="tilesData.xry?.running ? 'mdi-restart' : 'mdi-play-circle-outline'" :color="tilesData.xry?.running ? 'warning' : 'success'" />
-                    </v-chip>
-                    <v-chip density="compact" color="transparent" v-if="tilesData.xry?.running && !loading" style="cursor: pointer;" @click="stopXray()">
-                      <v-tooltip activator="parent" location="top">
-                        {{ $t('setting.xrayStop') }}
-                      </v-tooltip>
-                      <v-icon icon="mdi-stop-circle-outline" color="error" />
-                    </v-chip>
-                  </v-col>
-                  <v-col cols="4">{{ $t('main.info.uptime') }}</v-col>
-                  <v-col cols="8">{{ HumanReadable.formatSecond(tilesData.xry?.stats?.Uptime) }}</v-col>
-                  <v-col cols="4">Bin</v-col>
-                  <v-col cols="8">
-                    <v-chip density="compact" color="primary" variant="flat" v-if="tilesData.xry?.path">
-                      <v-tooltip activator="parent" location="top" style="direction: ltr;">
-                        {{ tilesData.xry?.path }}
-                      </v-tooltip>
-                      {{ shortPath(tilesData.xry?.path) }}
-                    </v-chip>
-                  </v-col>
-                  <v-col cols="4">Config</v-col>
-                  <v-col cols="8">
-                    <v-chip density="compact" color="primary" variant="flat" v-if="tilesData.xry?.config_path">
-                      <v-tooltip activator="parent" location="top" style="direction: ltr;">
-                        {{ tilesData.xry?.config_path }}
-                      </v-tooltip>
-                      {{ shortPath(tilesData.xry?.config_path) }}
-                    </v-chip>
-                  </v-col>
-                  <v-col cols="4" v-if="tilesData.xry?.last_error">Error</v-col>
-                  <v-col cols="8" v-if="tilesData.xry?.last_error">
-                    <v-chip density="compact" color="error" variant="flat">
-                      <v-tooltip activator="parent" location="top" style="direction: ltr;">
-                        {{ tilesData.xry?.last_error }}
-                      </v-tooltip>
-                      {{ shortText(tilesData.xry?.last_error) }}
-                    </v-chip>
-                  </v-col>
-                </v-row>
-              </template>
-            </v-card-text>
-          </v-card>
-        </v-col>
-      </v-row>
-    </v-responsive>
-  </v-container>
+        </section>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script lang="ts" setup>
 import HttpUtils from '@/plugins/httputil'
 import { HumanReadable } from '@/plugins/utils'
 import Data from '@/store/modules/data'
-import Gauge from '@/components/tiles/Gauge.vue'
-import History from '@/components/tiles/History.vue'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import RingGauge from '@/components/dashboard/RingGauge.vue'
+import MonitorChart from '@/components/dashboard/MonitorChart.vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { useTheme } from 'vuetify'
 import { i18n, locale } from '@/locales'
 import LogVue from '@/layouts/modals/Logs.vue'
 import Backup from '@/layouts/modals/Backup.vue'
 import UsageStats from '@/layouts/modals/UsageStats.vue'
 import router from '@/router'
 
+const t = i18n.global.t
 const isOpenWrtLite = import.meta.env.VITE_OPENWRT_LITE === 'true'
+const theme = useTheme()
 const loading = ref(false)
-const menu = ref(false)
-const infoItems = [
-  { title: i18n.global.t('main.info.sys'), value: "i-sys" },
-  { title: i18n.global.t('main.info.sbd'), value: "i-sbd" },
-  { title: i18n.global.t('main.info.xry'), value: "i-xry" },
-].filter(item => !isOpenWrtLite || item.value !== "i-xry")
-const menuItems = [
-  { title: i18n.global.t('main.gauges'), value: [
-    { title: i18n.global.t('main.gauge.cpu'), value: "g-cpu" },
-    { title: i18n.global.t('main.gauge.mem'), value: "g-mem" },
-    { title: i18n.global.t('main.gauge.dsk'), value: "g-dsk" },
-    { title: i18n.global.t('main.gauge.swp'), value: "g-swp" },
-    ]
-  },
-  { title: i18n.global.t('main.charts'), value: [
-    { title: i18n.global.t('main.chart.cpu'), value: "h-cpu" },
-    { title: i18n.global.t('main.chart.mem'), value: "h-mem" },
-    { title: i18n.global.t('main.chart.net'), value: "h-net" },
-    { title: i18n.global.t('main.chart.pnet'), value: "hp-net" },
-    { title: i18n.global.t('main.chart.dio'), value: "h-dio" },
-    ]
-  },
-  { title: i18n.global.t('main.infos'), value: infoItems },
-]
+const status = ref<any>({})
+const sys = ref<any>(null)
 
-const tilesData = ref(<any>{})
-
-const reloadItems = computed({
-  get() {
-    return isOpenWrtLite ? Data().reloadItems.filter(item => item !== "i-xry") : Data().reloadItems
-  },
-  set(v:string[]) {
-    if (isOpenWrtLite) v = v.filter(item => item !== "i-xry")
-    if (Data().reloadItems.length == 0 && v.length>0) startTimer()
-    if (Data().reloadItems.length > 0 && v.length == 0) stopTimer()
-    Data().reloadItems = v
-    v.length>0 ? localStorage.setItem("reloadItems",v.join(',')) : localStorage.removeItem("reloadItems")
-  }
+// ---- Live status (BaoTa refreshes every 3 seconds) ----
+const pollInterval = 3000
+const historyPoints = 40
+const statusKeys = ['cpu', 'lod', 'mem', 'dsk', 'swp', 'net', 'dio', 'sbd', ...(isOpenWrtLite ? [] : ['xry'])]
+const history = reactive({
+  labels: [] as string[],
+  up: [] as number[],
+  down: [] as number[],
+  read: [] as number[],
+  write: [] as number[],
+  cpu: [] as number[],
+  mem: [] as number[],
 })
+const rates = reactive({ up: 0, down: 0, read: 0, write: 0 })
+let lastSample: { time: number, net: any, dio: any } | null = null
 
-const reloadData = async () => {
-  if (statusLoadPending) return
-  let request = [...new Set(reloadItems.value.map(r => r.split('-')[1]))]
-  if (tilesData.value?.sys?.appVersion) request = request.filter(r => r != 'sys')
-  if (request.length === 0) return
-  statusLoadPending = true
+const usagePercent = (value: any) => value?.total > 0 ? (value.current * 100) / value.total : null
+
+// Rates use the real time between samples; counters that went backwards
+// (reboot, interface reset) count as zero.
+const recordSample = (sample: any) => {
+  const now = Date.now()
+  if (lastSample && sample.net && sample.dio && lastSample.net && lastSample.dio) {
+    const seconds = Math.max(0.5, (now - lastSample.time) / 1000)
+    const delta = (current: number, previous: number) => Math.max(0, (Number(current) - Number(previous)) / seconds)
+    rates.up = delta(sample.net.sent, lastSample.net.sent)
+    rates.down = delta(sample.net.recv, lastSample.net.recv)
+    rates.read = delta(sample.dio.read, lastSample.dio.read)
+    rates.write = delta(sample.dio.write, lastSample.dio.write)
+    const push = (list: number[], value: number) => {
+      list.push(value)
+      if (list.length > historyPoints) list.shift()
+    }
+    push(history.up, rates.up)
+    push(history.down, rates.down)
+    push(history.read, rates.read)
+    push(history.write, rates.write)
+    push(history.cpu, Number(sample.cpu) || 0)
+    push(history.mem, usagePercent(sample.mem) ?? 0)
+    history.labels.push(new Date(now).toLocaleTimeString(locale, { hour12: false }))
+    if (history.labels.length > historyPoints) history.labels.shift()
+  }
+  lastSample = { time: now, net: sample.net, dio: sample.dio }
+}
+
+let statusPending = false
+const loadStatus = async () => {
+  if (statusPending) return
+  statusPending = true
   try {
-    const data = await HttpUtils.get('api/status',{ r: request.join(',')})
-    if (data.success) {
-      tilesData.value = { ...tilesData.value, ...data.obj }
+    const msg = await HttpUtils.get('api/status', { r: statusKeys.join(',') })
+    if (msg.success) {
+      status.value = msg.obj
+      recordSample(msg.obj)
     }
   } finally {
-    statusLoadPending = false
+    statusPending = false
   }
 }
 
-const reloadSys = async () => {
-  const data = await HttpUtils.get('api/status',{ r: 'sys'})
-  if (data.success) {
-    tilesData.value.sys = data.obj.sys
-  }
+const loadSystem = async () => {
+  const msg = await HttpUtils.get('api/status', { r: 'sys' })
+  if (msg.success) sys.value = msg.obj.sys
 }
 
-let intervalId: ReturnType<typeof setInterval> | null = null
-let statusLoadPending = false
-
-const startTimer = () => {
-  if (intervalId) return
-  intervalId = setInterval(() => {
-    if (!document.hidden) void reloadData()
-  }, 5000)
+let timer: ReturnType<typeof setInterval> | null = null
+const handleVisibility = () => {
+  if (!document.hidden) void loadStatus()
 }
 
-const stopTimer = () => {
-  if (intervalId) {
-    clearInterval(intervalId)
-    intervalId = null
-  }
-}
-
-const handleVisibilityChange = () => {
-  if (!document.hidden && intervalId) void reloadData()
-}
-
-onMounted(async () => {
-  document.addEventListener('visibilitychange', handleVisibilityChange)
-  loading.value = true
-  if (isOpenWrtLite && Data().reloadItems.includes("i-xry")) {
-    reloadItems.value = Data().reloadItems
-  }
-  if (Data().reloadItems.length != 0) {
-    await reloadData()
-    startTimer()
-  }
-  loading.value = false
+onMounted(() => {
+  void loadSystem()
+  void loadStatus()
+  timer = setInterval(() => { if (!document.hidden) void loadStatus() }, pollInterval)
+  document.addEventListener('visibilitychange', handleVisibility)
 })
 
 onBeforeUnmount(() => {
-  stopTimer()
-  document.removeEventListener('visibilitychange', handleVisibilityChange)
+  if (timer) clearInterval(timer)
+  document.removeEventListener('visibilitychange', handleVisibility)
 })
 
-const logModal = ref({ visible: false })
-
-const backupModal = ref({ visible: false })
-
-const usageStatsModal = ref({ visible: false })
-
-const restartSingbox = async () => {
-  loading.value = true
-  await HttpUtils.post('api/restartSb',{})
-  loading.value = false
-}
-
-const restartXray = async () => {
-  if (tilesData.value.xry?.disabled) {
-    await goXraySettings()
-    return
+// ---- Overview ----
+const overview = computed(() => {
+  const data = Data()
+  const clients: any[] = data.clients || []
+  const traffic = clients.reduce((sum, client) => sum + Number(client.up || 0) + Number(client.down || 0), 0)
+  const servers = Number(data.controllerMode?.agent_count || 0)
+  const items = [
+    { key: 'inbounds', icon: 'mdi-arrow-down-bold-circle-outline', label: t('pages.inbounds'), value: (data.inbounds || []).length, to: '/inbounds' },
+    { key: 'clients', icon: 'mdi-account-group-outline', label: t('pages.clients'), value: clients.length, to: '/clients' },
+    { key: 'online', icon: 'mdi-account-check-outline', label: t('dash.onlineUsers'), value: data.onlines?.user?.length || 0, to: '/clients' },
+    { key: 'outbounds', icon: 'mdi-arrow-up-bold-circle-outline', label: t('pages.outbounds'), value: (data.outbounds || []).length, to: '/outbounds' },
+    { key: 'traffic', icon: 'mdi-swap-vertical-bold', label: t('dash.userTraffic'), value: traffic > 0 ? HumanReadable.sizeFormat(traffic) : '0', to: '/user-traffic' },
+  ]
+  if (data.controllerMode?.profile !== 'client' || servers > 0) {
+    items.push({ key: 'servers', icon: 'mdi-server-network', label: t('pages.agents'), value: servers, to: '/agents' })
   }
-  if (tilesData.value.xry?.has_inbounds === false) {
-    await goXrayInbound()
-    return
+  if (data.controllerMode?.profile === 'monitor') return items.filter(item => item.key === 'servers')
+  return items
+})
+
+// ---- Status gauges ----
+const sizePair = (value: any) => {
+  if (!value?.total) return '-'
+  return `${HumanReadable.sizeFormat(value.current, 1)} / ${HumanReadable.sizeFormat(value.total, 1)}`
+}
+
+const gauges = computed(() => {
+  const s = status.value
+  const cpus = Number(s.lod?.cpus || sys.value?.cpuCount || 1)
+  // BaoTa: load1 against twice the CPU count.
+  const loadPercent = typeof s.lod?.load1 === 'number' ? Math.min(100, (s.lod.load1 / (cpus * 2)) * 100) : null
+  let loadCaption = ''
+  let loadTone = ''
+  if (loadPercent != null) {
+    if (loadPercent <= 30) [loadCaption, loadTone] = [t('dash.loadSmooth'), 'success']
+    else if (loadPercent <= 70) [loadCaption, loadTone] = [t('dash.loadNormal'), 'success']
+    else if (loadPercent <= 90) [loadCaption, loadTone] = [t('dash.loadSlow'), 'warning']
+    else [loadCaption, loadTone] = [t('dash.loadBlocked'), 'error']
   }
-  if (!tilesData.value.xry?.running && tilesData.value.xry?.exclusive_run) {
-    const confirmed = window.confirm(i18n.global.t('setting.xrayStartExclusiveConfirm'))
-    if (!confirmed) return
+  const loads = ['load1', 'load5', 'load15'].map(key => typeof s.lod?.[key] === 'number' ? s.lod[key].toFixed(2) : '-').join(' / ')
+  const items: any[] = [
+    { key: 'load', title: t('dash.load'), percent: loadPercent, caption: loadCaption, captionTone: loadTone, tooltip: t('dash.loadAverages', { values: loads }) },
+    { key: 'cpu', title: t('dash.cpu'), percent: typeof s.cpu === 'number' ? s.cpu : null, caption: `${cpus} ${t('main.info.core')}`, tooltip: sys.value?.cpuType || '' },
+    { key: 'mem', title: t('dash.memory'), percent: usagePercent(s.mem), caption: sizePair(s.mem) },
+    { key: 'disk', title: t('dash.disk'), percent: usagePercent(s.dsk), caption: sizePair(s.dsk) },
+  ]
+  if (s.swp?.total > 0) items.push({ key: 'swap', title: t('dash.swap'), percent: usagePercent(s.swp), caption: sizePair(s.swp) })
+  return items
+})
+
+// ---- Monitor chart ----
+const monitorTab = ref<'net' | 'dio' | 'cpu' | 'mem'>('net')
+const monitorTabs = computed(() => [
+  { value: 'net' as const, title: t('dash.tabTraffic') },
+  { value: 'dio' as const, title: t('dash.tabDisk') },
+  { value: 'cpu' as const, title: 'CPU' },
+  { value: 'mem' as const, title: t('dash.tabMemory') },
+])
+const rate = (value: number) => value > 0 ? `${HumanReadable.sizeFormat(value, 1)}/s` : `0 ${t('stats.B')}/s`
+const percent = (value: number) => `${Math.round(value)}%`
+
+const monitor = computed(() => {
+  const colors = theme.current.value.colors
+  const first = String(colors.primary)
+  const second = String(colors.warning)
+  switch (monitorTab.value) {
+    case 'dio':
+      return {
+        series: [
+          { label: t('dash.read'), data: history.read, color: first },
+          { label: t('dash.write'), data: history.write, color: second },
+        ],
+        format: rate,
+        max: undefined,
+        legend: [
+          { label: t('dash.read'), value: rate(rates.read), color: first },
+          { label: t('dash.write'), value: rate(rates.write), color: second },
+        ],
+      }
+    case 'cpu':
+      return {
+        series: [{ label: 'CPU', data: history.cpu, color: first }],
+        format: percent,
+        max: 100,
+        legend: [{ label: t('dash.usage'), value: typeof status.value.cpu === 'number' ? percent(status.value.cpu) : '-', color: first }],
+      }
+    case 'mem':
+      return {
+        series: [{ label: t('dash.tabMemory'), data: history.mem, color: first }],
+        format: percent,
+        max: 100,
+        legend: [{ label: t('dash.usage'), value: sizePair(status.value.mem), color: first }],
+      }
+    default:
+      return {
+        series: [
+          { label: t('dash.upload'), data: history.up, color: first },
+          { label: t('dash.download'), data: history.down, color: second },
+        ],
+        format: rate,
+        max: undefined,
+        legend: [
+          { label: t('dash.upload'), value: rate(rates.up), color: first },
+          { label: t('dash.download'), value: rate(rates.down), color: second },
+          { label: t('dash.totalSent'), value: HumanReadable.sizeFormat(status.value.net?.sent), color: '' },
+          { label: t('dash.totalRecv'), value: HumanReadable.sizeFormat(status.value.net?.recv), color: '' },
+        ],
+      }
   }
-  loading.value = true
-  await HttpUtils.post('api/restartXray',{})
-  await reloadData()
-  loading.value = false
-}
+})
 
-const stopXray = async () => {
-  loading.value = true
-  await HttpUtils.post('api/stopXray', {})
-  await reloadData()
-  loading.value = false
-}
-
-const goXrayInbound = async () => {
-  await router.push('/inbounds')
-}
-
-const goXraySettings = async () => {
-  await router.push('/settings')
-}
-
-const shortPath = (path?: string) => path ? path.split(/[\\/]/).pop() || path : '-'
-const shortText = (text?: string) => {
-  if (!text) return '-'
-  return text.length > 28 ? text.substring(0, 28) + '...' : text
-}
-
-// CPU/mem chip: red only when this panel is cluster control plane and under 2c/2G.
+// ---- System info ----
 const hostReqChipColor = computed(() => {
-  const req = tilesData.value?.sys?.requirements ?? Data().hostRequirements
+  const req = sys.value?.requirements ?? Data().hostRequirements
   if (!req) return 'primary'
   if (req.applies === true && req.ok === false) return 'error'
   if (req.meets_cluster_rec === false) return 'warning'
   return 'success'
 })
+
+const capitalize = (value: string) => value ? value.charAt(0).toUpperCase() + value.slice(1) : value
+
+const systemRows = computed(() => {
+  const info = sys.value
+  if (!info) return []
+  const rows: { label: string, value: string, title?: string, chip?: string }[] = [
+    { label: t('main.info.host'), value: info.hostName || '-' },
+  ]
+  if (info.os) rows.push({ label: t('dash.os'), value: capitalize(info.os) + (info.arch ? ` (${info.arch})` : '') })
+  if (info.kernel) rows.push({ label: t('dash.kernel'), value: info.kernel })
+  rows.push({
+    label: t('main.info.cpu'),
+    value: `${info.cpuCount} ${t('main.info.core')}` + (info.memTotal ? ` · ${(info.memTotal / 1024 ** 3).toFixed(1)} GB` : ''),
+    title: info.cpuType,
+    chip: hostReqChipColor.value,
+  })
+  if (info.ipv4?.length) rows.push({ label: 'IPv4', value: info.ipv4[0] + (info.ipv4.length > 1 ? ` +${info.ipv4.length - 1}` : ''), title: info.ipv4.join('\n') })
+  if (info.ipv6?.length) rows.push({ label: 'IPv6', value: info.ipv6[0] + (info.ipv6.length > 1 ? ` +${info.ipv6.length - 1}` : ''), title: info.ipv6.join('\n') })
+  rows.push({ label: t('dash.panelVersion'), value: `v${info.appVersion}` })
+  rows.push({
+    label: t('main.info.uptime'),
+    value: HumanReadable.formatSecond(Date.now() / 1000 - Number(info.bootTime || 0)),
+    title: t('main.info.startupTime') + ': ' + new Date(Number(info.bootTime || 0) * 1000).toLocaleString(locale),
+  })
+  return rows
+})
+
+// ---- Cores ----
+const onlineSummary = computed(() => {
+  const onlines = Data().onlines
+  if (!status.value.sbd?.running) return '-'
+  return `${onlines?.user?.length || 0} ${t('pages.clients')} · ${onlines?.inbound?.length || 0} ${t('pages.inbounds')}`
+})
+
+const xrayState = computed(() => {
+  const xry = status.value.xry
+  if (xry?.disabled) return { color: 'warning', text: t('setting.xrayDisabled') }
+  if (xry?.running) return { color: 'success', text: t('main.info.runningYes') }
+  if (xry?.has_inbounds === false) return { color: 'warning', text: t('setting.xrayNotConfigured') }
+  return { color: 'error', text: t('main.info.runningNo') }
+})
+
+const logModal = ref({ visible: false })
+const backupModal = ref({ visible: false })
+const usageStatsModal = ref({ visible: false })
+
+const restartSingbox = async () => {
+  loading.value = true
+  try {
+    await HttpUtils.post('api/restartSb', {})
+    await loadStatus()
+  } finally {
+    loading.value = false
+  }
+}
+
+const restartXray = async () => {
+  if (status.value.xry?.disabled) return goXraySettings()
+  if (status.value.xry?.has_inbounds === false) return goXrayInbound()
+  if (!status.value.xry?.running && status.value.xry?.exclusive_run) {
+    if (!window.confirm(t('setting.xrayStartExclusiveConfirm'))) return
+  }
+  loading.value = true
+  try {
+    await HttpUtils.post('api/restartXray', {})
+    await loadStatus()
+  } finally {
+    loading.value = false
+  }
+}
+
+const stopXray = async () => {
+  loading.value = true
+  try {
+    await HttpUtils.post('api/stopXray', {})
+    await loadStatus()
+  } finally {
+    loading.value = false
+  }
+}
+
+const goXrayInbound = () => router.push('/inbounds')
+const goXraySettings = () => router.push('/settings')
+
+const shortPath = (path?: string) => path ? path.split(/[\\/]/).pop() || path : '-'
+const shortText = (text?: string) => {
+  if (!text) return '-'
+  return text.length > 40 ? text.substring(0, 40) + '…' : text
+}
 </script>
 
 <style scoped>
-.home-dashboard {
-  min-height: calc(100vh - 112px);
+.dash {
+  display: grid;
+  gap: 16px;
+}
+
+.dash-card {
+  min-width: 0;
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.09);
+  border-radius: var(--app-surface-radius, 8px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+:global(.ui-style--glass) .dash-card,
+:global(.ui-style--clear) .dash-card {
+  background: rgba(var(--v-theme-surface), 0.62);
+  backdrop-filter: blur(18px) saturate(170%);
+  -webkit-backdrop-filter: blur(18px) saturate(170%);
+}
+
+.dash-card__head {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 22px clamp(12px, 2vw, 28px) 34px;
+  gap: 12px;
+  min-height: 50px;
+  padding: 6px 12px 6px 20px;
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.07);
 }
 
-.home-dashboard--active {
-  align-items: flex-start;
-  min-height: auto;
-  padding-top: 16px;
+.dash-card__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: rgb(var(--v-theme-on-surface));
 }
 
-.home-dashboard__content {
-  width: min(100%, 760px);
-  margin-inline: auto;
-}
-
-.home-dashboard__content--active {
-  width: min(100%, 1320px);
-}
-
-.home-dashboard :deep(.v-row) {
-  margin-inline: 0;
-}
-
-.home-dashboard :deep(.v-col) {
-  padding-inline: 6px;
-}
-
-.home-actions-row {
-  margin-top: 10px;
-}
-
-.home-actions {
-  width: 100%;
+.dash-card__tools {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
+  justify-content: flex-end;
+  gap: 4px;
 }
 
-.home-action-btn {
-  min-width: 128px;
-  border-radius: 8px !important;
-  justify-content: center;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  margin: 0 !important;
-  text-transform: none;
+.dash-card__tools :deep(.v-btn),
+.dash-core__head :deep(.v-btn) {
+  min-width: 0 !important;
+  min-height: 32px !important;
+  height: 32px !important;
+  padding-inline: 8px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
-.home-tiles-row {
-  align-items: stretch;
-  justify-content: center;
-  margin-top: 14px;
-  row-gap: 14px;
+.dash-card__body {
+  padding: 12px 20px 16px;
 }
 
-.home-tile-col {
-  display: flex;
+/* Overview counters */
+.dash-overview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
-.home-tile-card {
-  width: 100%;
-  min-height: 166px;
+.dash-stat {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  gap: 8px;
+  padding: 16px 20px 18px;
+  color: inherit;
+  text-decoration: none;
+  border-inline-end: 1px solid rgba(var(--v-theme-on-surface), 0.06);
+  transition: background 0.15s ease;
 }
 
-.home-tile-card--chart {
-  min-height: 190px;
+.dash-stat:last-child {
+  border-inline-end: 0;
 }
 
-.home-tile-card--info {
-  min-height: 202px;
+.dash-stat:hover {
+  background: rgba(var(--v-theme-primary), 0.04);
 }
 
-.home-tile-title {
-  min-height: 36px;
-  padding: 12px 16px 2px !important;
-  display: flex;
+.dash-stat:hover .dash-stat__value {
+  color: rgb(var(--v-theme-primary));
+}
+
+.dash-stat__label {
+  display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
-  font-size: 1rem;
-  font-weight: 700;
-  line-height: 1.2;
-  text-align: start;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  gap: 6px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  font-size: 13px;
 }
 
-.home-tile-body {
-  flex: 1;
-  min-height: 0;
-  padding: 4px 16px 14px !important;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+.dash-stat__value {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: rgb(var(--v-theme-on-surface));
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
-.home-tile-card--chart .home-tile-body {
-  padding-top: 0 !important;
+/* Status gauges */
+.dash-gauges {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  padding: 16px 12px 18px;
 }
 
-.home-info-grid {
-  width: 100%;
-  align-items: center;
-  row-gap: 2px;
-  text-align: start;
+/* Monitor + side cards */
+.dash-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  gap: 16px;
+  align-items: start;
 }
 
-.home-info-grid :deep(.v-col) {
+.dash-grid__side {
+  display: grid;
+  gap: 16px;
   min-width: 0;
-  padding: 3px 4px !important;
 }
 
-.home-info-grid :deep(.v-col:nth-child(odd)) {
-  color: rgba(var(--v-theme-on-surface), 0.72);
-  font-size: 0.9rem;
+.dash-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.dash-tab {
+  padding: 4px 12px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(var(--v-theme-on-surface), 0.66);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dash-tab:hover {
+  color: rgb(var(--v-theme-primary));
+}
+
+.dash-tab--active {
+  border-color: rgba(var(--v-theme-primary), 0.35);
+  background: rgba(var(--v-theme-primary), 0.08);
+  color: rgb(var(--v-theme-primary));
+  font-weight: 600;
+}
+
+.dash-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.dash-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dash-legend__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dash-legend__label {
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+
+.dash-legend__value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* System info */
+.dash-info {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px 16px;
+  margin: 0;
+  padding: 14px 20px 16px;
+  font-size: 13px;
+}
+
+.dash-info dt {
+  color: rgba(var(--v-theme-on-surface), 0.58);
   white-space: nowrap;
 }
 
-.home-info-grid :deep(.v-col:nth-child(even)) {
+.dash-info dd {
+  min-width: 0;
+  margin: 0;
   overflow: hidden;
   text-align: end;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.home-info-grid :deep(.v-chip) {
-  max-width: 100%;
+/* Cores */
+.dash-core {
+  padding: 12px 20px 14px;
 }
 
-.home-info-grid :deep(.v-chip__content) {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.dash-core + .dash-core {
+  border-top: 1px solid rgba(var(--v-theme-on-surface), 0.07);
+}
+
+.dash-core__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.dash-core__name {
+  font-weight: 600;
+}
+
+.dash-core__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 8px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  font-size: 12.5px;
+}
+
+.dash-core__stats b {
+  margin-inline-start: 4px;
+  color: rgb(var(--v-theme-on-surface));
+  font-weight: 600;
+}
+
+@media (max-width: 1200px) {
+  .dash-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dash-grid__side {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
 }
 
 @media (max-width: 600px) {
-  .home-dashboard {
-    min-height: calc(100vh - 96px);
-    padding-inline: 12px;
+  .dash {
+    gap: 12px;
   }
 
-  .home-actions {
-    gap: 8px;
+  .dash-card__head {
+    flex-wrap: wrap;
+    padding-inline: 14px 8px;
   }
 
-  .home-action-btn {
-    flex: 1 1 calc(50% - 8px);
-    min-width: 0;
-    max-width: 164px;
+  .dash-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .home-tile-card,
-  .home-tile-card--chart,
-  .home-tile-card--info {
-    min-height: 168px;
+  .dash-stat {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.06);
+  }
+
+  .dash-stat__value {
+    font-size: 22px;
+  }
+
+  .dash-gauges {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dash-grid__side {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dash-card__body,
+  .dash-info,
+  .dash-core {
+    padding-inline: 14px;
   }
 }
 </style>

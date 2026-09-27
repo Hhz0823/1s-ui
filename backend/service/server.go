@@ -19,6 +19,7 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
 	"github.com/shirou/gopsutil/v4/host"
+	"github.com/shirou/gopsutil/v4/load"
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/shirou/gopsutil/v4/net"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
@@ -33,6 +34,8 @@ func (s *ServerService) GetStatus(request string) *map[string]interface{} {
 		switch req {
 		case "cpu":
 			status["cpu"] = s.GetCpuPercent()
+		case "lod":
+			status["lod"] = s.GetLoadInfo()
 		case "mem":
 			status["mem"] = s.GetMemInfo()
 		case "dsk":
@@ -66,6 +69,24 @@ func (s *ServerService) GetCpuPercent() float64 {
 	} else {
 		return percents[0]
 	}
+}
+
+// GetLoadInfo returns the 1/5/15-minute load averages with the logical CPU
+// count, from which the panel derives BaoTa's load gauge (load1 against twice
+// the CPU count). Systems without load averages report only the CPU count.
+func (s *ServerService) GetLoadInfo() map[string]interface{} {
+	info := map[string]interface{}{"cpus": runtime.NumCPU()}
+	if count, err := cpu.Counts(true); err == nil && count > 0 {
+		info["cpus"] = count
+	}
+	average, err := load.Avg()
+	if err != nil {
+		return info
+	}
+	info["load1"] = average.Load1
+	info["load5"] = average.Load5
+	info["load15"] = average.Load15
+	return info
 }
 
 func (s *ServerService) GetMemInfo() map[string]interface{} {
@@ -392,6 +413,11 @@ func (s *ServerService) GetSystemInfo() map[string]interface{} {
 	info["ipv4"] = ipv4
 	info["ipv6"] = ipv6
 	info["bootTime"], _ = host.BootTime()
+	if hostInfo, err := host.Info(); err == nil {
+		info["os"] = strings.TrimSpace(hostInfo.Platform + " " + hostInfo.PlatformVersion)
+		info["kernel"] = hostInfo.KernelVersion
+		info["arch"] = hostInfo.KernelArch
+	}
 
 	return info
 }

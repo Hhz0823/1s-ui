@@ -35,7 +35,15 @@
       </router-link>
     </div>
 
-    <div v-if="menuPosition !== 'top' || isMobile" class="app-bar-title">
+    <div
+      v-if="menuPosition !== 'top' || isMobile"
+      class="app-bar-title"
+      :class="{ 'app-bar-title--crumbs': panelStyle && !isMobile }"
+    >
+      <template v-if="panelStyle && !isMobile && crumbGroup">
+        <span class="bar-crumb">{{ $t(crumbGroup) }}</span>
+        <v-icon icon="mdi-chevron-right" size="16" class="bar-crumb-sep" />
+      </template>
       <span class="page-title">{{ $t(String(route.name)) }}</span>
     </div>
 
@@ -89,14 +97,20 @@
 </template>
 
 <script lang="ts" setup>
+import { computed } from 'vue'
 import { useLocale, useTheme } from 'vuetify'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { languages } from '@/locales'
+import { menuTrail } from './menu'
+import { savedTheme, themeChoices } from '@/plugins/themes'
 
-defineProps(['isMobile', 'menuPosition', 'menuItems', 'drawerExpanded'])
+const props = defineProps(['isMobile', 'menuPosition', 'menuItems', 'drawerExpanded', 'uiStyle'])
 
 const route = useRoute()
+const panelStyle = computed(() => props.uiStyle === 'panel')
+// The overview group only holds the home page, so it adds nothing there.
+const crumbGroup = computed(() => route.path === '/' ? '' : (menuTrail(route.path).group?.label ?? ''))
 const { locale: i18nLocale } = useI18n()
 const vuetifyLocale = useLocale()
 const theme = useTheme()
@@ -109,31 +123,13 @@ const changeLocale = (l: string) => {
 }
 const isActiveLocale = (l: string) => i18nLocale.value === l
 
-const themes = [
-  { value: 'light', icon: 'mdi-white-balance-sunny' },
-  { value: 'dark', icon: 'mdi-moon-waning-crescent' },
-  { value: 'midnight', icon: 'mdi-weather-night' },
-  { value: 'ocean', icon: 'mdi-waves' },
-  { value: 'sunset', icon: 'mdi-weather-sunset' },
-  { value: 'forest', icon: 'mdi-pine-tree' },
-  { value: 'sakura', icon: 'mdi-flower' },
-  { value: 'daylight', icon: 'mdi-weather-sunny-alert' },
-  { value: 'mint', icon: 'mdi-leaf' },
-  { value: 'cyberpunk', icon: 'mdi-robot' },
-  { value: 'nord', icon: 'mdi-snowflake' },
-  { value: 'dracula', icon: 'mdi-bat' },
-  { value: 'graphite', icon: 'mdi-circle-slice-8' },
-  { value: 'system', icon: 'mdi-laptop' },
-]
+const themes = themeChoices
 
 const changeTheme = (th: string) => {
   theme.change(th)
   localStorage.setItem('theme', th)
 }
-const isActiveTheme = (th: string) => {
-  const current = localStorage.getItem('theme') ?? 'system'
-  return current == th
-}
+const isActiveTheme = (th: string) => savedTheme() == th
 </script>
 
 <style scoped>
@@ -241,6 +237,30 @@ const isActiveTheme = (th: string) => {
   background: rgba(var(--v-theme-primary), 0.12);
   border-color: rgba(var(--v-theme-primary), 0.3);
   color: rgb(var(--v-theme-primary));
+}
+
+.app-bar-title--crumbs {
+  position: static;
+  inset: auto;
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  gap: 6px;
+  padding-inline: 20px 12px;
+  min-width: 0;
+}
+
+.bar-crumb {
+  color: rgba(var(--v-theme-on-surface), 0.55);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.bar-crumb-sep {
+  color: rgba(var(--v-theme-on-surface), 0.35);
+}
+
+.app-bar-title--crumbs .page-title {
+  font-size: 15px;
 }
 
 @media (max-width: 600px) {

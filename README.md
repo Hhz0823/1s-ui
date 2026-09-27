@@ -19,13 +19,21 @@
 
 **语言 Languages:** [简体中文](#简体中文) · [English](#english) · [日本語](#日本語) · [한국어](#한국어) · [Tiếng Việt](#tiếng-việt) · [فارسی](#فارسی)
 
-**导航:** [页面截图](#页面截图) · [群控架构](#群控架构) · [快速部署](#快速部署) · [功能矩阵](#功能矩阵) · [群控与远程管理](#群控与远程管理) · [一键中转](#一键中转) · [SD-WAN 智能组网](#sd-wan-智能组网) · [客户端导入](#客户端导入兼容性) · [安全](#安全与权限)
+**导航:** [页面截图](#页面截图) · [面板界面](#面板界面宝塔--1panel-风格) · [群控架构](#群控架构) · [快速部署](#快速部署) · [功能矩阵](#功能矩阵) · [群控与远程管理](#群控与远程管理) · [一键中转](#一键中转) · [SD-WAN 智能组网](#sd-wan-智能组网) · [客户端导入](#客户端导入兼容性) · [安全](#安全与权限)
 
 ---
 
 ## 页面截图
 
-截图来自 `v1.6.0-boost` 默认液态玻璃主题。服务器、域名、地址和指标均为演示数据，不包含账号密码、Token、证书私钥、真实服务器 IP 或节点密钥。
+默认界面为宝塔 / 1Panel 风格面板；液态玻璃截图来自 `v1.6.0-boost`，可在「设置 → 界面」切换回玻璃风格。服务器、域名、地址和指标均为演示数据，不包含账号密码、Token、证书私钥、真实服务器 IP 或节点密钥。
+
+| 宝塔绿主页 BaoTa Home | 1Panel 暗色主页 1Panel Dark Home |
+| --- | --- |
+| ![BaoTa style home dashboard](docs/screenshots/dashboard-panel.jpg) | ![1Panel dark home dashboard](docs/screenshots/dashboard-onepanel-dark.jpg) |
+
+| 入站列表 Inbound List | 路由规则 Routing Rules |
+| --- | --- |
+| ![BaoTa style inbound table](docs/screenshots/inbounds-panel.jpg) | ![1Panel style routing rules](docs/screenshots/rules-onepanel.jpg) |
 
 | 服务器群控 Server Fleet | 节点实时指标 Live Metrics |
 | --- | --- |
@@ -193,7 +201,7 @@ s-ui update
 | 一键中转 | IPv6 出口池或上游 SOCKS5，自动创建入站、出站、用户和路由 |
 | SD-WAN 智能组网 | 多台受管服务器合并为一个入口：每台服务器同时部署 VLESS Reality（TCP）与 Hysteria2（QUIC）上行，按实时延迟选择最快线路，故障约 5 秒内自动切换；内置网络检测与一键调优 |
 | 出站导入 | 支持 SOCKS5/SOCKS4、HTTP(S)、Hysteria2 端口跳跃与 `user:pass` 认证、VMess、VLESS、Trojan、Shadowsocks、TUIC、AnyTLS、Naive 链接 |
-| 界面 | 默认实色；可选玻璃/清透、自定义背景、模糊、菜单布局和紧凑密度 |
+| 界面 | 默认宝塔 / 1Panel 风格面板（分组侧栏、面包屑、工具栏 + 表格列表、宝塔绿 / 1Panel 蓝 / 1Panel 暗色主题）；可选玻璃、实色、清透、自定义背景、菜单布局和紧凑密度 |
 | 反向代理 | 在服务端面板查看和管理 Caddy / Nginx 状态、域名与配置应用 |
 
 #### sing-box 入站
@@ -325,6 +333,14 @@ flowchart LR
 - **NaiveProxy**：一键创建默认改为 HTTPS / HTTP/2（小火箭只支持这一种），QUIC / HTTP/3 仍可选。sing-box 的 Naive 入站只接受带 NaiveProxy Padding 的请求，普通 HTTPS 代理客户端无法连接；v2rayNG 与 Anywhere 请使用 VLESS REALITY 节点。
 - 所有模式都有回归测试：链接按 v2rayN、v2rayNG 与 Anywhere 的真实解析规则逐项校验，并用真实 Xray-core（26.3.27 与 26.9.9）客户端仅凭分享链接连接面板生成的服务端、实际转发流量。
 
+### 面板界面：宝塔 / 1Panel 风格
+
+- **布局**：左侧按「总览 / 代理 / 系统 / 路由 / 管理」分组的固定侧栏，顶部面包屑；浅灰工作区搭配白色平面卡片和表格，桌面与手机端自适应（手机端列表以卡片逐条显示）。
+- **首页仪表盘**：概览计数（入站、用户、在线、出站、用户流量、服务器）；负载、CPU、内存、磁盘、Swap 环形仪表，负载按宝塔规则显示「运行流畅 / 运行正常 / 运行缓慢 / 运行堵塞」；流量、磁盘 IO、CPU、内存实时曲线；系统信息（系统版本、内核、架构、IP、运行时间）与 sing-box / Xray 内核状态和启停操作。
+- **列表页**：入站、用户、出站、节点、服务、TLS、管理员、路由和 DNS 统一为「操作按钮 + 搜索 + 表格」，行内文字操作（编辑 / 克隆 / 流量 / 删除），删除统一二次确认，并支持每页数量与「全部」。
+- **路由与 DNS 规则**：表格保留匹配顺序，可拖动行或用箭头调整顺序，显示匹配条件摘要（悬停查看明细）和「有未保存的更改」提示。
+- **主题**：新增宝塔绿（默认）、1Panel 蓝与 1Panel 暗色，原有主题仍可在右上角切换；「设置 → 界面」可切回玻璃、实色或清透风格。
+
 ### v1.6.2 更新重点
 
 - **SD-WAN 智能组网**：多台受管服务器合并为一个入口，用户只连主控；每台服务器同时部署 VLESS REALITY + Vision（TCP）与 Hysteria2（QUIC）上行，主控按实时延迟走最快线路，故障约 5 秒内切换；内置网络检测（延迟、抖动、丢包、带宽、内核、时钟）与一键调优（BBR/fq 内核参数、协议升级、上行修复、自适应切换容差）。
@@ -407,7 +423,7 @@ flowchart LR
 - SD-WAN: users connect to the controller while it deploys private uplinks on every managed server (VLESS Reality over TCP plus Hysteria2 over QUIC by default), always exits through the fastest path and fails over within seconds; built-in detection (latency, jitter, loss, bandwidth, kernel, clock) and one-click tuning (BBR/fq kernel profile, protocol upgrade, uplink repair, adaptive switch tolerance).
 - Share links built for v2rayN and Shadowrocket (SIP002, `socks://`, pinned self-signed TLS with compatibility flags) and outbound import of SOCKS5/HTTP/Hysteria2 port-hopping links.
 - One-click VLESS nodes in five modes: REALITY + Vision (default, sing-box or Xray-core), REALITY + XHTTP, post-quantum VLESS Encryption + Vision or XHTTP, and self-signed TLS. Links are checked against the v2rayN, v2rayNG and Anywhere parsers, and real Xray-core clients carry traffic using nothing but the share link. One-click NaiveProxy now defaults to HTTPS (HTTP/2).
-- Default solid UI, responsive desktop/mobile layouts, optional backgrounds and glass/clear styles.
+- BaoTa / 1Panel style panel UI by default: grouped sidebar with breadcrumbs, a server dashboard (load, CPU, memory, disk and swap gauges, live traffic/disk IO charts, system and core status) and toolbar + table list pages with drag-to-reorder routing and DNS rules; BaoTa green, 1Panel blue and 1Panel dark themes, with the glass, solid and clear styles still available.
 
 ### Resource profiles
 
