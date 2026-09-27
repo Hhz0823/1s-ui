@@ -187,7 +187,11 @@ func prepareTls(t *model.Tls) map[string]interface{} {
 	}
 	if certificate := CertPEMFromTLS(iTls); certificate != "" {
 		// Public certificate only. v2rayN's Naive importer needs the PEM to
-		// validate generated certificates without disabling TLS verification.
+		// validate generated certificates without disabling TLS verification;
+		// for a generated chain that is its CA, which outlives renewals.
+		if root := PrivateRootPEM(certificate); root != "" {
+			certificate = root
+		}
 		oTls["certificate"] = certificate
 	}
 

@@ -537,12 +537,18 @@ func inboundChangeAffectsXray(tx *gorm.DB, act string, data json.RawMessage) (bo
 }
 
 func tlsChangeAffectsXray(tx *gorm.DB, act string, data json.RawMessage) (bool, error) {
-	if act != "new" && act != "edit" {
-		return false, nil
-	}
 	var tls model.Tls
-	if err := json.Unmarshal(data, &tls); err != nil {
-		return false, err
+	switch act {
+	case "new", "edit":
+		if err := json.Unmarshal(data, &tls); err != nil {
+			return false, err
+		}
+	case "renew":
+		if err := json.Unmarshal(data, &tls.Id); err != nil {
+			return false, err
+		}
+	default:
+		return false, nil
 	}
 	if tls.Id == 0 {
 		return false, nil

@@ -135,6 +135,9 @@ func (s *LocalControlService) quickAddInbounds(request RemoteQuickAddRequest, ch
 			if err = database.GetDB().First(&tlsConfig, request.NaiveTLSID).Error; err != nil {
 				return nil, common.NewError("selected NaiveProxy TLS configuration does not exist")
 			}
+			if err = checkNaiveCertificate(tlsConfig); err != nil {
+				return nil, err
+			}
 		}
 	}
 	if request.CoreType == model.CoreTypeXray {
@@ -170,6 +173,12 @@ func (s *LocalControlService) quickAddInbounds(request RemoteQuickAddRequest, ch
 			tlsID, revision, err = s.createQuickAddRealityTLS(request, revision, changeActor, publicHost)
 		case request.Protocol == "vless" && vlessVariantEncryption(request.VlessVariant):
 			// VLESS Encryption without REALITY replaces the TLS layer.
+		case request.Protocol == "naive":
+			serverName := remoteQuickAddTLSServerName(request, publicHost)
+			var name string
+			if name, err = generatedTLSName(serverName); err == nil {
+				tlsID, revision, err = s.createAuthorityTLS(name, serverName, revision, changeActor, publicHost)
+			}
 		default:
 			tlsID, revision, err = s.createRemoteQuickAddTLS(remoteQuickAddTLSServerName(request, publicHost), revision, changeActor, publicHost)
 		}
@@ -586,7 +595,8 @@ func (s *LocalControlService) createRemoteQuickAddClient(request RemoteQuickAddR
 	return saved.Id, revision, nil
 }
 
-func (s *LocalControlService) createRemoteQuickAddTLS(serverName string, revision uint64, changeActor, publicHost string) (uint, uint64, error) {
+// generatedTLSName is an unused "auto-" name for a generated configuration.
+func generatedTLSName(serverName string) (string, error) {
 	cleanName := strings.Map(func(r rune) rune {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '.' || r == '-' {
 			return r
@@ -595,6 +605,14 @@ func (s *LocalControlService) createRemoteQuickAddTLS(serverName string, revisio
 	}, serverName)
 	if cleanName == "" {
 		cleanName = "managed-node"
+	}
+	return availableTLSName(generatedTLSNamePrefix + cleanName)
+}
+
+func (s *LocalControlService) createRemoteQuickAddTLS(serverName string, revision uint64, changeActor, publicHost string) (uint, uint64, error) {
+	name, err := generatedTLSName(serverName)
+	if err != nil {
+		return 0, revision, err
 	}
 	now := time.Now()
 	privateKey, certificate, err := panelutil.GenerateSelfSignedTLS(serverName, now, now.AddDate(0, 12, 0))
@@ -610,21 +628,6 @@ func (s *LocalControlService) createRemoteQuickAddTLS(serverName string, revisio
 		return 0, revision, err
 	}
 	certificateHash := sha256.Sum256(parsed.Raw)
-	name := "auto-" + cleanName
-	for copyIndex := 0; ; copyIndex++ {
-		candidate := name
-		if copyIndex > 0 {
-			candidate = fmt.Sprintf("%s-copy%d", name, copyIndex)
-		}
-		var count int64
-		if err = database.GetDB().Model(&model.Tls{}).Where("name = ?", candidate).Count(&count).Error; err != nil {
-			return 0, revision, err
-		}
-		if count == 0 {
-			name = candidate
-			break
-		}
-	}
 	tlsConfig := map[string]interface{}{
 		"id":   0,
 		"name": name,

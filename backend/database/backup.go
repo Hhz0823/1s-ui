@@ -49,6 +49,7 @@ func GetDb(exclude string) ([]byte, error) {
 	err = backupDb.AutoMigrate(
 		&model.Setting{},
 		&model.Tls{},
+		&model.TlsAuthority{},
 		&model.Inbound{},
 		&model.Outbound{},
 		&model.Service{},
@@ -66,6 +67,7 @@ func GetDb(exclude string) ([]byte, error) {
 
 	var settings []model.Setting
 	var tls []model.Tls
+	var tlsAuthorities []model.TlsAuthority
 	var inbound []model.Inbound
 	var outbound []model.Outbound
 	var services []model.Service
@@ -89,6 +91,13 @@ func GetDb(exclude string) ([]byte, error) {
 		return nil, err
 	} else if len(tls) > 0 {
 		if err := backupDb.Save(tls).Error; err != nil {
+			return nil, err
+		}
+	}
+	if err := db.Model(&model.TlsAuthority{}).Scan(&tlsAuthorities).Error; err != nil {
+		return nil, err
+	} else if len(tlsAuthorities) > 0 {
+		if err := backupDb.Save(tlsAuthorities).Error; err != nil {
 			return nil, err
 		}
 	}

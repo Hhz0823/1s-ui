@@ -2,6 +2,7 @@ package util
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/Hhz0823/1s-ui/util/common"
 
@@ -121,6 +122,10 @@ func addTls(out *map[string]interface{}, tls *model.Tls) {
 	}
 	if certificate, ok := tlsServer["certificate"]; ok {
 		tlsConfig["certificate"] = certificate
+		// Clients trust a generated chain's CA, not the renewed server certificate.
+		if root := PrivateRootPEM(CertPEMFromTLS(tlsServer)); root != "" {
+			tlsConfig["certificate"] = strings.Split(strings.TrimSpace(root), "\n")
+		}
 	}
 	if cipherSuites, ok := tlsServer["cipher_suites"]; ok {
 		tlsConfig["cipher_suites"] = cipherSuites

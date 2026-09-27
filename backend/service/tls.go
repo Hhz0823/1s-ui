@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/Hhz0823/1s-ui/database"
 	"github.com/Hhz0823/1s-ui/database/model"
@@ -104,6 +105,37 @@ func (s *TlsService) Save(tx *gorm.DB, action string, data json.RawMessage, host
 		err = tx.Where("id = ?", id).Delete(model.Tls{}).Error
 		if err != nil {
 			return err
+		}
+		err = tx.Where("tls_id = ?", id).Delete(model.TlsAuthority{}).Error
+		if err != nil {
+			return err
+		}
+	case "renew":
+		// A new server certificate from the configuration's CA. Links and
+		// outbounds trust the CA, so only the running inbounds change.
+		var id uint
+		if err = json.Unmarshal(data, &id); err != nil {
+			return err
+		}
+		if err = renewAuthorityTLS(tx, id, time.Now()); err != nil {
+			return err
+		}
+		var inboundIds, serviceIds []uint
+		if err = tx.Model(model.Inbound{}).Where("tls_id = ?", id).Pluck("id", &inboundIds).Error; err != nil {
+			return err
+		}
+		if len(inboundIds) > 0 {
+			if err = s.InboundService.RestartInbounds(tx, inboundIds); err != nil {
+				return err
+			}
+		}
+		if err = tx.Model(model.Service{}).Where("tls_id = ?", id).Pluck("id", &serviceIds).Error; err != nil {
+			return err
+		}
+		if len(serviceIds) > 0 {
+			if err = s.ServicesService.RestartServices(tx, serviceIds); err != nil {
+				return err
+			}
 		}
 	}
 

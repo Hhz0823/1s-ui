@@ -24,7 +24,8 @@ func normalizeGeneratedTLSPin(tlsConfig *model.Tls) (string, string, bool, error
 	if err := json.Unmarshal(tlsConfig.Client, &clientConfig); err != nil {
 		return "", "", false, nil
 	}
-	pemData := util.CertPEMFromTLS(serverConfig)
+	// A generated chain is pinned by its CA, which outlives renewals.
+	pemData := util.TrustAnchorPEM(util.CertPEMFromTLS(serverConfig))
 	pinBase64 := util.CertSha256Base64(pemData)
 	pinHex := util.CertSha256Hex(pemData)
 	if pinBase64 == "" || pinHex == "" {
@@ -194,7 +195,7 @@ func (s *ConfigService) RepairGeneratedTLSPins() (int, error) {
 					recordChanged = true
 				}
 				inboundTags[inbounds[inboundIndex].Tag] = pinHex
-				if inbounds[inboundIndex].Type == "naive" && util.CertIsSelfSigned(util.CertPEMFromTLS(mapFromRaw(tlsConfigs[index].Server))) {
+				if inbounds[inboundIndex].Type == "naive" && util.CertIsSelfSigned(util.TrustAnchorPEM(util.CertPEMFromTLS(mapFromRaw(tlsConfigs[index].Server)))) {
 					var addrs []map[string]interface{}
 					if json.Unmarshal(inbounds[inboundIndex].Addrs, &addrs) == nil && len(addrs) > 0 {
 						needsRepair, repairErr := naiveV2rayNLinkRepairNeeded(tx, inbounds[inboundIndex].Id, inbounds[inboundIndex].Tag)

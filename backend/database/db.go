@@ -126,6 +126,7 @@ func InitDB(dbPath string) error {
 	err = db.AutoMigrate(
 		&model.Setting{},
 		&model.Tls{},
+		&model.TlsAuthority{},
 		&model.Inbound{},
 		&model.Outbound{},
 		&model.Service{},
