@@ -11,7 +11,7 @@
   [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8)](backend/go.mod)
   [![Vue](https://img.shields.io/badge/Vue-3-42b883)](frontend/package.json)
 
-  **[Linux v1.6.1](https://github.com/Hhz0823/1s-ui/releases/tag/v1.6.1)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
+  **[Linux v1.6.2](https://github.com/Hhz0823/1s-ui/releases/tag/v1.6.2)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
 </div>
 
 > 1S-UI 基于 [alireza0/s-ui](https://github.com/alireza0/s-ui) 二次开发，仅用于学习、研究与技术交流。请遵守当地法律法规。
@@ -324,6 +324,18 @@ flowchart LR
 - **XHTTP**：随机路径、`mode=auto`，不下发 `flow`（Vision 仅用于 TCP）。
 - **NaiveProxy**：一键创建默认改为 HTTPS / HTTP/2（小火箭只支持这一种），QUIC / HTTP/3 仍可选。sing-box 的 Naive 入站只接受带 NaiveProxy Padding 的请求，普通 HTTPS 代理客户端无法连接；v2rayNG 与 Anywhere 请使用 VLESS REALITY 节点。
 - 所有模式都有回归测试：链接按 v2rayN、v2rayNG 与 Anywhere 的真实解析规则逐项校验，并用真实 Xray-core（26.3.27 与 26.9.9）客户端仅凭分享链接连接面板生成的服务端、实际转发流量。
+
+### v1.6.2 更新重点
+
+- **SD-WAN 智能组网**：多台受管服务器合并为一个入口，用户只连主控；每台服务器同时部署 VLESS REALITY + Vision（TCP）与 Hysteria2（QUIC）上行，主控按实时延迟走最快线路，故障约 5 秒内切换；内置网络检测（延迟、抖动、丢包、带宽、内核、时钟）与一键调优（BBR/fq 内核参数、协议升级、上行修复、自适应切换容差）。
+- **一键创建 VLESS**：新增 REALITY + Vision（默认）、REALITY + XHTTP、抗量子 VLESS Encryption + Vision / XHTTP 与自签名 TLS 五种模式；默认的 REALITY + Vision 可直接导入 v2rayN、v2rayNG、小火箭和 Anywhere，各模式的兼容性见[一键创建 VLESS 与 NaiveProxy](#一键创建-vless-与-naiveproxy)。
+- **一键创建 NaiveProxy** 默认改为 HTTPS / HTTP/2（小火箭可用），对话框按模式说明各客户端的支持情况。
+- 本机一键创建改由后端统一生成（与受管服务器同一套逻辑），证书、REALITY 密钥、用户和链接一次性创建完成。
+- **分享链接修复**：Shadowsocks 使用 SIP002 URL 安全 Base64，SOCKS 使用 v2rayN 格式，IPv6 地址加方括号，自签名证书同时携带指纹与 `allowInsecure` 兼容标记，Vision 仅在 TCP 上下发，订阅信息不再破坏链接。
+- **一键创建修复**：SOCKS/HTTP/Mixed 自动生成用户，sing-box VMess 改用 WebSocket，移除无法导入的 ShadowTLS。
+- **出站导入修复**：支持 SOCKS5/SOCKS4/HTTP(S) 链接、Hysteria2 端口跳跃与 `user:pass` 认证，旧的无效出站不再导致 sing-box 无法启动。
+- REALITY 自动伪装目标排除 Xray-core 警告的 Apple、iCloud、Microsoft 网站；修复 Windows 版编译失败。
+- 安全：升级 `google.golang.org/grpc` 至 1.83.1、`golang.org/x/crypto` 至 0.56.0，修复 govulncheck 报告的 4 个可达漏洞（gRPC 服务端崩溃与 HTTP/2 内存耗尽、SSH 通道死锁 DoS）。
 
 ### v1.6.1 更新重点
 
