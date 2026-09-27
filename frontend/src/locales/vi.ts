@@ -749,6 +749,7 @@
     downloadLimit: "Giới hạn tải xuống",
     speedLimitHint: "Mbps; 0 là không giới hạn.",
     speedLimitUnsupported: "Xray không hỗ trợ giới hạn theo inbound; các giá trị sẽ bị xóa khi chuyển sang Xray.",
+    cdnRemove: "Tắt",
     ssMethod: "Phương thức",
     ssManageable: "Quản lý được",
     sSide: "Phía Máy chủ",

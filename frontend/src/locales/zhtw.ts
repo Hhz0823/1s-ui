@@ -749,6 +749,7 @@
     downloadLimit: "下載限速",
     speedLimitHint: "單位 Mbps；0 表示不限速。",
     speedLimitUnsupported: "Xray 不支援單一入站限速；切換至 Xray 時會清除限速值。",
+    cdnRemove: "關閉下行分離",
     ssMethod: "方法",
     ssManageable: "可管理的",
     sSide: "服務器端",

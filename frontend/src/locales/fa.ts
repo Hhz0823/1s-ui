@@ -749,6 +749,7 @@
     downloadLimit: "محدودیت دریافت",
     speedLimitHint: "Mbps؛ مقدار ۰ یعنی نامحدود.",
     speedLimitUnsupported: "Xray محدودیت سرعت جداگانه برای ورودی را پشتیبانی نمی‌کند؛ هنگام تغییر به Xray مقادیر صفر می‌شوند.",
+    cdnRemove: "خاموش کردن",
     ssMethod: "روش",
     ssManageable: "قابل مدیریت",
     sSide: "سمت سرور",

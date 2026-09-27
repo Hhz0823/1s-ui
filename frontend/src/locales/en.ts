@@ -796,6 +796,7 @@
     downloadLimit: "Download speed limit",
     speedLimitHint: "Mbps; 0 means unlimited.",
     speedLimitUnsupported: "Xray does not support per-inbound speed limits. The values are cleared when switching to Xray.",
+    cdnRemove: "Turn off",
     ssMethod: "Method",
     ssManageable: "Manageable",
     sSide: "Server Side",

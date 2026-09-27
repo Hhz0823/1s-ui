@@ -264,13 +264,17 @@ func cdnProbeGet(ctx context.Context, target, domain string, insecure bool) (*ht
 	tlsConfig = tlsConfig.Clone()
 	tlsConfig.ServerName = domain
 	tlsConfig.InsecureSkipVerify = insecure
-	client := &http.Client{Transport: &http.Transport{
-		DialContext:       cdnProbeDial,
-		TLSClientConfig:   tlsConfig,
-		ForceAttemptHTTP2: true,
-		// The probe must reach the CDN directly, not through a proxy.
-		Proxy: nil,
-	}}
+	client := &http.Client{
+		Transport: &http.Transport{
+			DialContext:       cdnProbeDial,
+			TLSClientConfig:   tlsConfig,
+			ForceAttemptHTTP2: true,
+			// The probe must reach the CDN directly, not through a proxy.
+			Proxy: nil,
+		},
+		// Only the tested address counts.
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
 	defer client.CloseIdleConnections()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {

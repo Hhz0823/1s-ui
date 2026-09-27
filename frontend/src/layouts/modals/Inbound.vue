@@ -95,6 +95,20 @@
               <Wireguard v-if="inbound.type == inTypes.WireGuard" :data="inbound" />
               <XrayTransport v-if="isXray && inbound.type != inTypes.Hysteria2 && inbound.type != inTypes.WireGuard && inbound.type != inTypes.DokodemoDoor && Object.hasOwn(inbound,'transport')" :data="inbound" />
               <Transport v-else-if="Object.hasOwn(inbound,'transport')" :data="inbound" />
+              <v-alert
+                v-if="isXray && inboundCdn"
+                type="info"
+                variant="tonal"
+                density="compact"
+                class="mb-3"
+                icon="mdi-cloud-download-outline"
+              >
+                <div class="d-flex align-center flex-wrap ga-2">
+                  <span>{{ $t('quickAdd.cdnDownlink') }}: {{ inboundCdn.domain }}:{{ inboundCdn.port }}</span>
+                  <v-spacer />
+                  <v-btn size="small" variant="text" color="error" @click="removeCdn">{{ $t('in.cdnRemove') }}</v-btn>
+                </div>
+              </v-alert>
               <Users v-if="hasUser" :clients="clients" :data="initUsers" />
               <InTls v-if="hasTlsPanel"  :inbound="inbound" :tlsConfigs="tlsConfigs" :tls_id="inbound.tls_id" />
               <Multiplex v-if="!isXray && MuxAvailable.includes(inbound.type)" direction="in" :data="inbound" />
@@ -240,6 +254,9 @@ export default {
     }
   },
   methods: {
+    removeCdn() {
+      delete (<any>this.inbound).cdn
+    },
     async loadData(id: number) {
       this.loading = true
       const inboundArray = this.dataSource?.loadInbounds
@@ -356,6 +373,11 @@ export default {
     },
   },
   computed: {
+    // Downloads through a CDN, set by one-click creation (see xhttp_cdn.go).
+    inboundCdn(): { domain: string, port: number } | null {
+      const cdn = (<any>this.inbound).cdn
+      return cdn?.domain ? cdn : null
+    },
     uploadLimitMbps: {
       get(): number {
         return Number(((Number(this.inbound.upload_limit) || 0) * 8 / 1_000_000).toFixed(2))
