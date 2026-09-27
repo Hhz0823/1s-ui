@@ -106,6 +106,11 @@ const routes = [
         name: 'agent.remoteInbounds',
         component: () => import('@/views/AgentInbounds.vue'),
       },
+      {
+        path: '/sdwan',
+        name: 'pages.sdwan',
+        component: () => import('@/views/Sdwan.vue'),
+      },
     ],
   },
 ]

@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -46,6 +45,7 @@ type ApiService struct {
 	service.ReverseProxyService
 	service.UpdateService
 	service.XrayInstallService
+	service.SdwanService
 }
 
 func (a *ApiService) GetVersion(c *gin.Context) {
@@ -359,6 +359,22 @@ func (a *ApiService) QuickAddAgentInbounds(c *gin.Context) {
 	jsonObj(c, result, err)
 }
 
+// QuickAddLocalInbounds creates one-click nodes on this panel with the same
+// implementation managed servers use, so both produce identical nodes.
+func (a *ApiService) QuickAddLocalInbounds(c *gin.Context) {
+	var request service.RemoteQuickAddRequest
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10)
+	if err := c.ShouldBindJSON(&request); err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	if strings.TrimSpace(request.PublicHost) == "" {
+		request.PublicHost = strings.Trim(getHostname(c), "[]")
+	}
+	result, err := (&service.LocalControlService{}).QuickAddLocalInbounds(request, GetLoginUser(c))
+	jsonObj(c, result, err)
+}
+
 func (a *ApiService) GetAgentRelayData(c *gin.Context) {
 	id, err := parseAgentNodeID(c)
 	if err != nil {
@@ -475,28 +491,7 @@ func parseAgentNodeID(c *gin.Context) (uint, error) {
 }
 
 func managedNodePublicHost(node *service.AgentNodeView) string {
-	if node == nil {
-		return ""
-	}
-	if value := strings.TrimSpace(node.PublicHost); value != "" {
-		return strings.Trim(value, "[]")
-	}
-	candidates := append([]string{node.RemoteIP}, node.Report.IPv4...)
-	candidates = append(candidates, node.Report.IPv6...)
-	for _, candidate := range candidates {
-		candidate = strings.Trim(strings.TrimSpace(candidate), "[]")
-		ip := net.ParseIP(candidate)
-		if ip != nil && ip.IsGlobalUnicast() && !ip.IsPrivate() {
-			return candidate
-		}
-	}
-	for _, candidate := range candidates {
-		candidate = strings.Trim(strings.TrimSpace(candidate), "[]")
-		if candidate != "" {
-			return candidate
-		}
-	}
-	return ""
+	return service.ManagedNodePublicHost(node)
 }
 
 type agentCommandRequest struct {

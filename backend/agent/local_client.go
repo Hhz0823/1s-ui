@@ -93,6 +93,8 @@ func localRPCTimeout(method string) time.Duration {
 	switch method {
 	case RPCMethodInboundQuickAdd, RPCMethodRelayCreate, RPCMethodRelayDelete:
 		return 10 * time.Minute
+	case RPCMethodSdwanProvision, RPCMethodSdwanRemove, RPCMethodSdwanTune:
+		return 3 * time.Minute
 	default:
 		return 45 * time.Second
 	}

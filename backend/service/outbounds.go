@@ -6,6 +6,7 @@ import (
 
 	"github.com/Hhz0823/1s-ui/database"
 	"github.com/Hhz0823/1s-ui/database/model"
+	"github.com/Hhz0823/1s-ui/util"
 	"github.com/Hhz0823/1s-ui/util/common"
 
 	"gorm.io/gorm"
@@ -53,6 +54,11 @@ func (o *OutboundService) GetAllConfig(db *gorm.DB) ([]json.RawMessage, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Older releases stored share-link pins and "fastopen" verbatim; sing-box
+		// rejects those keys and would refuse to start the whole config.
+		if normalized, normalizeErr := util.NormalizeSingBoxOutboundJSON(outboundJson); normalizeErr == nil {
+			outboundJson = normalized
+		}
 		outboundsJson = append(outboundsJson, outboundJson)
 	}
 	return outboundsJson, nil
@@ -63,6 +69,10 @@ func (s *OutboundService) Save(tx *gorm.DB, act string, data json.RawMessage) er
 
 	switch act {
 	case "new", "edit":
+		data, err = util.NormalizeSingBoxOutboundJSON(data)
+		if err != nil {
+			return err
+		}
 		var outbound model.Outbound
 		err = outbound.UnmarshalJSON(data)
 		if err != nil {

@@ -96,6 +96,11 @@
       {{ $t('types.naive.tlsFingerprintHint') }}
     </v-alert>
   </v-col>
+  <v-col cols="12">
+    <v-alert type="warning" variant="tonal" density="compact" :title="$t('quickAdd.compatTitle')">
+      {{ $t('quickAdd.compat.naive') }}
+    </v-alert>
+  </v-col>
 </template>
 
 <script setup lang="ts">

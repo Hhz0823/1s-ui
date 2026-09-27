@@ -343,12 +343,30 @@ func (s *InboundService) fetchUsers(db *gorm.DB, inboundType string, condition s
 	}
 	var usersJson []json.RawMessage
 	for _, user := range users {
-		if inboundType == "vless" && inbound["tls"] == nil {
+		if inboundType == "vless" && !vlessInboundSupportsVision(inbound) {
 			user = strings.Replace(user, "xtls-rprx-vision", "", -1)
 		}
 		usersJson = append(usersJson, json.RawMessage(user))
 	}
 	return usersJson, nil
+}
+
+// vlessInboundSupportsVision mirrors the client link rules: XTLS Vision needs
+// TLS or Reality on a raw TCP transport. Keeping the default Vision flow on
+// WS/gRPC/HTTP inbounds makes every client fail with a flow mismatch.
+func vlessInboundSupportsVision(inbound map[string]interface{}) bool {
+	tlsConfig, ok := inbound["tls"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	if enabled, _ := tlsConfig["enabled"].(bool); !enabled {
+		return false
+	}
+	if transport, ok := inbound["transport"].(map[string]interface{}); ok {
+		transportType, _ := transport["type"].(string)
+		return transportType == "" || transportType == "tcp"
+	}
+	return true
 }
 
 func (s *InboundService) addUsers(db *gorm.DB, inboundJson []byte, inboundId uint, inboundType string) ([]byte, error) {

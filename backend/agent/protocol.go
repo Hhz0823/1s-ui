@@ -34,9 +34,17 @@ const (
 	CapabilityInboundWriteV1  = "inbounds.write.v1"
 	CapabilityQuickAddV1      = "inbounds.quick_add.v1"
 	CapabilityQuickAddNaiveV1 = "inbounds.quick_add.naive.v1"
+	// VLESS quick add understands vless_variant (REALITY, XHTTP, Vision and
+	// VLESS Encryption) and reality_server.
+	CapabilityQuickAddVlessV2 = "inbounds.quick_add.vless.v2"
 	CapabilityRelayV1         = "relay.v1"
 	CapabilityPortTrafficV1   = "port.traffic.v1"
 	CapabilityPanelAccessV1   = "panel.access.v1"
+	// SD-WAN uplinks: v2 = multi-protocol uplinks, diagnostics and tuning;
+	// reality/hysteria2 are only advertised when the build supports them.
+	CapabilitySdwanV2        = "sdwan.v2"
+	CapabilitySdwanReality   = "sdwan.reality"
+	CapabilitySdwanHysteria2 = "sdwan.hysteria2"
 )
 
 const (
@@ -51,6 +59,10 @@ const (
 	RPCMethodRelayExport     = "relay.bitbrowser_export"
 	RPCMethodPortTraffic     = "port.traffic"
 	RPCMethodPanelAccess     = "panel.access"
+	RPCMethodSdwanProvision  = "sdwan.provision"
+	RPCMethodSdwanRemove     = "sdwan.remove"
+	RPCMethodSdwanDiagnose   = "sdwan.diagnose"
+	RPCMethodSdwanTune       = "sdwan.tune"
 )
 
 // Command types the panel may send to an online agent.

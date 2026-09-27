@@ -1,6 +1,8 @@
 package sub
 
 import (
+	"encoding/base64"
+
 	"github.com/Hhz0823/1s-ui/logger"
 	"github.com/Hhz0823/1s-ui/service"
 
@@ -74,5 +76,16 @@ func (s *SubHandler) subHeaders(c *gin.Context) {
 func (s *SubHandler) addHeaders(c *gin.Context, headers []string) {
 	c.Writer.Header().Set("Subscription-Userinfo", headers[0])
 	c.Writer.Header().Set("Profile-Update-Interval", headers[1])
-	c.Writer.Header().Set("Profile-Title", headers[2])
+	c.Writer.Header().Set("Profile-Title", profileTitleHeader(headers[2]))
+}
+
+// profileTitleHeader keeps the header ASCII-only. Clash/mihomo based clients
+// decode the "base64:" prefix; raw UTF-8 names confuse strict HTTP stacks.
+func profileTitleHeader(title string) string {
+	for _, r := range title {
+		if r < 0x20 || r > 0x7e {
+			return "base64:" + base64.StdEncoding.EncodeToString([]byte(title))
+		}
+	}
+	return title
 }

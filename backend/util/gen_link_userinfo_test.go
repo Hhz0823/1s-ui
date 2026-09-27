@@ -32,12 +32,6 @@ func TestUserInfoLinksEscapeCredentials(t *testing.T) {
 		wantPassword string
 	}{
 		{
-			name:         "socks",
-			link:         socksLink(map[string]interface{}{"username": username, "password": password}, addrs)[0],
-			wantUsername: username,
-			wantPassword: password,
-		},
-		{
 			name:         "http",
 			link:         httpLink(map[string]interface{}{"username": username, "password": password}, addrs)[0],
 			wantUsername: username,

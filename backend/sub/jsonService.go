@@ -174,6 +174,7 @@ func (j *JsonService) getOutbounds(clientConfig json.RawMessage, inbounds []*mod
 		if err != nil {
 			return nil, nil, err
 		}
+		util.NormalizeSingBoxOutbound(outbound)
 		tag, _ := outbound["tag"].(string)
 		if len(addrs) == 0 {
 			// For mixed protocol, use separated socks and http
@@ -211,6 +212,7 @@ func (j *JsonService) getOutbounds(clientConfig json.RawMessage, inbounds []*mod
 				remark, _ := addr["remark"].(string)
 				newTag := fmt.Sprintf("%d.%s%s", index+1, tag, remark)
 				newOut["tag"] = newTag
+				util.NormalizeSingBoxOutbound(newOut)
 				// For mixed protocol, use separated socks and http
 				if protocol == "mixed" {
 					j.pushMixed(&outbounds, &outTags, newOut)

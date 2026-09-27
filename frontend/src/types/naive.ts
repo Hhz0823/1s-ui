@@ -17,7 +17,9 @@ export function createNaiveQuickAddOptions(server = ''): NaiveQuickAddOptions {
     username: '',
     password: '',
     server,
-    mode: 'quic',
+    // HTTPS (HTTP/2) is the mode every NaiveProxy client speaks, Shadowrocket
+    // included; QUIC (HTTP/3) is limited to naive/cronet-based clients.
+    mode: 'https',
     tls_id: 0,
     extra_headers_text: '',
     udp_over_tcp: true,

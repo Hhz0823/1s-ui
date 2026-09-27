@@ -57,23 +57,32 @@ func (s *LocalControlService) Capabilities() agent.PanelStatus {
 	if xrayPtr != nil {
 		cores.XrayRunning = xrayPtr.IsRunning()
 	}
+	capabilities := []string{
+		agent.CapabilityMetricsV1,
+		agent.CapabilityLatencyV1,
+		agent.CapabilityInboundReadV1,
+		agent.CapabilityInboundWriteV1,
+		agent.CapabilityQuickAddV1,
+		agent.CapabilityQuickAddNaiveV1,
+		agent.CapabilityQuickAddVlessV2,
+		agent.CapabilityRelayV1,
+		agent.CapabilityPortTrafficV1,
+		agent.CapabilityPanelAccessV1,
+		agent.CapabilitySdwanV2,
+	}
+	if sdwanRealitySupported {
+		capabilities = append(capabilities, agent.CapabilitySdwanReality)
+	}
+	if sdwanHysteria2Supported {
+		capabilities = append(capabilities, agent.CapabilitySdwanHysteria2)
+	}
 	return agent.PanelStatus{
 		Installed:        true,
 		Version:          config.GetVersion(),
 		ControlAvailable: true,
 		ProtocolVersion:  agent.ProtocolVersion,
 		Cores:            cores,
-		Capabilities: []string{
-			agent.CapabilityMetricsV1,
-			agent.CapabilityLatencyV1,
-			agent.CapabilityInboundReadV1,
-			agent.CapabilityInboundWriteV1,
-			agent.CapabilityQuickAddV1,
-			agent.CapabilityQuickAddNaiveV1,
-			agent.CapabilityRelayV1,
-			agent.CapabilityPortTrafficV1,
-			agent.CapabilityPanelAccessV1,
-		},
+		Capabilities:     capabilities,
 	}
 }
 

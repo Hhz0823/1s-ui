@@ -463,6 +463,33 @@ func agentNodeView(node model.AgentNode, now time.Time, withHistory bool) AgentN
 	return view
 }
 
+// ManagedNodePublicHost returns the address other machines should use to reach
+// a managed server: the configured public host, else its best public IP.
+func ManagedNodePublicHost(node *AgentNodeView) string {
+	if node == nil {
+		return ""
+	}
+	if value := strings.TrimSpace(node.PublicHost); value != "" {
+		return strings.Trim(value, "[]")
+	}
+	candidates := append([]string{node.RemoteIP}, node.Report.IPv4...)
+	candidates = append(candidates, node.Report.IPv6...)
+	for _, candidate := range candidates {
+		candidate = strings.Trim(strings.TrimSpace(candidate), "[]")
+		ip := net.ParseIP(candidate)
+		if ip != nil && ip.IsGlobalUnicast() && !ip.IsPrivate() {
+			return candidate
+		}
+	}
+	for _, candidate := range candidates {
+		candidate = strings.Trim(strings.TrimSpace(candidate), "[]")
+		if candidate != "" {
+			return candidate
+		}
+	}
+	return ""
+}
+
 func normalizeAgentPublicHost(value string) (string, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {

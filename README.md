@@ -11,7 +11,7 @@
   [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8)](backend/go.mod)
   [![Vue](https://img.shields.io/badge/Vue-3-42b883)](frontend/package.json)
 
-  **[Linux v1.6.1](https://github.com/Hhz0823/1s-ui/releases/tag/v1.6.1)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
+  **[Linux v1.6.2](https://github.com/Hhz0823/1s-ui/releases/tag/v1.6.2)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
 </div>
 
 > 1S-UI 基于 [alireza0/s-ui](https://github.com/alireza0/s-ui) 二次开发，仅用于学习、研究与技术交流。请遵守当地法律法规。
@@ -19,7 +19,7 @@
 
 **语言 Languages:** [简体中文](#简体中文) · [English](#english) · [日本語](#日本語) · [한국어](#한국어) · [Tiếng Việt](#tiếng-việt) · [فارسی](#فارسی)
 
-**导航:** [页面截图](#页面截图) · [群控架构](#群控架构) · [快速部署](#快速部署) · [功能矩阵](#功能矩阵) · [群控与远程管理](#群控与远程管理) · [一键中转](#一键中转) · [安全](#安全与权限)
+**导航:** [页面截图](#页面截图) · [群控架构](#群控架构) · [快速部署](#快速部署) · [功能矩阵](#功能矩阵) · [群控与远程管理](#群控与远程管理) · [一键中转](#一键中转) · [SD-WAN 智能组网](#sd-wan-智能组网) · [客户端导入](#客户端导入兼容性) · [安全](#安全与权限)
 
 ---
 
@@ -189,8 +189,10 @@ s-ui update
 | 入站限速 | sing-box 单入站聚合上传/下载限速，单位 Mbps，`0` 为不限速；TCP/UDP 共用同一端口限额 |
 | 快速创建 | 一次创建 1–100 条节点，连续端口、标签、用户、TLS 和安全默认值 |
 | TLS | ACME、ECH、Reality、Pinned Certificate SHA256、证书生成与集中管理 |
-| 分享与订阅 | Clash、JSON、标准 URI；v2rayN 7.23.4 实机验证 |
+| 分享与订阅 | Clash、JSON、标准 URI；兼容 v2rayN 与 Shadowrocket（小火箭）的 SIP002、`socks://` 与自签证书链接 |
 | 一键中转 | IPv6 出口池或上游 SOCKS5，自动创建入站、出站、用户和路由 |
+| SD-WAN 智能组网 | 多台受管服务器合并为一个入口：每台服务器同时部署 VLESS Reality（TCP）与 Hysteria2（QUIC）上行，按实时延迟选择最快线路，故障约 5 秒内自动切换；内置网络检测与一键调优 |
+| 出站导入 | 支持 SOCKS5/SOCKS4、HTTP(S)、Hysteria2 端口跳跃与 `user:pass` 认证、VMess、VLESS、Trojan、Shadowsocks、TUIC、AnyTLS、Naive 链接 |
 | 界面 | 默认实色；可选玻璃/清透、自定义背景、模糊、菜单布局和紧凑密度 |
 | 反向代理 | 在服务端面板查看和管理 Caddy / Nginx 状态、域名与配置应用 |
 
@@ -241,6 +243,99 @@ Agent 主动出站连接中心面板，远端无需开放 Agent 控制端口：
 IPv6 池模式只会向选定网卡添加地址，不修改系统默认路由。每个地址都经过 DAD 和公网出口验证，失败会回滚。VPS 必须拥有服务商已路由或授权的 IPv6 前缀；仅添加随机 `/64` 地址无法绕过源地址过滤。
 
 实现参考 [help660vip/auto-add-ipv6](https://github.com/help660vip/auto-add-ipv6) 的流程，但 1S-UI 使用内置 Go 逻辑，不执行第三方远程脚本。
+
+### SD-WAN 智能组网
+
+SD-WAN 把主控和多台受管服务器合并成一张网：用户只连接主控的入口入站（订阅不变），主控在每台服务器上部署专用上行通道，始终通过当前最快、最稳定的通道出网。
+
+```mermaid
+flowchart LR
+    U["用户 v2rayN / 小火箭"] -->|"原有订阅"| M["主控入口入站"]
+    M --> G{"sdwan-auto<br/>按实时延迟选择"}
+    G -->|"最快"| AR["服务器 A · Reality (TCP)"]
+    G -.-> AH["服务器 A · Hysteria2 (QUIC)"]
+    G -.-> BR["服务器 B · Reality (TCP)"]
+    G -.-> BH["服务器 B · Hysteria2 (QUIC)"]
+    AR --> I["互联网"]
+    AH --> I
+    BR --> I
+    BH --> I
+```
+
+1. 主控运行在 **完整主控制端**，子服务器通过 Agent 在线并已升级到本版本。
+2. 打开 **SD-WAN 组网**，在“可加入的服务器”中点击 **加入组网**。主控通过 Agent 在该服务器自动创建专用上行入站（`sdwan-uplink-reality`、`sdwan-uplink-hy2`）和内部用户，凭据只保存在主控，不会出现在用户订阅中。
+3. 在“组网设置”选择 **入口入站**（哪些入站的用户流量走组网）并启用 **SD-WAN 路由**。
+4. 主控生成 `sdwan-auto`（sing-box `urltest`）组，每台服务器的每条通道都是一个候选：按测速间隔持续测量真实出口延迟，只有新通道比当前通道快超过“切换容差”时才切换，避免抖动；当前通道连接失败后，看门狗约 5 秒内强制重测并切换。
+
+| 上行协议 | 特点 |
+| --- | --- |
+| 自动（默认，推荐） | 同时部署 Reality 与 Hysteria2 两条通道，自动使用最快的一条，另一条随时顶上；构建或服务器不支持时自动退回 Shadowsocks 2022 |
+| VLESS Reality + Vision（TCP） | 最安全：x25519 密钥认证，无需信任任何证书，流量与真实 TLS 1.3 网站无法区分；UDP 被封锁或限速时依然稳定。每台服务器自动探测并选用最快可达的伪装目标网站（也可手动指定） |
+| Hysteria2（QUIC） | 长距离、高丢包线路最快：BBR + Salamander 混淆，主控固定信任该服务器自动生成的证书，不跳过校验；需要 UDP |
+| Shadowsocks 2022 | 轻量后备方案，没有 TLS 伪装 |
+
+| 选项 | 说明 |
+| --- | --- |
+| Reality 伪装目标网站 | 留空时每台服务器自动选择可达且最快的 TLS 1.3 + HTTP/2 网站 |
+| 带宽测试地址 | 检测和一键调优勾选“包含带宽测试”时，通过每条通道下载的文件（每条最多 32 MB） |
+| 主控直连也作为候选 | 主控自身直连更快时直接出网 |
+| 优先匹配自定义路由规则 | 开启后路由列表中的规则先匹配，未命中的流量再走 SD-WAN；嗅探与 DNS 劫持规则始终先执行 |
+
+#### 网络检测与一键调优
+
+- **检测**（只读）：对每条通道采样 5 次，给出延迟中位数、抖动和丢包，可选带宽测试；同时检查主控与每台服务器的内核网络参数、系统时钟偏差（Shadowsocks 2022 超过 30 秒会失效）、上行入站是否在运行、协议是否与设置一致，输出问题清单、可一键修复项和 0–100 健康分。
+- **一键调优**：先检测一次，然后自动：
+  1. 在主控和所有组网服务器上应用网络内核优化（BBR、fq、TCP Fast Open、MTU 探测、关闭空闲慢启动、按内存调整的大缓冲区），写入 `/etc/sysctl.d/99-1s-ui-sdwan.conf` 重启后仍生效；已经更优的值（如 bbr3、cake、更大的缓冲区）保持不变，内核不支持的项目会如实标注；
+  2. 把通道升级为设置中的协议，重建未运行的通道；
+  3. 另一条通道正常而本通道不可达时（例如 UDP 被防火墙拦截）将其移出自动选择组，恢复后自动放回；
+  4. 按实测抖动调整切换容差，应用配置后再测一次，显示调优前后的健康分与每条通道的对比。
+- 检测与调优在后台运行，页面实时显示进度与日志；运行期间暂停其它组网修改。
+
+- 受管服务器的防火墙 / 云安全组需放行上行端口：Reality 与 Shadowsocks 为 TCP，Hysteria2 为 UDP。端口自动选在内核临时端口范围之下（默认 20000–32767），不会与出站连接冲突；检测会列出被拦截的端口。
+- 旧版本加入的服务器（单条 Shadowsocks 上行）升级后继续可用，卡片提示“重新同步”；点击 **一键调优** 或 **重新同步** 即升级为当前协议。
+- 没有启用 SD-WAN 路由时，`sdwan-auto` 组仍会创建并测速，可先观察延迟，也可以在路由列表中手动引用 `sdwan-auto`。
+- 移出组网会同时删除该服务器上的全部 `sdwan-uplink-*` 入站、内部用户、自动证书和 Reality 密钥；服务器离线时请在其面板手动删除。
+
+### 客户端导入兼容性
+
+- 分享链接按 v2rayN 与 Shadowrocket（小火箭）的解析方式生成：Shadowsocks 使用 SIP002 URL 安全 Base64，SOCKS 使用 `socks://BASE64(用户:密码)@主机:端口`（v2rayN 不识别 `socks5://`），IPv6 地址自动加方括号，备注统一 URL 编码。
+- 使用自动生成的自签证书时，链接同时携带证书指纹（`pcs` / `pinSHA256`）和 `allowInsecure=1` / `insecure=1` 兼容标记：支持指纹的客户端仍会校验证书，不支持指纹的客户端（小火箭、v2rayN 内置 sing-box）也能正常连接。使用受信任的 CA 证书时不会添加该标记。
+- VLESS 仅在 TLS/Reality + TCP 传输时下发 `xtls-rprx-vision`，WebSocket/gRPC 节点不再出现 flow 不匹配。
+- 订阅附加的流量/到期信息写入节点备注，不再直接拼接在链接末尾导致无法导入。
+- 一键创建：SOCKS/HTTP/Mixed 会自动生成用户（不再是无认证的开放代理，并可生成导入链接）；sing-box VMess 改用 WebSocket 传输；ShadowTLS 需要配合独立的 Shadowsocks 入站（detour）且 v2rayN 无法导入，已从一键创建中移除，可在完整入站编辑器中手动配置。
+- 出站导入：新增 SOCKS5/SOCKS4、HTTP(S) 链接；Hysteria2 支持 `主机:443,20000-30000` 端口跳跃、`user:pass` 认证，并去除 sing-box 不支持的 `fastopen` 与证书指纹字段，导入后可直接保存运行。
+
+### 一键创建 VLESS 与 NaiveProxy
+
+一键创建（本机与受管服务器使用同一套后端逻辑）的 VLESS 可选 5 种模式，默认 **REALITY + Vision**。选择仅 Xray-core 支持的模式时会自动切换到 Xray-core：
+
+| 模式 | 内核 | v2rayN | v2rayNG | 小火箭（Shadowrocket） | Anywhere |
+| --- | --- | --- | --- | --- | --- |
+| REALITY + Vision（默认，推荐） | sing-box / Xray-core | ✅ | ✅ | ✅ | ✅ |
+| REALITY + XHTTP | Xray-core | ✅ | ✅ | ✅ | ✅ |
+| VLESS Encryption + Vision | Xray-core | ✅ | ✅ | 未确认 | iOS 26+ |
+| VLESS Encryption + XHTTP | Xray-core | ✅ | ✅ | 未确认 | iOS 26+ |
+| TLS + 自签名证书 | sing-box / Xray-core | ✅ | ✅ | ✅ | 需先在 Trusted Certificates 添加链接中的 `pcs` 指纹 |
+| NaiveProxy（HTTPS / HTTP/2） | sing-box | ✅（分享链接） | ❌ 客户端未实现 | 手动添加：NaiveProxy 类型，旧版为 HTTPS/HTTP2 并开启 Padding | ❌ 客户端未实现 |
+
+- **REALITY**：每批节点生成独立的 x25519 密钥和 Short ID，客户端使用 Chrome 指纹；伪装目标留空时服务器自动探测最快可达的 TLS 1.3 + HTTP/2 网站。自动候选已排除 Xray-core 警告会增加 IP 被封概率的 Apple、iCloud、Microsoft 及 `.cn/.ru/.ir` 网站；REALITY 在 443 端口（未被占用时）最自然。
+- **Xray-core 版本**：Xray-core 26.9.8 起 REALITY 服务端会拒绝不带 X25519MLKEM768 密钥交换的 ClientHello（小火箭 2.2.92、iOS 26 以下的 Anywhere）。面板安装的是最新稳定版 26.3.27，不受影响；sing-box 的 REALITY 服务端也不受影响，需要最广兼容时选择 sing-box。
+- **VLESS Encryption**：抗量子的 `mlkem768x25519plus`（ML-KEM-768 + X25519），不需要 TLS 层，可叠加 XTLS Vision；服务端私钥只保存在面板，链接中只有客户端公钥。
+- **XHTTP**：随机路径、`mode=auto`，不下发 `flow`（Vision 仅用于 TCP）。
+- **NaiveProxy**：一键创建默认改为 HTTPS / HTTP/2（小火箭只支持这一种），QUIC / HTTP/3 仍可选。sing-box 的 Naive 入站只接受带 NaiveProxy Padding 的请求，普通 HTTPS 代理客户端无法连接；v2rayNG 与 Anywhere 请使用 VLESS REALITY 节点。
+- 所有模式都有回归测试：链接按 v2rayN、v2rayNG 与 Anywhere 的真实解析规则逐项校验，并用真实 Xray-core（26.3.27 与 26.9.9）客户端仅凭分享链接连接面板生成的服务端、实际转发流量。
+
+### v1.6.2 更新重点
+
+- **SD-WAN 智能组网**：多台受管服务器合并为一个入口，用户只连主控；每台服务器同时部署 VLESS REALITY + Vision（TCP）与 Hysteria2（QUIC）上行，主控按实时延迟走最快线路，故障约 5 秒内切换；内置网络检测（延迟、抖动、丢包、带宽、内核、时钟）与一键调优（BBR/fq 内核参数、协议升级、上行修复、自适应切换容差）。
+- **一键创建 VLESS**：新增 REALITY + Vision（默认）、REALITY + XHTTP、抗量子 VLESS Encryption + Vision / XHTTP 与自签名 TLS 五种模式；默认的 REALITY + Vision 可直接导入 v2rayN、v2rayNG、小火箭和 Anywhere，各模式的兼容性见[一键创建 VLESS 与 NaiveProxy](#一键创建-vless-与-naiveproxy)。
+- **一键创建 NaiveProxy** 默认改为 HTTPS / HTTP/2（小火箭可用），对话框按模式说明各客户端的支持情况。
+- 本机一键创建改由后端统一生成（与受管服务器同一套逻辑），证书、REALITY 密钥、用户和链接一次性创建完成。
+- **分享链接修复**：Shadowsocks 使用 SIP002 URL 安全 Base64，SOCKS 使用 v2rayN 格式，IPv6 地址加方括号，自签名证书同时携带指纹与 `allowInsecure` 兼容标记，Vision 仅在 TCP 上下发，订阅信息不再破坏链接。
+- **一键创建修复**：SOCKS/HTTP/Mixed 自动生成用户，sing-box VMess 改用 WebSocket，移除无法导入的 ShadowTLS。
+- **出站导入修复**：支持 SOCKS5/SOCKS4/HTTP(S) 链接、Hysteria2 端口跳跃与 `user:pass` 认证，旧的无效出站不再导致 sing-box 无法启动。
+- REALITY 自动伪装目标排除 Xray-core 警告的 Apple、iCloud、Microsoft 网站；修复 Windows 版编译失败。
+- 安全：升级 `google.golang.org/grpc` 至 1.83.2、`golang.org/x/crypto` 至 0.56.0，修复 govulncheck 报告的 4 个可达漏洞（gRPC 服务端崩溃与 HTTP/2 内存耗尽、SSH 通道死锁 DoS）。
 
 ### v1.6.1 更新重点
 
@@ -309,6 +404,9 @@ IPv6 池模式只会向选定网卡添加地址，不修改系统默认路由。
 - 1–100 node quick creation with safe protocol defaults and automatic used-port skipping.
 - sing-box by default, plus optional per-inbound Xray protocols including XHTTP, RAW, gRPC, WebSocket, Hysteria2, Dokodemo-door, and WireGuard.
 - IPv6 egress pools and upstream SOCKS5 relays with BitBrowser Excel/plain-text export.
+- SD-WAN: users connect to the controller while it deploys private uplinks on every managed server (VLESS Reality over TCP plus Hysteria2 over QUIC by default), always exits through the fastest path and fails over within seconds; built-in detection (latency, jitter, loss, bandwidth, kernel, clock) and one-click tuning (BBR/fq kernel profile, protocol upgrade, uplink repair, adaptive switch tolerance).
+- Share links built for v2rayN and Shadowrocket (SIP002, `socks://`, pinned self-signed TLS with compatibility flags) and outbound import of SOCKS5/HTTP/Hysteria2 port-hopping links.
+- One-click VLESS nodes in five modes: REALITY + Vision (default, sing-box or Xray-core), REALITY + XHTTP, post-quantum VLESS Encryption + Vision or XHTTP, and self-signed TLS. Links are checked against the v2rayN, v2rayNG and Anywhere parsers, and real Xray-core clients carry traffic using nothing but the share link. One-click NaiveProxy now defaults to HTTPS (HTTP/2).
 - Default solid UI, responsive desktop/mobile layouts, optional backgrounds and glass/clear styles.
 
 ### Resource profiles

@@ -1,6 +1,7 @@
 package database
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net"
@@ -136,12 +137,50 @@ func InitDB(dbPath string) error {
 		&model.Changes{},
 		&model.RelayPool{},
 		&model.AgentNode{},
+		&model.SdwanMember{},
 	)
 	if err != nil {
 		return err
 	}
 	if err = normalizeIPv4SharedInboundListeners(); err != nil {
 		return err
+	}
+	return migrateLegacySdwanMembers()
+}
+
+// migrateLegacySdwanMembers turns members stored by the first SD-WAN version
+// (one uplink in the protocol/port/outbound columns) into a single path, so
+// they keep working until one-click tuning upgrades them.
+func migrateLegacySdwanMembers() error {
+	migrator := db.Migrator()
+	if !migrator.HasColumn(&model.SdwanMember{}, "outbound") || !migrator.HasColumn(&model.SdwanMember{}, "protocol") {
+		return nil
+	}
+	var rows []struct {
+		Id       uint
+		Protocol sql.NullString
+		Port     sql.NullInt64
+		Outbound sql.NullString
+		Paths    sql.NullString
+	}
+	if err := db.Table("sdwan_members").Select("id, protocol, port, outbound, paths").Find(&rows).Error; err != nil {
+		return err
+	}
+	for _, row := range rows {
+		paths := strings.TrimSpace(row.Paths.String)
+		outbound := strings.TrimSpace(row.Outbound.String)
+		if (paths != "" && paths != "null") || outbound == "" || !json.Valid([]byte(outbound)) {
+			continue
+		}
+		converted, err := json.Marshal([]map[string]interface{}{{
+			"protocol": row.Protocol.String, "port": row.Port.Int64, "outbound": json.RawMessage(outbound),
+		}})
+		if err != nil {
+			return err
+		}
+		if err = db.Table("sdwan_members").Where("id = ?", row.Id).Update("paths", string(converted)).Error; err != nil {
+			return err
+		}
 	}
 	return nil
 }

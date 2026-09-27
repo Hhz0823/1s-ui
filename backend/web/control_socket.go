@@ -119,6 +119,22 @@ func (s *Server) startControlSocket() error {
 				callErr = local.DeleteRemoteRelay(payload)
 				result = map[string]bool{"deleted": callErr == nil}
 			}
+		case agent.RPCMethodSdwanProvision:
+			var payload service.SdwanProvisionRequest
+			callErr = decodeLocalRPCPayload(request.Payload, &payload)
+			if callErr == nil {
+				result, callErr = local.ProvisionSdwanUplink(payload)
+			}
+		case agent.RPCMethodSdwanRemove:
+			var payload service.SdwanRemoveRequest
+			callErr = decodeLocalRPCPayload(request.Payload, &payload)
+			if callErr == nil {
+				result, callErr = local.RemoveSdwanUplink(payload)
+			}
+		case agent.RPCMethodSdwanDiagnose:
+			result, callErr = local.DiagnoseSdwanUplink()
+		case agent.RPCMethodSdwanTune:
+			result = service.ApplySdwanTuning()
 		case agent.RPCMethodRelayExport:
 			var payload service.RemoteRelayExportRequest
 			callErr = decodeLocalRPCPayload(request.Payload, &payload)

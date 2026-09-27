@@ -1,8 +1,10 @@
 package sub
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/Hhz0823/1s-ui/logger"
@@ -31,7 +33,11 @@ func (s *LinkService) GetLinks(linkJson *json.RawMessage, types string, clientIn
 			result = append(result, link.Uri)
 		case "sub":
 			subLinks := util.GetExternalLink(link.Uri)
-			result = append(result, strings.Split(subLinks, "\n")...)
+			for _, subLink := range strings.Split(subLinks, "\n") {
+				if subLink = strings.TrimSpace(subLink); subLink != "" {
+					result = append(result, subLink)
+				}
+			}
 		case "local":
 			if types == "all" {
 				result = append(result, s.addClientInfo(link.Uri, clientInfo))
@@ -90,10 +96,17 @@ func (s *LinkService) GetExternalOutbounds(linkJson *json.RawMessage) ([]map[str
 }
 
 func (s *LinkService) addClientInfo(uri string, clientInfo string) string {
-	if len(clientInfo) == 0 {
+	return AppendLinkRemark(uri, clientInfo)
+}
+
+// AppendLinkRemark appends text to the display name of a share link without
+// breaking its encoding. Raw text after the URI (spaces, CJK) made v2rayN and
+// Shadowrocket reject links such as socks:// that have no fragment.
+func AppendLinkRemark(uri string, suffix string) string {
+	if strings.TrimSpace(suffix) == "" {
 		return uri
 	}
-	protocol := strings.Split(uri, "://")
+	protocol := strings.SplitN(uri, "://", 2)
 	if len(protocol) < 2 {
 		return uri
 	}
@@ -110,14 +123,44 @@ func (s *LinkService) addClientInfo(uri string, clientInfo string) string {
 			logger.Warning("sub: Error decoding vmess content:", err)
 			return uri
 		}
-		vmessJson["ps"] = vmessJson["ps"].(string) + clientInfo
-		result, err := json.MarshalIndent(vmessJson, "", "  ")
+		remark, _ := vmessJson["ps"].(string)
+		vmessJson["ps"] = remark + suffix
+		result, err := json.Marshal(vmessJson)
 		if err != nil {
 			logger.Warning("sub: Error decoding vmess + clientInfo content:", err)
 			return uri
 		}
 		return "vmess://" + util.ByteToB64Str(result)
+	case "v2rayn":
+		return appendV2rayNProfileRemark(uri, suffix)
 	default:
-		return uri + clientInfo
+		base, fragment, _ := strings.Cut(uri, "#")
+		remark, err := url.PathUnescape(fragment)
+		if err != nil {
+			remark = fragment
+		}
+		return base + "#" + url.PathEscape(remark+suffix)
 	}
+}
+
+func appendV2rayNProfileRemark(uri string, suffix string) string {
+	prefixEnd := strings.LastIndex(uri, "/")
+	if prefixEnd < 0 {
+		return uri
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(uri[prefixEnd+1:])
+	if err != nil {
+		return uri
+	}
+	var profile map[string]interface{}
+	if err = json.Unmarshal(payload, &profile); err != nil {
+		return uri
+	}
+	remark, _ := profile["Remarks"].(string)
+	profile["Remarks"] = remark + suffix
+	updated, err := json.Marshal(profile)
+	if err != nil {
+		return uri
+	}
+	return uri[:prefixEnd+1] + base64.RawURLEncoding.EncodeToString(updated)
 }

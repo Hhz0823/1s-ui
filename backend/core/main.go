@@ -94,6 +94,10 @@ func (c *Core) applyInboundLimits() {
 func ensureGlobalCtx() {
 	globalCtxOnce.Do(func() {
 		ctx := context.Background()
+		// One URL-test history shared by every group outbound and the Clash API,
+		// so the panel can report the delays sing-box measured itself.
+		ctx = service.ContextWithPtr(ctx, urlTestHistory)
+		ctx = service.ContextWith[adapter.URLTestHistoryStorage](ctx, urlTestHistory)
 		globalCtx = sb.Context(ctx, InboundRegistry(), OutboundRegistry(), EndpointRegistry(), DNSTransportRegistry(), ServiceRegistry())
 	})
 }
