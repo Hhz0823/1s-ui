@@ -86,6 +86,14 @@ func xrayClientOutbound(t *testing.T, link, fingerprint string) map[string]inter
 		if host := query.Get("host"); host != "" {
 			xhttp["host"] = host
 		}
+		// v2rayN and v2rayNG hand "extra" to Xray-core as it is.
+		if extra := query.Get("extra"); extra != "" {
+			var parsed map[string]interface{}
+			if err := json.Unmarshal([]byte(extra), &parsed); err != nil {
+				t.Fatalf("extra is not JSON: %q", extra)
+			}
+			xhttp["extra"] = parsed
+		}
 		stream["xhttpSettings"] = xhttp
 	}
 	return map[string]interface{}{
@@ -246,6 +254,16 @@ func allowLoopbackTargets(t *testing.T, raw []byte) []byte {
 	return patched
 }
 
+// stubXrayBinary is enough for quick add, which only asks for the version.
+func stubXrayBinary(t *testing.T) string {
+	t.Helper()
+	stub := filepath.Join(t.TempDir(), "xray")
+	if err := os.WriteFile(stub, []byte("#!/bin/sh\necho 'Xray 26.3.27 (Xray, Penetrates Everything.)'\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	return stub
+}
+
 func setupXrayQuickAddTest(t *testing.T, binary string) *LocalControlService {
 	t.Helper()
 	t.Setenv("SUI_XRAY_PATH", binary)
@@ -361,12 +379,7 @@ func TestQuickAddRealityOnSingBoxAcceptsClientsWithoutMLKEM(t *testing.T) {
 // users' flow, while an XHTTP node with VLESS Encryption alone still drops it
 // for users added later with the default Vision flow, as before.
 func TestQuickAddXHTTPVisionKeepsOtherNodesUnchanged(t *testing.T) {
-	// Quick add only asks the binary for its version.
-	stub := filepath.Join(t.TempDir(), "xray")
-	if err := os.WriteFile(stub, []byte("#!/bin/sh\necho 'Xray 26.3.27 (Xray, Penetrates Everything.)'\n"), 0755); err != nil {
-		t.Fatal(err)
-	}
-	control := setupXrayQuickAddTest(t, stub)
+	control := setupXrayQuickAddTest(t, stubXrayBinary(t))
 	flows := map[string]string{}
 	for index, variant := range []string{VlessVariantRealityXHTTPVision, VlessVariantEncXHTTP} {
 		response, err := control.QuickAddLocalInbounds(RemoteQuickAddRequest{

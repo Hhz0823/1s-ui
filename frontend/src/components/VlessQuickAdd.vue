@@ -31,6 +31,42 @@
   <v-col v-if="isReality && port && Number(port) !== 443" cols="12">
     <v-alert type="info" variant="text" density="compact" icon="mdi-lightbulb-on-outline">{{ $t('quickAdd.realityPort443') }}</v-alert>
   </v-col>
+  <v-col v-if="cdnAllowed" cols="12">
+    <v-switch
+      v-model="data.cdn_enabled"
+      :label="$t('quickAdd.cdnDownlink')"
+      color="primary"
+      density="compact"
+      inset
+      hide-details
+    />
+  </v-col>
+  <template v-if="cdnAllowed && data.cdn_enabled">
+    <v-col cols="12" sm="7">
+      <v-text-field
+        v-model="data.cdn_domain"
+        :label="$t('quickAdd.cdnDomain')"
+        placeholder="cdn.example.com"
+        :hint="$t('quickAdd.cdnDomainHint')"
+        persistent-hint
+        hide-details="auto"
+        prepend-inner-icon="mdi-cloud-outline"
+      />
+    </v-col>
+    <v-col cols="12" sm="5">
+      <v-select
+        v-model="data.cdn_port"
+        :label="$t('quickAdd.cdnPort')"
+        :items="cdnPortItems"
+        item-title="title"
+        item-value="value"
+        hide-details
+      />
+    </v-col>
+    <v-col cols="12">
+      <v-alert type="info" variant="tonal" density="compact" icon="mdi-cloud-download-outline">{{ $t('quickAdd.cdnHelp') }}</v-alert>
+    </v-col>
+  </template>
   <v-col cols="12">
     <v-alert type="info" variant="tonal" density="compact" :title="$t('quickAdd.compatTitle')">
       {{ compatText }}
@@ -45,7 +81,9 @@ import { CoreTypes } from '@/types/inbounds'
 import {
   type VlessQuickAddOptions,
   type VlessQuickAddVariant,
+  cloudflareHttpsPorts,
   realityTargetDiscouraged,
+  vlessCdnVariants,
   vlessQuickAddVariants,
   vlessVariantIsReality,
   vlessXrayOnlyVariants,
@@ -62,13 +100,20 @@ const props = withDefaults(defineProps<{
   port?: number
   // Variants the target server's panel is too old to build.
   unsupportedVariants?: VlessQuickAddVariant[]
-}>(), { singBoxReality: true, port: 0, unsupportedVariants: () => [] })
+  // Whether the target server's panel can send downloads through a CDN.
+  cdnSupported?: boolean
+}>(), { singBoxReality: true, port: 0, unsupportedVariants: () => [], cdnSupported: true })
 
 const emit = defineEmits<{ (event: 'update:coreType', value: string): void }>()
 
 const isXray = computed(() => props.coreType === CoreTypes.Xray)
 const isReality = computed(() => vlessVariantIsReality(props.data.variant))
 const riskyTarget = computed(() => realityTargetDiscouraged(props.data.reality_server))
+const cdnAllowed = computed(() => props.cdnSupported && vlessCdnVariants.includes(props.data.variant))
+const cdnPortItems = computed(() => [
+  { title: i18n.global.t('quickAdd.cdnPortAuto'), value: 0 },
+  ...cloudflareHttpsPorts.map(port => ({ title: String(port), value: port })),
+])
 
 // REALITY runs on sing-box too unless the server's build lacks it.
 const needsXray = (variant: VlessQuickAddVariant): boolean =>

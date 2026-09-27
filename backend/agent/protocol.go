@@ -40,9 +40,11 @@ const (
 	// The reality-xhttp-vision variant: REALITY + XHTTP + Vision with VLESS
 	// Encryption underneath.
 	CapabilityQuickAddVlessXHTTPVision = "inbounds.quick_add.vless.xhttp_vision"
-	CapabilityRelayV1                  = "relay.v1"
-	CapabilityPortTrafficV1            = "port.traffic.v1"
-	CapabilityPanelAccessV1            = "panel.access.v1"
+	// XHTTP downloads through a CDN domain (cdn_domain, cdn_port).
+	CapabilityQuickAddVlessCDN = "inbounds.quick_add.vless.cdn"
+	CapabilityRelayV1          = "relay.v1"
+	CapabilityPortTrafficV1    = "port.traffic.v1"
+	CapabilityPanelAccessV1    = "panel.access.v1"
 	// SD-WAN uplinks: v2 = multi-protocol uplinks, diagnostics and tuning;
 	// reality/hysteria2 are only advertised when the build supports them.
 	CapabilitySdwanV2        = "sdwan.v2"

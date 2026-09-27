@@ -807,6 +807,9 @@ func xrayVlessLink(
 			XrayVlessVisionAllowed(linkTransportType(params), encryption != "none", tlsOn) {
 			params = append(params, LinkParam{"flow", flow})
 		}
+		if extra := xhttpCDNExtra(inbound); extra != "" {
+			params = append(params, LinkParam{"extra", extra})
+		}
 		uri := fmt.Sprintf("vless://%s@%s", uuid, linkHostPort(addr))
 		uri = addParams(uri, params, linkRemark(addr))
 		links = append(links, uri)

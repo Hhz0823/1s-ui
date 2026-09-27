@@ -50,6 +50,12 @@ const (
 	quickAddRealityProbeTime = 6 * time.Second
 )
 
+// vlessVariantCDN are the variants whose downloads can go through a CDN:
+// XHTTP with REALITY or with VLESS Encryption.
+var vlessVariantCDN = map[string]bool{
+	VlessVariantRealityXHTTP: true, VlessVariantRealityXHTTPVision: true, VlessVariantEncXHTTP: true,
+}
+
 var vlessVariantXrayOnly = map[string]bool{
 	VlessVariantRealityXHTTP: true, VlessVariantRealityXHTTPVision: true,
 	VlessVariantEncVision: true, VlessVariantEncXHTTP: true,
@@ -77,6 +83,19 @@ func normalizeQuickAddVlessVariant(request *RemoteQuickAddRequest) error {
 	}
 	request.VlessVariant = variant
 	request.RealityServer = realityServer
+	request.CDNDomain = strings.TrimSpace(request.CDNDomain)
+	if request.CDNDomain == "" && request.CDNPort == 0 {
+		return nil
+	}
+	if !vlessVariantCDN[variant] {
+		return common.NewError("downlink through a CDN needs an XHTTP node with REALITY or VLESS Encryption")
+	}
+	if request.CDNDomain, err = normalizeCDNDomain(request.CDNDomain); err != nil {
+		return err
+	}
+	if request.CDNPort < 0 || request.CDNPort > 65535 || (request.CDNPort != 0 && request.CDNPort == request.Port) {
+		return common.NewError("the CDN port must be 1-65535 and differ from the node's port")
+	}
 	return nil
 }
 

@@ -252,6 +252,7 @@
     <template #item.type="{ item }">
       <v-chip size="small" label variant="tonal" :color="item.core_type === 'xray' ? 'info' : 'primary'" class="me-2">{{ item.core_type || 'sing-box' }}</v-chip>
       <span>{{ item.type }}</span>
+      <v-chip v-if="item.cdn?.domain" size="small" label variant="tonal" color="warning" class="ms-2" prepend-icon="mdi-cloud-download-outline" :title="$t('quickAdd.cdnDownlink')">{{ item.cdn.domain }}:{{ item.cdn.port }}</v-chip>
     </template>
     <template #item.listen="{ item }">
       <span class="list-mono">{{ listenAddress(item) }}</span>
@@ -293,7 +294,7 @@ import { fetchBackendObject } from '@/utils/backend'
 import NaiveQuickAdd from '@/components/NaiveQuickAdd.vue'
 import VlessQuickAdd from '@/components/VlessQuickAdd.vue'
 import { createNaiveQuickAddOptions, normalizeNaiveServer, parseNaiveExtraHeaders } from '@/types/naive'
-import { createVlessQuickAddOptions, normalizeRealityServer } from '@/types/vless'
+import { createVlessQuickAddOptions, normalizeCdnDomain, normalizeRealityServer, vlessCdnVariants } from '@/types/vless'
 
 const isOpenWrtLite = import.meta.env.VITE_OPENWRT_LITE === 'true'
 
@@ -615,12 +616,21 @@ const createQuickNode = async () => {
     }
   }
   let realityServer = ''
+  let cdnDomain = ''
   if (proto === 'vless') {
     try {
       realityServer = normalizeRealityServer(quickAdd.value.vless.reality_server)
     } catch {
       push.error({ message: i18n.global.t('quickAdd.invalidRealityServer') })
       return
+    }
+    if (quickAdd.value.vless.cdn_enabled && vlessCdnVariants.includes(quickAdd.value.vless.variant)) {
+      try {
+        cdnDomain = normalizeCdnDomain(quickAdd.value.vless.cdn_domain)
+      } catch {
+        push.error({ message: i18n.global.t('quickAdd.invalidCdnDomain') })
+        return
+      }
     }
   }
 
@@ -653,6 +663,8 @@ const createQuickNode = async () => {
         naive_quic_congestion_control: quickAdd.value.naive.quic_congestion_control,
         vless_variant: proto === 'vless' ? quickAdd.value.vless.variant : undefined,
         reality_server: proto === 'vless' ? realityServer : undefined,
+        cdn_domain: cdnDomain || undefined,
+        cdn_port: cdnDomain ? Number(quickAdd.value.vless.cdn_port) || 0 : undefined,
         public_host: location.hostname.replace(/^\[|\]$/g, ''),
       }),
     })

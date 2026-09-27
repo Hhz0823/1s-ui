@@ -71,6 +71,16 @@ func (s *InboundService) GetAll() (*[]map[string]interface{}, error) {
 			}
 			inbData["listen"] = restFields["listen"]
 			inbData["listen_port"] = restFields["listen_port"]
+			// Downloads through a CDN: the domain and the port it occupies.
+			if raw, ok := restFields["cdn"]; ok {
+				var cdn struct {
+					Domain string `json:"domain"`
+					Port   int    `json:"port"`
+				}
+				if json.Unmarshal(raw, &cdn) == nil && cdn.Domain != "" {
+					inbData["cdn"] = map[string]interface{}{"domain": cdn.Domain, "port": cdn.Port}
+				}
+			}
 			if inbound.Type == "shadowtls" {
 				json.Unmarshal(restFields["version"], &shadowtls_version)
 			}
@@ -116,6 +126,11 @@ func (s *InboundService) Save(tx *gorm.DB, act string, data json.RawMessage, ini
 		}
 		if err = validateInboundRuntimeCore(&inbound); err != nil {
 			return err
+		}
+		if full, marshalErr := inbound.MarshalFull(); marshalErr == nil {
+			if err = validateXHTTPCDN(*full); err != nil {
+				return err
+			}
 		}
 		if inbound.RuntimeCore() == model.CoreTypeXray && (inbound.UploadLimit > 0 || inbound.DownloadLimit > 0) {
 			return common.NewError("Xray inbound bandwidth limiting is not supported; set upload_limit and download_limit to 0")

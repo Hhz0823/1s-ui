@@ -3,6 +3,28 @@ export type VlessQuickAddVariant = 'reality-vision' | 'reality-xhttp' | 'reality
 export interface VlessQuickAddOptions {
   variant: VlessQuickAddVariant
   reality_server: string
+  // Downloads through a CDN domain whose origin is this server.
+  cdn_enabled: boolean
+  cdn_domain: string
+  // 0 picks a free Cloudflare HTTPS port.
+  cdn_port: number
+}
+
+// Variants whose downloads can go through a CDN: XHTTP with REALITY or VLESS Encryption.
+export const vlessCdnVariants: VlessQuickAddVariant[] = ['reality-xhttp', 'reality-xhttp-vision', 'enc-xhttp']
+
+// HTTPS ports Cloudflare proxies to the origin.
+export const cloudflareHttpsPorts = [443, 2053, 2083, 2087, 2096, 8443]
+
+// Mirrors the panel's CDN domain check: a domain name such as cdn.example.com.
+export function normalizeCdnDomain(value: string): string {
+  const domain = String(value || '').trim().toLowerCase().replace(/\.$/, '')
+  const label = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/
+  if (!domain || domain.length > 253 || !domain.includes('.') || /^[\d.]+$/.test(domain) || domain.includes(':')
+    || !domain.split('.').every(part => label.test(part))) {
+    throw new Error('invalid CDN domain')
+  }
+  return domain
 }
 
 // Variants the panel only builds on Xray-core.
@@ -18,7 +40,7 @@ export const vlessQuickAddVariants: { value: VlessQuickAddVariant, key: string }
 ]
 
 export function createVlessQuickAddOptions(): VlessQuickAddOptions {
-  return { variant: 'reality-vision', reality_server: '' }
+  return { variant: 'reality-vision', reality_server: '', cdn_enabled: false, cdn_domain: '', cdn_port: 0 }
 }
 
 export function vlessVariantIsReality(variant: VlessQuickAddVariant): boolean {

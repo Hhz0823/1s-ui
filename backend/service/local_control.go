@@ -66,6 +66,7 @@ func (s *LocalControlService) Capabilities() agent.PanelStatus {
 		agent.CapabilityQuickAddNaiveV1,
 		agent.CapabilityQuickAddVlessV2,
 		agent.CapabilityQuickAddVlessXHTTPVision,
+		agent.CapabilityQuickAddVlessCDN,
 		agent.CapabilityRelayV1,
 		agent.CapabilityPortTrafficV1,
 		agent.CapabilityPanelAccessV1,
