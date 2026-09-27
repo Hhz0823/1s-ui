@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -74,6 +75,7 @@ var defaultValueMap = map[string]string{
 	"globalResetLast":    "0",
 	"congestionAlgo":     "",
 	"qdisc":              "",
+	"githubMirror":       "",
 	"config":             defaultConfig,
 	"version":            config.GetVersion(),
 	agentEnrollmentKey:   "",
@@ -527,6 +529,12 @@ func (s *SettingService) Save(tx *gorm.DB, data json.RawMessage) error {
 				obj += "/"
 			}
 		}
+		if key == "githubMirror" {
+			obj, err = normalizeGitHubMirror(obj)
+			if err != nil {
+				return err
+			}
+		}
 		if key == "webPort" {
 			port, parseErr := strconv.Atoi(obj)
 			if parseErr != nil || port < 1 || port > 65535 {
@@ -547,6 +555,35 @@ func (s *SettingService) Save(tx *gorm.DB, data json.RawMessage) error {
 		}
 	}
 	return err
+}
+
+// GetGitHubMirror is the mirror the administrator set for GitHub downloads,
+// as a prefix to put before github.com URLs, or "".
+func (s *SettingService) GetGitHubMirror() (string, error) {
+	value, err := s.getString("githubMirror")
+	if err != nil {
+		return "", err
+	}
+	return normalizeGitHubMirror(value)
+}
+
+// normalizeGitHubMirror accepts an http(s) prefix such as
+// "https://ghfast.top" and returns it ending in "/", ready to put before a
+// github.com URL.
+func normalizeGitHubMirror(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || (parsed.Scheme != "https" && parsed.Scheme != "http") || parsed.Host == "" ||
+		parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", common.NewError("GitHub mirror must be an http(s) address such as https://ghfast.top/")
+	}
+	if !strings.HasSuffix(value, "/") {
+		value += "/"
+	}
+	return value, nil
 }
 
 func (s *SettingService) GetSubJsonExt() (string, error) {

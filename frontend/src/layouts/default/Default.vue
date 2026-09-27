@@ -35,6 +35,7 @@
       :menuPosition="menuPosition"
       :menuItems="menuItems"
       :drawerExpanded="drawerExpanded"
+      :uiStyle="uiStyle"
       @toggleDrawer="toggleDrawer"
     />
     <default-view />
@@ -48,12 +49,13 @@ import Drawer from './Drawer.vue'
 import DefaultView from './View.vue'
 import { useDisplay, useTheme } from 'vuetify'
 import bgAsset from '@/assets/bg.jpg'
-import Data from '@/store/modules/data'
+import { useMenuItems } from './menu'
 
 const { smAndDown } = useDisplay()
 const theme = useTheme()
 const drawerOpen = ref(false)
-const drawerExpanded = ref(localStorage.getItem('drawerExpanded') === 'true')
+// Expanded like BaoTa / 1Panel unless the user collapsed it.
+const drawerExpanded = ref(localStorage.getItem('drawerExpanded') !== 'false')
 
 const toggleDrawer = () => {
   if (isMobile.value) {
@@ -88,7 +90,7 @@ const readUiPrefs = () => ({
   bgSaturate: localStorage.getItem('bgSaturate') || '1.3',
   bgFit: normalizeUiChoice(localStorage.getItem('bgFit'), 'cover', ['cover', 'contain', 'auto']),
   bgPosition: normalizeUiChoice(localStorage.getItem('bgPosition'), 'center', ['center', 'center top', 'center bottom']),
-  uiStyle: normalizeUiChoice(localStorage.getItem('uiStyle'), 'solid', ['glass', 'solid', 'clear']),
+  uiStyle: normalizeUiChoice(localStorage.getItem('uiStyle'), 'panel', ['panel', 'glass', 'solid', 'clear']),
   uiDensity: normalizeUiChoice(localStorage.getItem('uiDensity'), 'comfortable', ['comfortable', 'compact']),
 })
 const uiPrefs = ref(readUiPrefs())
@@ -201,6 +203,7 @@ const refreshUiPrefs = () => {
   uiPrefs.value = readUiPrefs()
 }
 const documentUiClasses = [
+  'ui-style--panel',
   'ui-style--glass',
   'ui-style--solid',
   'ui-style--clear',
@@ -232,7 +235,7 @@ onBeforeUnmount(() => {
 })
 
 const bgImage = computed(() => {
-  if (uiPrefs.value.bgPreset === 'none') return ''
+  if (uiPrefs.value.uiStyle === 'panel' || uiPrefs.value.bgPreset === 'none') return ''
   if (uiPrefs.value.bgPreset === 'custom') return uiPrefs.value.bgImage
   return bgAsset
 })
@@ -252,26 +255,7 @@ watch([smAndDown, menuPosition], ([mobile, position]) => {
   drawerOpen.value = !mobile && position !== 'top'
 }, { immediate: true })
 
-const allMenuItems = [
-  { title: 'pages.home', icon: 'mdi-view-dashboard-outline', path: '/' },
-  { title: 'pages.portTraffic', icon: 'mdi-chart-timeline-variant', path: '/port-traffic' },
-  { title: 'pages.inbounds', icon: 'mdi-arrow-down-bold-circle-outline', path: '/inbounds' },
-  { title: 'pages.clients', icon: 'mdi-account-group-outline', path: '/clients' },
-  { title: 'pages.outbounds', icon: 'mdi-arrow-up-bold-circle-outline', path: '/outbounds' },
-  { title: 'pages.endpoints', icon: 'mdi-access-point-network', path: '/endpoints' },
-  { title: 'pages.services', icon: 'mdi-cog-outline', path: '/services' },
-  { title: 'pages.tls', icon: 'mdi-shield-lock-outline', path: '/tls' },
-  { title: 'pages.basics', icon: 'mdi-tune-variant', path: '/basics' },
-  { title: 'pages.rules', icon: 'mdi-routes', path: '/rules' },
-  { title: 'pages.dns', icon: 'mdi-dns-outline', path: '/dns' },
-  { title: 'pages.agents', icon: 'mdi-server-network', path: '/agents' },
-  { title: 'pages.admins', icon: 'mdi-account-tie-outline', path: '/admins' },
-  { title: 'pages.settings', icon: 'mdi-cog-outline', path: '/settings' },
-]
-const monitorPaths = new Set(['/', '/agents', '/admins', '/settings'])
-const menuItems = computed(() => Data().controllerMode.profile === 'monitor'
-  ? allMenuItems.filter(item => monitorPaths.has(item.path))
-  : allMenuItems)
+const menuItems = useMenuItems()
 </script>
 
 <style>

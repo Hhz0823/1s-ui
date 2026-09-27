@@ -11,6 +11,7 @@ import 'vuetify/styles/main.css'
 import colors from 'vuetify/util/colors'
 import { fa, en, vi, zhHans, zhHant, ru } from 'vuetify/locale'
 import { normalizeLocale } from '@/locales'
+import { savedTheme } from './themes'
 
 // Composables
 import { createVuetify } from 'vuetify'
@@ -51,8 +52,54 @@ export default createVuetify({
     },
   },
   theme: {
-    defaultTheme: localStorage.getItem('theme') ?? 'system',
+    defaultTheme: savedTheme(),
     themes: {
+      // Server-panel themes after BaoTa (宝塔) and 1Panel.
+      bt: {
+        dark: false,
+        colors: {
+          background: '#F0F2F5',
+          surface: '#FFFFFF',
+          primary: '#20A53A',
+          secondary: '#3E4A56',
+          error: '#EF4444',
+          success: '#20A53A',
+          warning: '#F0AD4E',
+          info: '#3598DB',
+          'on-surface': '#333333',
+          'on-background': '#333333',
+        },
+      },
+      onepanel: {
+        dark: false,
+        colors: {
+          background: '#F2F3F5',
+          surface: '#FFFFFF',
+          primary: '#005EEB',
+          secondary: '#646A73',
+          error: '#F54A45',
+          success: '#34A853',
+          warning: '#FF8800',
+          info: '#3370FF',
+          'on-surface': '#1F2329',
+          'on-background': '#1F2329',
+        },
+      },
+      onepanelDark: {
+        dark: true,
+        colors: {
+          background: '#141517',
+          surface: '#1E1F22',
+          primary: '#4C8DFF',
+          secondary: '#8F959E',
+          error: '#F76964',
+          success: '#4CC06E',
+          warning: '#FFA23A',
+          info: '#5B9BFF',
+          'on-surface': '#E6E8EB',
+          'on-background': '#E6E8EB',
+        },
+      },
       light: {
         colors: {
           error: '#FF5252',

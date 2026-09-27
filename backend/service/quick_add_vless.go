@@ -18,8 +18,9 @@ import (
 )
 
 // One-click VLESS nodes. Every variant imports from a plain vless:// link into
-// v2rayN, v2rayNG, Shadowrocket and Anywhere (ENC needs a client with VLESS
-// Encryption: v2rayN/v2rayNG with Xray-core, Anywhere on iOS 26+):
+// v2rayN, v2rayNG, Shadowrocket, Anywhere and PassWall / PassWall 2 (ENC
+// needs a client with VLESS Encryption: v2rayN, v2rayNG and PassWall with
+// Xray-core, Anywhere on iOS 26+):
 //
 //   - reality-vision: VLESS + REALITY + XTLS Vision over TCP. No certificate to
 //     trust and indistinguishable from the imitated TLS 1.3 site. On sing-box
@@ -27,17 +28,22 @@ import (
 //     X25519MLKEM768 key share (Shadowrocket, Anywhere before iOS 26), which
 //     Xray-core 26.9.8+ servers reject.
 //   - reality-xhttp: VLESS + REALITY + XHTTP (Xray-core only).
+//   - reality-xhttp-vision: VLESS + REALITY + XHTTP with XTLS Vision (Xray-core
+//     only). Xray-core runs Vision on XHTTP only underneath VLESS Encryption
+//     ("XTLS only supports TLS and REALITY directly" otherwise), so the node
+//     also carries a VLESS Encryption key.
 //   - enc-vision: VLESS Encryption (post-quantum mlkem768x25519plus) with XTLS
 //     Vision over raw TCP, without a TLS layer (Xray-core only).
 //   - enc-xhttp: VLESS Encryption over XHTTP (Xray-core only).
 //   - tls: the original self-signed TLS node (TCP + Vision on sing-box, XHTTP
 //     on Xray-core); requests from older controllers use it.
 const (
-	VlessVariantRealityVision = "reality-vision"
-	VlessVariantRealityXHTTP  = "reality-xhttp"
-	VlessVariantEncVision     = "enc-vision"
-	VlessVariantEncXHTTP      = "enc-xhttp"
-	VlessVariantTLS           = "tls"
+	VlessVariantRealityVision      = "reality-vision"
+	VlessVariantRealityXHTTP       = "reality-xhttp"
+	VlessVariantRealityXHTTPVision = "reality-xhttp-vision"
+	VlessVariantEncVision          = "enc-vision"
+	VlessVariantEncXHTTP           = "enc-xhttp"
+	VlessVariantTLS                = "tls"
 
 	vlessVisionFlow          = "xtls-rprx-vision"
 	quickAddRealityPrefix    = "reality-"
@@ -45,7 +51,8 @@ const (
 )
 
 var vlessVariantXrayOnly = map[string]bool{
-	VlessVariantRealityXHTTP: true, VlessVariantEncVision: true, VlessVariantEncXHTTP: true,
+	VlessVariantRealityXHTTP: true, VlessVariantRealityXHTTPVision: true,
+	VlessVariantEncVision: true, VlessVariantEncXHTTP: true,
 }
 
 func normalizeQuickAddVlessVariant(request *RemoteQuickAddRequest) error {
@@ -53,7 +60,8 @@ func normalizeQuickAddVlessVariant(request *RemoteQuickAddRequest) error {
 	switch variant {
 	case "":
 		variant = VlessVariantTLS
-	case VlessVariantRealityVision, VlessVariantRealityXHTTP, VlessVariantEncVision, VlessVariantEncXHTTP, VlessVariantTLS:
+	case VlessVariantRealityVision, VlessVariantRealityXHTTP, VlessVariantRealityXHTTPVision,
+		VlessVariantEncVision, VlessVariantEncXHTTP, VlessVariantTLS:
 	default:
 		return common.NewErrorf("unsupported VLESS variant %q", request.VlessVariant)
 	}
@@ -82,22 +90,23 @@ func effectiveVlessVariant(request RemoteQuickAddRequest) string {
 }
 
 func vlessVariantReality(variant string) bool {
-	return variant == VlessVariantRealityVision || variant == VlessVariantRealityXHTTP
+	return variant == VlessVariantRealityVision || variant == VlessVariantRealityXHTTP || variant == VlessVariantRealityXHTTPVision
 }
 
 func vlessVariantEncryption(variant string) bool {
-	return variant == VlessVariantEncVision || variant == VlessVariantEncXHTTP
+	return variant == VlessVariantEncVision || variant == VlessVariantEncXHTTP || variant == VlessVariantRealityXHTTPVision
 }
 
 func vlessVariantXHTTP(variant string) bool {
-	return variant == VlessVariantRealityXHTTP || variant == VlessVariantEncXHTTP
+	return variant == VlessVariantRealityXHTTP || variant == VlessVariantEncXHTTP || variant == VlessVariantRealityXHTTPVision
 }
 
 // quickAddVlessFlow is the user flow of a variant: XTLS Vision runs on raw TCP
-// under REALITY, TLS or VLESS Encryption, never on XHTTP.
+// under REALITY, TLS or VLESS Encryption, and on XHTTP only in the variant
+// that puts VLESS Encryption underneath it.
 func quickAddVlessFlow(request RemoteQuickAddRequest) string {
 	switch effectiveVlessVariant(request) {
-	case VlessVariantRealityVision, VlessVariantEncVision:
+	case VlessVariantRealityVision, VlessVariantEncVision, VlessVariantRealityXHTTPVision:
 		return vlessVisionFlow
 	case VlessVariantTLS:
 		if request.CoreType != model.CoreTypeXray {

@@ -14,7 +14,7 @@
     <v-tab value="t5">{{ $t('setting.network') }}</v-tab>
   </v-tabs>
   <v-card-text>
-    <v-row align="center" justify="center" style="margin-bottom: 10px;">
+    <v-row class="settings-actions" align="center" justify="center" style="margin-bottom: 10px;">
       <v-col cols="auto">
         <v-btn color="primary" @click="save" :loading="loading" :disabled="!stateChange">
           {{ $t('actions.save') }}
@@ -178,6 +178,9 @@
             >
               {{ xrayInstallStateText }}
             </v-alert>
+            <v-alert v-if="xrayGitHubFailed" type="info" variant="tonal" density="compact" class="mt-3" icon="mdi-cloud-alert-outline">
+              {{ $t('setting.githubUnreachableHint') }}
+            </v-alert>
             <div class="xray-install-actions">
               <v-btn
                 color="primary"
@@ -319,6 +322,22 @@
             </v-btn>
             <span class="text-caption text-medium-emphasis">{{ $t('setting.versionUpdateHint') }}</span>
           </div>
+          <v-alert v-if="versionGitHubFailed" type="info" variant="tonal" density="compact" class="mt-3" icon="mdi-cloud-alert-outline">
+            {{ $t('setting.githubUnreachableHint') }}
+          </v-alert>
+          <v-row class="mt-3">
+            <v-col cols="12" lg="10">
+              <v-text-field
+                v-model="settings.githubMirror"
+                :label="$t('setting.githubMirror')"
+                placeholder="https://ghfast.top/"
+                :hint="$t('setting.githubMirrorHint')"
+                persistent-hint
+                clearable
+                prepend-inner-icon="mdi-cloud-sync-outline"
+              ></v-text-field>
+            </v-col>
+          </v-row>
         </section>
 
         <v-divider class="my-5" opacity="40"></v-divider>
@@ -553,6 +572,8 @@
               </div>
             </div>
           </v-col>
+          <!-- The panel style has no background image. -->
+          <template v-if="uiStyleModel !== 'panel'">
           <v-col cols="12" sm="6" md="4">
             <div class="ui-choice-field">
               <div class="ui-choice-label">{{ $t('setting.bgPreset') }}</div>
@@ -678,6 +699,7 @@
               />
             </div>
           </v-col>
+          </template>
           <v-col cols="12" sm="6" md="4">
             <v-btn color="primary" variant="tonal" prepend-icon="mdi-restore" @click="resetUiPrefs">
               {{ $t('setting.resetUi') }}
@@ -998,7 +1020,7 @@ type UiPrefs = {
 
 const uiPrefChoices = {
   menuPosition: ['side', 'top'],
-  uiStyle: ['glass', 'solid', 'clear'],
+  uiStyle: ['panel', 'glass', 'solid', 'clear'],
   uiDensity: ['comfortable', 'compact'],
   bgPreset: ['default', 'none', 'custom'],
   bgFit: ['cover', 'contain', 'auto'],
@@ -1019,7 +1041,7 @@ const normalizeUiChoice = (value: unknown, fallback: string, choices: readonly s
 
 const readUiPrefs = (): UiPrefs => ({
   menuPosition: normalizeUiChoice(localStorage.getItem('menuPosition'), 'side', uiPrefChoices.menuPosition),
-  uiStyle: normalizeUiChoice(localStorage.getItem('uiStyle'), 'solid', uiPrefChoices.uiStyle),
+  uiStyle: normalizeUiChoice(localStorage.getItem('uiStyle'), 'panel', uiPrefChoices.uiStyle),
   uiDensity: normalizeUiChoice(localStorage.getItem('uiDensity'), 'comfortable', uiPrefChoices.uiDensity),
   bgPreset: normalizeUiChoice(localStorage.getItem('bgPreset'), localStorage.getItem('bgImage') ? 'custom' : 'default', uiPrefChoices.bgPreset),
   bgImage: localStorage.getItem('bgImage') || '',
@@ -1050,9 +1072,10 @@ const menuPositionOptions = [
 ]
 const uiStyleModel = computed({
   get: () => uiPrefs.value.uiStyle,
-  set: (v: unknown) => setUiPref('uiStyle', normalizeUiChoice(v, 'solid', uiPrefChoices.uiStyle))
+  set: (v: unknown) => setUiPref('uiStyle', normalizeUiChoice(v, 'panel', uiPrefChoices.uiStyle))
 })
 const uiStyleOptions = [
+  { title: i18n.global.t('setting.uiStylePanel'), value: 'panel' },
   { title: i18n.global.t('setting.uiStyleGlass'), value: 'glass' },
   { title: i18n.global.t('setting.uiStyleSolid'), value: 'solid' },
   { title: i18n.global.t('setting.uiStyleClear'), value: 'clear' },
@@ -1168,6 +1191,7 @@ const settings = ref({
   globalReset: "",
   congestionAlgo: "",
   qdisc: "",
+  githubMirror: "",
 })
 
 const reverseProxyLoading = ref(false)
@@ -1373,13 +1397,23 @@ const loadReverseProxy = async () => {
   reverseProxyLoading.value = false
 }
 
+const versionCheckFailed = ref(false)
+// Install and lookup errors from GitHub say "lookup failed" or "download failed".
+const githubFailure = /(lookup|download) failed/
+const xrayGitHubFailed = computed(() => xrayInstall.value.install.state === 'failed'
+  && githubFailure.test(xrayInstall.value.install.message || ''))
+const versionGitHubFailed = computed(() => versionCheckFailed.value
+  || (versionInfo.value.update.state === 'failed' && githubFailure.test(versionInfo.value.update.message || '')))
+
 const loadVersion = async (): Promise<boolean> => {
   if (versionLoading.value) return false
   versionLoading.value = true
   const msg = await HttpUtils.get('api/version')
-  if (msg.success && msg.obj) {
+  // A failed check still reports the running version.
+  if (msg.obj) {
     versionInfo.value = { ...emptyVersionInfo(), ...msg.obj, update: { ...emptyVersionInfo().update, ...(msg.obj.update || {}) } }
   }
+  versionCheckFailed.value = !msg.success
   versionLoading.value = false
   return msg.success
 }

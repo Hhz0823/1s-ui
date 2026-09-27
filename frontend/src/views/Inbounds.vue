@@ -216,104 +216,64 @@
       </v-card-actions>
     </v-card>
   </v-dialog>
-  <v-row class="page-toolbar" align="center" justify="start">
-    <v-col cols="auto" class="page-toolbar__actions">
+  <div class="list-toolbar">
+    <div class="list-toolbar__actions">
       <v-btn color="primary" prepend-icon="mdi-plus" @click="showModal(0)">{{ $t('actions.add') }}</v-btn>
-      <v-btn color="primary" variant="tonal" class="ml-2" @click="openQuickAdd">
-        <v-icon start icon="mdi-lightning-bolt"></v-icon>
-        {{ $t('pages.quickAddNode') }}
-      </v-btn>
-      <v-btn color="secondary" variant="tonal" prepend-icon="mdi-shuffle-variant" @click="relayModal.visible = true">
-        {{ $t('pages.relay') }}
-      </v-btn>
-      <v-btn v-if="!isOpenWrtLite" variant="tonal" prepend-icon="mdi-stethoscope" @click="openXrayCheck">
-        {{ $t('xray.selfCheck') }}
-      </v-btn>
-    </v-col>
-  </v-row>
-  <v-row v-if="showListControls" class="inbound-list-controls" align="center">
-    <v-col cols="12" md="7">
-      <v-text-field
-        v-model="inboundQuery"
-        :label="$t('inboundList.search')"
-        prepend-inner-icon="mdi-magnify"
-        clearable
-        density="compact"
-        hide-details
-      />
-    </v-col>
-    <v-col cols="12" md="5" class="inbound-list-controls__meta">
-      <span class="inbound-list-summary">
-        {{ $t('inboundList.summary', { start: visibleStart, end: visibleEnd, total: filteredInbounds.length }) }}
-      </span>
-      <v-select
-        v-model="itemsPerPage"
-        :items="pageSizeOptions"
-        :label="$t('inboundList.pageSize')"
-        density="compact"
-        hide-details
-        class="inbound-page-size"
-      />
-    </v-col>
-  </v-row>
-  <v-alert v-if="filteredInbounds.length === 0" type="info" variant="tonal" class="inbound-empty-state">
-    {{ $t('inboundList.noMatch') }}
-  </v-alert>
-  <v-row class="resource-grid">
-    <v-col cols="12" sm="6" md="4" lg="3" xl="2" v-for="item in visibleInbounds" :key="item.id || item.tag" class="resource-col inbound-card-col">
-      <v-card rounded="lg" elevation="1" :title="item.tag" class="resource-card inbound-resource-card">
-        <v-card-subtitle>{{ item.core_type || 'sing-box' }} / {{ item.type }}</v-card-subtitle>
-        <v-card-text class="resource-card__body">
-          <v-row class="resource-row" no-gutters>
-            <v-col cols="5" class="resource-label">{{ $t('in.addr') }}</v-col>
-            <v-col cols="7" class="resource-value">
-              {{ item.listen }}
-            </v-col>
-          </v-row>
-          <v-row class="resource-row" no-gutters>
-            <v-col cols="5" class="resource-label">{{ $t('in.port') }}</v-col>
-            <v-col cols="7" class="resource-value">
-              {{ item.listen_port }}
-            </v-col>
-          </v-row>
-          <v-row class="resource-row" no-gutters>
-            <v-col cols="5" class="resource-label">{{ $t('objects.tls') }}</v-col>
-            <v-col cols="7" class="resource-value">
-              {{ item.tls_id > 0 ? $t('enable') : $t('disable') }}
-            </v-col>
-          </v-row>
-          <v-row class="resource-row" no-gutters>
-            <v-col cols="5" class="resource-label">{{ $t('pages.clients') }}</v-col>
-            <v-col cols="7" class="resource-value" :title="item.users?.length ? item.users.join('\n') : undefined">
-              <template v-if="item.users">
-                {{ item.users.length }}
-              </template>
-              <template v-else>-</template>
-            </v-col>
-          </v-row>
-          <v-row class="resource-row" no-gutters>
-            <v-col cols="5" class="resource-label">{{ $t('online') }}</v-col>
-            <v-col cols="7" class="resource-value">
-              <template v-if="onlineTags.has(item.tag)">
-                <v-chip density="comfortable" size="small" color="success" variant="flat">{{ $t('online') }}</v-chip>
-              </template>
-              <template v-else>-</template>
-            </v-col>
-          </v-row>
-        </v-card-text>
-        <v-divider></v-divider>
-        <v-card-actions class="resource-actions">
-          <v-btn icon="mdi-file-edit" size="small" variant="text" :title="$t('actions.edit')" :aria-label="$t('actions.edit')" @click="showModal(item.id)" />
-          <v-btn icon="mdi-file-remove" size="small" variant="text" color="warning" :title="$t('actions.del')" :aria-label="$t('actions.del')" @click="requestDelete(item)" />
-          <v-btn icon="mdi-content-duplicate" size="small" variant="text" :title="$t('actions.clone')" :aria-label="$t('actions.clone')" :loading="cloneLoadingId === item.id" @click="clone(item.id)" />
-          <v-btn v-if="trafficEnabled" icon="mdi-chart-line" size="small" variant="text" :title="$t('stats.graphTitle')" :aria-label="$t('stats.graphTitle')" @click="showStats(item.tag)" />
-        </v-card-actions>
-      </v-card>
-    </v-col>
-  </v-row>
-  <div v-if="pageCount > 1" class="inbound-pagination">
-    <v-pagination v-model="currentPage" :length="pageCount" :total-visible="7" density="comfortable" />
+      <v-btn color="primary" variant="outlined" prepend-icon="mdi-lightning-bolt" @click="openQuickAdd">{{ $t('pages.quickAddNode') }}</v-btn>
+      <v-btn variant="outlined" prepend-icon="mdi-shuffle-variant" @click="relayModal.visible = true">{{ $t('pages.relay') }}</v-btn>
+      <v-btn v-if="!isOpenWrtLite" variant="outlined" prepend-icon="mdi-stethoscope" @click="openXrayCheck">{{ $t('xray.selfCheck') }}</v-btn>
+    </div>
+    <v-text-field
+      v-model="inboundQuery"
+      class="list-toolbar__search"
+      :placeholder="$t('inboundList.search')"
+      prepend-inner-icon="mdi-magnify"
+      clearable
+      density="compact"
+      hide-details
+    />
   </div>
+  <v-data-table
+    class="list-table"
+    :headers="inboundHeaders"
+    :items="filteredInbounds"
+    item-value="tag"
+    v-model:items-per-page="itemsPerPage"
+    v-model:page="currentPage"
+    :items-per-page-options="pageSizeItems"
+    :mobile="smAndDown"
+    :hide-default-header="smAndDown"
+    :no-data-text="inboundQuery ? $t('inboundList.noMatch') : $t('noData')"
+    hover
+  >
+    <template #item.tag="{ item }">
+      <span class="list-main">{{ item.tag }}</span>
+    </template>
+    <template #item.type="{ item }">
+      <v-chip size="small" label variant="tonal" :color="item.core_type === 'xray' ? 'info' : 'primary'" class="me-2">{{ item.core_type || 'sing-box' }}</v-chip>
+      <span>{{ item.type }}</span>
+    </template>
+    <template #item.listen="{ item }">
+      <span class="list-mono">{{ listenAddress(item) }}</span>
+    </template>
+    <template #item.tls_id="{ item }">
+      <v-chip size="small" label variant="tonal" :color="item.tls_id > 0 ? 'success' : undefined">{{ item.tls_id > 0 ? $t('enable') : $t('disable') }}</v-chip>
+    </template>
+    <template #item.users="{ item }">
+      <span :title="item.users?.length ? item.users.join('\n') : undefined">{{ item.users?.length ?? '-' }}</span>
+    </template>
+    <template #item.online="{ item }">
+      <span class="list-status" :class="{ 'list-status--on': onlineTags.has(item.tag) }">{{ onlineTags.has(item.tag) ? $t('online') : $t('list.idle') }}</span>
+    </template>
+    <template #item.actions="{ item }">
+      <div class="list-ops">
+        <v-btn size="small" variant="text" color="primary" @click="showModal(item.id)">{{ $t('actions.edit') }}</v-btn>
+        <v-btn size="small" variant="text" color="primary" :loading="cloneLoadingId === item.id" @click="clone(item.id)">{{ $t('actions.clone') }}</v-btn>
+        <v-btn v-if="trafficEnabled" size="small" variant="text" color="primary" @click="showStats(item.tag)">{{ $t('list.traffic') }}</v-btn>
+        <v-btn size="small" variant="text" color="error" @click="requestDelete(item)">{{ $t('actions.del') }}</v-btn>
+      </div>
+    </template>
+  </v-data-table>
 </template>
 
 <script lang="ts" setup>
@@ -323,6 +283,7 @@ import InboundVue from '@/layouts/modals/Inbound.vue'
 import Stats from '@/layouts/modals/Stats.vue'
 import { Config } from '@/types/config'
 import { computed, ref, watch } from 'vue'
+import { useDisplay } from 'vuetify'
 import { CoreTypes, createInbound, Inbound } from '@/types/inbounds'
 import RandomUtil from '@/plugins/randomUtil'
 import { i18n } from '@/locales'
@@ -357,9 +318,28 @@ const trafficEnabled = computed(() => Data().enableTraffic)
 
 const pageSizeOptions = [20, 40, 80]
 const savedPageSize = Number(localStorage.getItem('inboundsPageSize'))
-const itemsPerPage = ref(pageSizeOptions.includes(savedPageSize) ? savedPageSize : 20)
+const itemsPerPage = ref([...pageSizeOptions, -1].includes(savedPageSize) ? savedPageSize : 20)
 const currentPage = ref(1)
 const inboundQuery = ref('')
+const { smAndDown } = useDisplay()
+const pageSizeItems = computed(() => [
+  ...pageSizeOptions.map(value => ({ value, title: String(value) })),
+  { value: -1, title: i18n.global.t('list.all') },
+])
+const inboundHeaders = computed(() => [
+  { title: i18n.global.t('objects.tag'), key: 'tag' },
+  { title: i18n.global.t('list.protocol'), key: 'type' },
+  { title: i18n.global.t('list.listen'), key: 'listen', sortable: false },
+  { title: 'TLS', key: 'tls_id' },
+  { title: i18n.global.t('pages.clients'), key: 'users', sortable: false },
+  { title: i18n.global.t('list.status'), key: 'online', sortable: false },
+  { title: i18n.global.t('list.actions'), key: 'actions', sortable: false },
+])
+const listenAddress = (item: any) => {
+  const host = String(item.listen || '')
+  const port = item.listen_port ?? ''
+  return host.includes(':') ? `[${host}]:${port}` : `${host}:${port}`
+}
 
 const filteredInbounds = computed<any[]>(() => {
   const query = (inboundQuery.value || '').trim().toLocaleLowerCase()
@@ -373,24 +353,12 @@ const filteredInbounds = computed<any[]>(() => {
   ].some((value) => String(value ?? '').toLocaleLowerCase().includes(query)))
 })
 
-const pageCount = computed(() => Math.max(1, Math.ceil(filteredInbounds.value.length / itemsPerPage.value)))
-const visibleInbounds = computed<any[]>(() => {
-  const start = (currentPage.value - 1) * itemsPerPage.value
-  return filteredInbounds.value.slice(start, start + itemsPerPage.value)
-})
-const visibleStart = computed(() => filteredInbounds.value.length === 0 ? 0 : (currentPage.value - 1) * itemsPerPage.value + 1)
-const visibleEnd = computed(() => Math.min(currentPage.value * itemsPerPage.value, filteredInbounds.value.length))
-const showListControls = computed(() => inbounds.value.length > pageSizeOptions[0] || Boolean(inboundQuery.value))
-
 watch(inboundQuery, () => {
   currentPage.value = 1
 })
 watch(itemsPerPage, (value) => {
   localStorage.setItem('inboundsPageSize', String(value))
   currentPage.value = 1
-})
-watch(pageCount, (value) => {
-  if (currentPage.value > value) currentPage.value = value
 })
 
 const modal = ref({
@@ -732,54 +700,10 @@ const closeStats = () => {
   gap: 8px;
 }
 
-.inbound-list-controls {
-  max-width: 980px;
-  margin-inline: auto !important;
-}
-
-.inbound-list-controls__meta {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-}
-
-.inbound-list-summary {
-  color: rgba(var(--v-theme-on-surface), 0.68);
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.inbound-page-size {
-  flex: 0 0 132px;
-  max-width: 132px;
-}
-
-.inbound-empty-state {
-  max-width: 720px;
-  margin: 20px auto;
-}
-
-.inbound-card-col {
-  content-visibility: auto;
-  contain-intrinsic-size: 266px 264px;
-}
-
-.inbound-pagination {
-  display: flex;
-  justify-content: center;
-  padding: 18px 0 2px;
-}
-
 .delete-target-tag {
   margin-top: 8px;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 600px) {
-  .inbound-list-controls__meta {
-    justify-content: space-between;
-  }
-}
 </style>

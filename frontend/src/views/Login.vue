@@ -94,26 +94,12 @@ import { useLocale, useTheme } from 'vuetify'
 import { i18n, languages } from '@/locales'
 import { useRouter } from 'vue-router'
 import HttpUtil from '@/plugins/httputil'
+import { savedTheme, themeChoices } from '@/plugins/themes'
 
 const theme = useTheme()
 const locale = useLocale()
 
-const themes = [
-  { value: 'light', icon: 'mdi-white-balance-sunny' },
-  { value: 'dark', icon: 'mdi-moon-waning-crescent' },
-  { value: 'midnight', icon: 'mdi-weather-night' },
-  { value: 'ocean', icon: 'mdi-waves' },
-  { value: 'sunset', icon: 'mdi-weather-sunset' },
-  { value: 'forest', icon: 'mdi-pine-tree' },
-  { value: 'sakura', icon: 'mdi-flower' },
-  { value: 'daylight', icon: 'mdi-weather-sunny-alert' },
-  { value: 'mint', icon: 'mdi-leaf' },
-  { value: 'cyberpunk', icon: 'mdi-robot' },
-  { value: 'nord', icon: 'mdi-snowflake' },
-  { value: 'dracula', icon: 'mdi-bat' },
-  { value: 'graphite', icon: 'mdi-circle-slice-8' },
-  { value: 'system', icon: 'mdi-laptop' },
-]
+const themes = themeChoices
 
 const username = ref('')
 const usernameRules = [
@@ -156,10 +142,7 @@ const changeTheme = (th: string) => {
   theme.change(th)
   localStorage.setItem('theme', th)
 }
-const isActiveTheme = (th: string) => {
-  const current = localStorage.getItem('theme') ?? 'system'
-  return current == th
-}
+const isActiveTheme = (th: string) => savedTheme() == th
 </script>
 
 <style scoped>

@@ -19,7 +19,8 @@ var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]
 // checkVlessLinkForClients applies the vless:// parsing rules of the clients
 // the quick-add nodes are made for: v2rayNG (VlessFmt), v2rayN (VLESSFmt) and
 // Anywhere (ProxyConfiguration+URLParsing, RealityConfiguration,
-// VLESSEncryption, XHTTPConfiguration). Shadowrocket takes the same fields.
+// VLESSEncryption, XHTTPConfiguration). Shadowrocket takes the same fields;
+// checkVlessLinkForPassWall adds PassWall's two parsers.
 func checkVlessLinkForClients(t *testing.T, link string) url.Values {
 	t.Helper()
 	parsed, err := url.Parse(link)
@@ -99,8 +100,14 @@ func checkVlessLinkForClients(t *testing.T, link string) url.Values {
 	}
 
 	if flow := query.Get("flow"); flow != "" {
-		if flow != vlessVisionFlow || network != "tcp" {
-			t.Fatalf("flow %q only works on raw TCP: %s", flow, link)
+		if flow != vlessVisionFlow {
+			t.Fatalf("clients only know the %s flow: %s", vlessVisionFlow, link)
+		}
+		// Xray-core (v2rayN, v2rayNG, PassWall) and Anywhere run Vision
+		// directly on raw TCP under TLS 1.3 or REALITY, and on other
+		// transports only underneath VLESS Encryption.
+		if network != "tcp" && encryption == "none" {
+			t.Fatalf("Vision on %s needs VLESS Encryption: %s", network, link)
 		}
 		// Anywhere refuses Vision without outer TLS 1.3/REALITY or VLESS
 		// Encryption underneath.
@@ -170,6 +177,8 @@ func TestQuickAddVlessVariantValidation(t *testing.T) {
 		{model.CoreTypeSingBox, VlessVariantEncVision, "", false},
 		{model.CoreTypeSingBox, VlessVariantEncXHTTP, "", false},
 		{model.CoreTypeXray, VlessVariantEncXHTTP, "", true},
+		{model.CoreTypeSingBox, VlessVariantRealityXHTTPVision, "", false},
+		{model.CoreTypeXray, VlessVariantRealityXHTTPVision, "www.example.com", true},
 		{model.CoreTypeXray, "vision", "", false},
 		{model.CoreTypeSingBox, VlessVariantRealityVision, "https://www.example.com/", false},
 	} {
@@ -261,7 +270,9 @@ func TestQuickAddSingBoxVlessLinksImport(t *testing.T) {
 			}
 			for _, created := range response.Created {
 				link := quickAddClientLink(t, created.ClientID)
-				checkVlessLinkForClients(t, link)
+				if nodes := checkVlessLinkForPassWall(t, link); len(nodes) != 2 {
+					t.Fatalf("PassWall imports %s only by %v: %s", test.variant, nodes, link)
+				}
 				for _, fragment := range test.want {
 					if !strings.Contains(link, fragment) {
 						t.Fatalf("%s link lacks %q: %s", test.variant, fragment, link)

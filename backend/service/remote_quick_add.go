@@ -166,10 +166,10 @@ func (s *LocalControlService) quickAddInbounds(request RemoteQuickAddRequest, ch
 		switch {
 		case request.Protocol == "naive" && request.NaiveTLSID > 0:
 			tlsID = request.NaiveTLSID
-		case request.Protocol == "vless" && vlessVariantEncryption(request.VlessVariant):
-			// VLESS Encryption replaces the TLS layer.
 		case request.Protocol == "vless" && vlessVariantReality(request.VlessVariant):
 			tlsID, revision, err = s.createQuickAddRealityTLS(request, revision, changeActor, publicHost)
+		case request.Protocol == "vless" && vlessVariantEncryption(request.VlessVariant):
+			// VLESS Encryption without REALITY replaces the TLS layer.
 		default:
 			tlsID, revision, err = s.createRemoteQuickAddTLS(remoteQuickAddTLSServerName(request, publicHost), revision, changeActor, publicHost)
 		}

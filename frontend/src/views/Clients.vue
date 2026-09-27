@@ -35,230 +35,107 @@
     :tag="stats.tag"
     @close="closeStats"
   />
-  <v-dialog v-model="resetTrafficModal" width="auto">
+  <v-dialog v-model="resetTrafficModal" width="min(420px, calc(100vw - 24px))">
     <v-card rounded="lg" :title="$t('actions.resetTraffic')">
       <v-divider></v-divider>
       <v-card-text>{{ $t('confirm') }}</v-card-text>
-      <v-card-actions>
-        <v-btn color="error" variant="outlined" :loading="resetTrafficLoading" @click="resetTraffic">{{ $t('yes') }}</v-btn>
-        <v-btn color="success" variant="outlined" @click="resetTrafficModal = false">{{ $t('no') }}</v-btn>
+      <v-card-actions class="justify-end">
+        <v-btn color="secondary" variant="outlined" :disabled="resetTrafficLoading" @click="resetTrafficModal = false">{{ $t('no') }}</v-btn>
+        <v-btn color="error" variant="tonal" :loading="resetTrafficLoading" @click="resetTraffic">{{ $t('yes') }}</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
-  <v-row class="page-toolbar" justify="start" align="center">
-    <v-col cols="auto">
-      <v-btn color="primary" @click="showModal(0)">{{ $t('actions.add') }}</v-btn>
-    </v-col>
-    <v-col cols="auto">
-      <v-menu v-model="actionMenu" :close-on-content-click="false" location="bottom center">
-        <template v-slot:activator="{ props }">
-          <v-btn v-bind="props" hide-details variant="text" icon>
-            <v-icon icon="mdi-tools" color="primary" />
-          </v-btn>
-        </template>
-        <v-list density="compact" nav>
-          <v-list-item link @click="addBulk">
-            <template v-slot:prepend>
-              <v-icon icon="mdi-account-multiple-plus"></v-icon>
-            </template>
-            <v-list-item-title v-text="$t('actions.addbulk')"></v-list-item-title>
-          </v-list-item>
-          <v-list-item link @click="editBulk">
-            <template v-slot:prepend>
-              <v-icon icon="mdi-account-multiple-check"></v-icon>
-            </template>
-            <v-list-item-title v-text="$t('actions.editbulk')"></v-list-item-title>
-          </v-list-item>
-          <v-list-item link @click="confirmResetTraffic">
-            <template v-slot:prepend>
-              <v-icon icon="mdi-restore"></v-icon>
-            </template>
-            <v-list-item-title v-text="$t('actions.resetTraffic')"></v-list-item-title>
-          </v-list-item>
-        </v-list>
-      </v-menu>
-    </v-col>
-    <v-col cols="auto">
-      <v-menu v-model="filterMenu" :close-on-content-click="false" location="bottom center">
-        <template v-slot:activator="{ props }">
-          <v-btn v-bind="props" hide-details variant="text" icon>
-            <v-icon :icon="filterSettings.enabled ? 'mdi-filter-check-outline' : 'mdi-filter-menu-outline'" :color="filterSettings.enabled ? 'primary' : ''" />
-          </v-btn>
-        </template>
-        <v-card class="filter-menu-card">
-          <v-container class="pa-3">
-            <v-row>
-              <v-col>
-                <v-select
-                variant="underlined"
-                density="compact"
-                :label="$t('type')"
-                :items="filterItems"
-                v-model="filterSettings.state">
-                </v-select>
-              </v-col>
-            </v-row>
-            <v-row>
-              <v-col>
-                <v-select
-                variant="underlined"
-                density="compact"
-                :label="$t('client.group')"
-                :items="[ {title: $t('all'), value: '-'}, ...groups.map(g => ({ title: g.length>0 ? g : $t('none'), value: g}))]"
-                v-model="filterSettings.group">
-                </v-select>
-              </v-col>
-            </v-row>
-            <v-row>
-              <v-col>
-                <v-text-field
-                variant="underlined"
-                density="compact"
-                :label="$t('client.name')"
-                v-model="filterSettings.text">
-                </v-text-field>
-              </v-col>
-            </v-row>
-          </v-container>
-          <v-card-actions class="justify-end">
-            <v-btn
-              color="blue-darken-1"
-              variant="outlined"
-              @click="clearFilter"
-            >
-              {{ $t('actions.del') }}
-            </v-btn>
-            <v-btn
-              color="blue-darken-1"
-              variant="tonal"
-              @click="doFilter"
-            >
-              {{ $t('actions.update') }}
-            </v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-menu>
-    </v-col>
-  </v-row>
-  <v-row>
-    <v-col cols="12">
-      <v-data-table
-        :headers="headers"
-        :items="filterSettings.enabled ? filterSettings.filteredClients : clients"
-        :hide-default-footer="filterSettings.enabled ? filterSettings.filteredClients.length<=10 : clients.length<=10"
-        :items-per-page="itemPerPage"
-        @update:items-per-page="setItemPerPage($event)"
-        hide-no-data
-        fixed-header
-        item-value="name"
-        :mobile="smAndDown"
-        mobile-breakpoint="sm"
-        width="100%"
-        class="app-data-table elevation-1 rounded"
-        >
-        <template v-slot:item.inbounds="{ item }">
-          <span>
-          <v-tooltip activator="parent" dir="ltr" location="start" v-if="item.inbounds != ''">
-            <span v-for="i in item.inbounds">{{ inbounds.find(inb => inb.id == i)?.tag }}<br /></span>
-          </v-tooltip>
-          {{ item.inbounds?.length }}
-          </span>
-        </template>
-        <template v-slot:item.volume="{ item }">
-          <div class="text-start" v-tooltip:top="'↓' + HumanReadable.sizeFormat(item.down) + ' - ' + HumanReadable.sizeFormat(item.up) + '↑'">
-            <v-chip
-              size="small"
-              :color="item.volume==0 ? 'success' : item.volume<=(item.up + item.down)? 'error': ''"
-              label
-            >{{ HumanReadable.sizeFormat(item.up + item.down) + ' / ' + (item.volume == 0 ? $t('unlimited') : HumanReadable.sizeFormat(item.volume)) }}</v-chip>
-          </div>
-          <v-progress-linear
-            :model-value="percent(item)"
-            :color="percentColor(item)"
-            v-if="item.volume>0"
-            bottom
-          >
-          </v-progress-linear>
-        </template>
-        <template v-slot:item.expiry="{ item }">
-          <div class="text-start">
-            <v-tooltip v-if="item.expiry>0" activator="parent" location="top" :text="new Date(item.expiry * 1000).toLocaleString(locale)" />
-            <v-chip
-              size="small"
-              :color="item.expiry==0 ? 'success' : item.expiry<=Date.now()/1000? 'error': ''"
-              label
-            >{{ HumanReadable.remainedDays(item.expiry) }}</v-chip>
-          </div>
-        </template>
-        <template v-slot:item.online="{ item }">
-          <div class="text-start">
-            <template v-if="isOnline(item.name).value">
-              <v-chip density="comfortable" size="small" color="success" variant="flat">{{ $t('online') }}</v-chip>
-            </template>
-            <template v-else>-</template>
-          </div>
-        </template>
-        <template v-slot:item.createdAt="{ item }">
-          <div class="text-start">
-            <template v-if="item.createdAt>0">
-              <v-tooltip activator="parent" location="top" :text="new Date(item.createdAt * 1000).toLocaleString(locale)" />
-              {{ new Date(item.createdAt * 1000).toLocaleDateString(locale) }}
-            </template>
-            <template v-else>-</template>
-          </div>
-        </template>
-        <template v-slot:item.onlineAt="{ item }">
-          <div class="text-start">
-            <template v-if="item.onlineAt>0">
-              <v-tooltip activator="parent" location="top" :text="new Date(item.onlineAt * 1000).toLocaleString(locale)" />
-              {{ new Date(item.onlineAt * 1000).toLocaleString(locale) }}
-            </template>
-            <template v-else>-</template>
-          </div>
-        </template>
-        <template v-slot:item.actions="{ item }">
-        <v-icon
-          class="me-2"
-          @click="showModal(item.id)"
-        >
-          mdi-pencil
-        </v-icon>
-        <v-menu
-          v-model="delOverlay[clients.findIndex(c => c.id == item.id)]"
-          :close-on-content-click="false"
-          location="top center"
-        >
-          <template v-slot:activator="{ props }">
-            <v-icon
-              class="me-2"
-              color="error"
-              v-bind="props"
-            >
-              mdi-delete
-            </v-icon>
-          </template>
-          <v-card :title="$t('actions.del')" rounded="lg">
-            <v-divider></v-divider>
-            <v-card-text>{{ $t('confirm') }}</v-card-text>
-            <v-card-actions>
-              <v-btn color="error" variant="outlined" @click="delClient(item.id)">{{ $t('yes') }}</v-btn>
-              <v-btn color="success" variant="outlined" @click="delOverlay[clients.findIndex(c => c.id == item.id)] = false">{{ $t('no') }}</v-btn>
-            </v-card-actions>
-          </v-card>
-        </v-menu>
-        <v-icon
-          class="me-2"
-          @click="showQrCode(item.id)"
-        >
-          mdi-qrcode
-        </v-icon>
-        <v-icon icon="mdi-chart-line" @click="showStats(item.name)" v-if="Data().enableTraffic">
-          <v-tooltip activator="parent" location="top" :text="$t('stats.graphTitle')"></v-tooltip>
-        </v-icon>
-      </template>
-      </v-data-table>
-    </v-col>
-  </v-row>
+  <DeleteConfirm v-model="deleteDialog.visible" :target="deleteDialog.name" :loading="deleteDialog.loading" @confirm="confirmDelete" />
+  <div class="list-toolbar">
+    <div class="list-toolbar__actions">
+      <v-btn color="primary" prepend-icon="mdi-plus" @click="showModal(0)">{{ $t('actions.add') }}</v-btn>
+      <v-btn variant="outlined" prepend-icon="mdi-account-multiple-plus" @click="addBulk">{{ $t('actions.addbulk') }}</v-btn>
+      <v-btn variant="outlined" prepend-icon="mdi-account-multiple-check" @click="editBulk">{{ $t('actions.editbulk') }}</v-btn>
+      <v-btn variant="outlined" color="warning" prepend-icon="mdi-restore" @click="confirmResetTraffic">{{ $t('actions.resetTraffic') }}</v-btn>
+    </div>
+    <div class="list-toolbar__filters">
+      <v-select
+        v-model="stateFilter"
+        class="list-toolbar__select"
+        :items="filterItems"
+        prepend-inner-icon="mdi-list-status"
+        density="compact"
+        hide-details
+      />
+      <v-select
+        v-if="groups.length > 1"
+        v-model="groupFilter"
+        class="list-toolbar__select"
+        :items="groupItems"
+        prepend-inner-icon="mdi-folder-account-outline"
+        density="compact"
+        hide-details
+      />
+      <v-text-field v-model="query" class="list-toolbar__search" :placeholder="$t('list.search')" prepend-inner-icon="mdi-magnify" clearable density="compact" hide-details />
+    </div>
+  </div>
+  <v-data-table
+    class="list-table"
+    :headers="headers"
+    :items="filteredClients"
+    item-value="id"
+    v-model:items-per-page="itemsPerPage"
+    :items-per-page-options="pageSizeItems"
+    :mobile="smAndDown"
+    :hide-default-header="smAndDown"
+    :no-data-text="$t('noData')"
+    hover
+  >
+    <template v-slot:item.name="{ item }">
+      <div class="list-main" :class="{ 'text-disabled': !item.enable }">{{ item.name }}</div>
+      <div v-if="item.desc" class="list-sub">{{ item.desc }}</div>
+    </template>
+    <template v-slot:item.group="{ item }">
+      {{ item.group || '-' }}
+    </template>
+    <template v-slot:item.inbounds="{ item }">
+      <span :title="inboundNames(item.inbounds) || undefined">{{ item.inbounds?.length ?? 0 }}</span>
+    </template>
+    <template v-slot:item.volume="{ item }">
+      <div class="list-usage" :title="'↓' + HumanReadable.sizeFormat(item.down) + ' - ' + HumanReadable.sizeFormat(item.up) + '↑'">
+        <span :class="item.volume > 0 && item.volume <= (item.up + item.down) ? 'text-error' : ''">
+          {{ HumanReadable.sizeFormat(item.up + item.down) + ' / ' + (item.volume == 0 ? $t('unlimited') : HumanReadable.sizeFormat(item.volume)) }}
+        </span>
+        <v-progress-linear
+          v-if="item.volume > 0"
+          :model-value="percent(item)"
+          :color="percentColor(item)"
+          height="4"
+          rounded
+        />
+      </div>
+    </template>
+    <template v-slot:item.expiry="{ item }">
+      <span :class="item.expiry > 0 && item.expiry <= Date.now() / 1000 ? 'text-error' : ''"
+        :title="item.expiry > 0 ? new Date(item.expiry * 1000).toLocaleString(locale) : undefined">{{ HumanReadable.remainedDays(item.expiry) }}</span>
+    </template>
+    <template v-slot:item.online="{ item }">
+      <span class="list-status" :class="{ 'list-status--on': isOnline(item.name), 'list-status--off': !item.enable }">
+        {{ !item.enable ? $t('disable') : isOnline(item.name) ? $t('online') : $t('list.idle') }}
+      </span>
+    </template>
+    <template v-slot:item.createdAt="{ item }">
+      <span v-if="item.createdAt > 0" :title="new Date(item.createdAt * 1000).toLocaleString(locale)">{{ new Date(item.createdAt * 1000).toLocaleDateString(locale) }}</span>
+      <span v-else>-</span>
+    </template>
+    <template v-slot:item.onlineAt="{ item }">
+      <span v-if="item.onlineAt > 0">{{ new Date(item.onlineAt * 1000).toLocaleString(locale) }}</span>
+      <span v-else>-</span>
+    </template>
+    <template v-slot:item.actions="{ item }">
+      <div class="list-ops">
+        <v-btn size="small" variant="text" color="primary" @click="showModal(item.id)">{{ $t('actions.edit') }}</v-btn>
+        <v-btn size="small" variant="text" color="primary" @click="showQrCode(item.id)">{{ $t('list.qrcode') }}</v-btn>
+        <v-btn v-if="Data().enableTraffic" size="small" variant="text" color="primary" @click="showStats(item.name)">{{ $t('list.traffic') }}</v-btn>
+        <v-btn size="small" variant="text" color="error" @click="requestDelete(item)">{{ $t('actions.del') }}</v-btn>
+      </div>
+    </template>
+  </v-data-table>
 </template>
 <style>
 .v-data-table__tr--mobile td {
@@ -284,18 +161,19 @@ import { Client } from '@/types/clients'
 import { computed, ref } from 'vue'
 import { HumanReadable } from '@/plugins/utils'
 import { i18n, locale } from '@/locales'
-import { useDisplay } from 'vuetify'
 import HttpUtils from '@/plugins/httputil'
+import DeleteConfirm from '@/components/DeleteConfirm.vue'
+import { matchesQuery, useListTable } from '@/utils/listTable'
 
-const { smAndDown } = useDisplay()
+const { smAndDown, itemsPerPage, pageSizeItems } = useListTable('items-per-page')
 
 const clients = computed((): any[] => {
   return Data().clients
 })
 
-const isOnline = (cname: string) => computed(() => {
+const isOnline = (cname: string): boolean => {
   return Data().onlines?.user ? Data().onlines.user.includes(cname) : false
-})
+}
 
 const inbounds = computed((): any[] => {
   return Data().inbounds?? []
@@ -306,24 +184,36 @@ const inboundTags = computed((): any[] => {
   return inbounds.value?.filter(i => i.tag != "" && i.users).map(i => { return { title: i.tag, value: i.id } })
 })
 
+const inboundNames = (ids: number[] | undefined) => {
+  return (ids ?? []).map(id => inbounds.value.find(inb => inb.id == id)?.tag).filter(Boolean).join('\n')
+}
+
 const groups = computed((): string[] => {
   if (!clients.value) return []
-  if (filterSettings?.value.enabled) return Array.from(new Set(filterSettings.value.filteredClients?.map(c => c.group)))
   return Array.from(new Set(clients.value?.map(c => c.group)))
 })
 
-const actionMenu = ref(false)
-const filterMenu = ref(false)
-const filterSettings = ref({
-  enabled: false,
-  state: '',
-  group: '-',
-  text: '',
-  filteredClients: <any[]>[]
-})
+const query = ref('')
+const stateFilter = ref('')
+const groupFilter = ref('-')
+const groupItems = computed(() => [
+  { title: i18n.global.t('all'), value: '-' },
+  ...groups.value.map(g => ({ title: g?.length > 0 ? g : i18n.global.t('none'), value: g })),
+])
+
+const filteredClients = computed(() => clients.value.filter(c => {
+  if (groupFilter.value != '-' && c.group != groupFilter.value) return false
+  if (!matchesQuery(query.value, c.name, c.desc, c.group)) return false
+  switch (stateFilter.value) {
+    case 'disable': return c.enable == false
+    case 'expired': return c.expiry > 0 && c.expiry < Date.now() / 1000
+    case 'online': return isOnline(c.name)
+  }
+  return true
+}))
 
 const filterItems = [
-  { title: i18n.global.t('none'), value: '' },
+  { title: i18n.global.t('all'), value: '' },
   { title: i18n.global.t('disable'), value: 'disable' },
   { title: i18n.global.t('date.expired'), value: 'expired' },
   { title: i18n.global.t('online'), value: 'online' },
@@ -331,31 +221,21 @@ const filterItems = [
 
 const headers = [
   { title: i18n.global.t('client.name'), key: 'name' },
-  { title: i18n.global.t('client.desc'), key: 'desc' },
   { title: i18n.global.t('client.group'), key: 'group' },
-  { title: i18n.global.t('pages.inbounds'), key: 'inbounds', width: 10 },
-  { title: i18n.global.t('actions.action'), key: 'actions', sortable: false },
-  { title: i18n.global.t('stats.volume'), key: 'volume' },
+  { title: i18n.global.t('pages.inbounds'), key: 'inbounds', value: (item: any) => item.inbounds?.length ?? 0 },
+  { title: i18n.global.t('stats.volume'), key: 'volume', value: (item: any) => item.up + item.down },
   { title: i18n.global.t('date.expiry'), key: 'expiry' },
-  { title: i18n.global.t('online'), key: 'online' },
+  { title: i18n.global.t('list.status'), key: 'online', value: (item: any) => item.enable ? (isOnline(item.name) ? 2 : 1) : 0 },
   { title: i18n.global.t('date.created'), key: 'createdAt' },
   { title: i18n.global.t('date.lastOnline'), key: 'onlineAt' },
-  { key: 'data-table-group', width: 0 },
+  { title: i18n.global.t('list.actions'), key: 'actions', sortable: false },
 ]
-
-const itemPerPage = ref(localStorage.getItem('items-per-page') || '10')
-
-const setItemPerPage = (items: number) => {
-  itemPerPage.value = items.toString()
-  localStorage.setItem('items-per-page', items.toString())
-}
 
 const modal = ref({
   visible: false,
   id: 0,
 })
 
-const delOverlay = ref(new Array<boolean>(clients.value.length).fill(false))
 
 const showModal = async (id: number) => {
   modal.value.id = id
@@ -365,10 +245,17 @@ const closeModal = () => {
   modal.value.visible = false
 }
 
-const delClient = async (id: number) => {
-  const index = clients.value.findIndex(c => c.id === id)
-  const success = await Data().save("clients", "del", id)
-  if (success) delOverlay.value[index] = false
+const deleteDialog = ref({ visible: false, loading: false, id: 0, name: '' })
+const requestDelete = (client: any) => {
+  deleteDialog.value = { visible: true, loading: false, id: client.id, name: client.name }
+}
+const confirmDelete = async () => {
+  deleteDialog.value.loading = true
+  try {
+    if (await Data().save("clients", "del", deleteDialog.value.id)) deleteDialog.value.visible = false
+  } finally {
+    deleteDialog.value.loading = false
+  }
 }
 
 const qrcode = ref({
@@ -398,47 +285,10 @@ const closeStats = () => {
   stats.value.visible = false
 }
 
-const doFilter = () => {
-  let filteredClients = clients.value.slice()
-  if (filterSettings.value.group != '-') {
-    filteredClients = filteredClients.filter(c => c.group == filterSettings.value.group)
-  }
-  if (filterSettings.value.text.length>0) {
-    const txt = filterSettings.value.text
-    filteredClients = filteredClients.filter(c => c.name.search(txt) != -1 || c.desc.search(txt) != -1)
-  }
-  switch (filterSettings.value.state) {
-    case "disable":
-      filteredClients = filteredClients.filter(c => c.enable == false)
-      break
-    case "expired":
-      filteredClients = filteredClients.filter(c => c.expiry > 0 && c.expiry < (Date.now()/1000) )
-      break
-    case "online":
-      filteredClients = filteredClients.filter(c => Data().onlines?.user?.includes(c.name))
-      break
-  }
-  filterSettings.value.filteredClients = filteredClients
-  filterSettings.value.enabled = true
-  filterMenu.value = false
-}
-
-const clearFilter = () => {
-  filterSettings.value = {
-    enabled: false,
-    state: '',
-    group: '-',
-    text: '',
-    filteredClients: <any[]>[]
-  }
-  filterMenu.value = false
-}
-
 const addBulkModal = ref(false)
 
 const addBulk = () => {
   addBulkModal.value = true
-  actionMenu.value = false
 }
 
 const closeAddBulk = () => {
@@ -449,7 +299,6 @@ const editBulkModal = ref(false)
 
 const editBulk = () => {
   editBulkModal.value = true
-  actionMenu.value = false
 }
 
 const closeEditBulk = () => {
@@ -461,7 +310,6 @@ const resetTrafficLoading = ref(false)
 
 const confirmResetTraffic = () => {
   resetTrafficModal.value = true
-  actionMenu.value = false
 }
 
 const resetTraffic = async () => {

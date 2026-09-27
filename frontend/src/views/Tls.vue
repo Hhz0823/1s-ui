@@ -7,81 +7,50 @@
     @close="closeModal"
     @save="saveModal"
   />
-  <v-row>
-    <v-col cols="12" justify="center" align="center">
-      <v-btn color="primary" @click="showModal(0)">{{ $t('actions.add') }}</v-btn>
-    </v-col>
-  </v-row>
-  <v-row>
-    <v-col cols="12" sm="4" md="3" lg="2" v-for="(item, index) in <any[]>tlsConfigs" :key="item.id">
-            <v-card rounded="xl" elevation="0" :title="item.name">
-        <v-card-subtitle>
-          {{ item.server?.server_name?.length>0 ? item.server.server_name : "-" }}
-        </v-card-subtitle>
-        <v-card-text>
-          <v-row>
-            <v-col>{{ $t('pages.inbounds') }}</v-col>
-            <v-col>
-              <template v-if="tlsInbounds(item.id).length>0">
-                <v-tooltip activator="parent" dir="ltr" location="bottom">
-                  <span v-for="i in tlsInbounds(item.id)">{{ i }}<br /></span>
-                </v-tooltip>
-                {{ tlsInbounds(item.id).length }}
-              </template>
-              <template v-else>-</template>
-            </v-col>
-          </v-row>
-          <v-row v-if="!isOpenWrtLite">
-            <v-col>ACME</v-col>
-            <v-col>
-              {{ $t(item.server?.acme == undefined ? 'no' : 'yes') }}
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>ECH</v-col>
-            <v-col>
-              {{ $t(item.server?.ech == undefined ? 'no' : 'yes') }}
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>Reality</v-col>
-            <v-col>
-              {{ $t(item.server?.reality == undefined ? 'no' : 'yes') }}
-            </v-col>
-          </v-row>
-        </v-card-text>
-        <v-divider></v-divider>
-        <v-card-actions>
-          <v-btn icon="mdi-file-edit" @click="showModal(item.id)">
-            <v-icon />
-            <v-tooltip activator="parent" location="top" :text="$t('actions.edit')"></v-tooltip>
-          </v-btn>
-          <v-btn v-if="tlsInbounds(item.id).length == 0" icon="mdi-file-remove" color="warning" @click="delOverlay[index] = true">
-            <v-icon />
-            <v-tooltip activator="parent" location="top" :text="$t('actions.del')"></v-tooltip>
-          </v-btn>
-          <v-overlay
-            v-model="delOverlay[index]"
-            contained
-            class="align-center justify-center"
-          >
-            <v-card :title="$t('actions.del')" rounded="lg">
-              <v-divider></v-divider>
-              <v-card-text>{{ $t('confirm') }}</v-card-text>
-              <v-card-actions>
-                <v-btn color="error" variant="outlined" @click="delTls(item.id)">{{ $t('yes') }}</v-btn>
-                <v-btn color="success" variant="outlined" @click="delOverlay[index] = false">{{ $t('no') }}</v-btn>
-              </v-card-actions>
-            </v-card>
-          </v-overlay>
-          <v-btn icon="mdi-content-duplicate" @click="clone(item)">
-            <v-icon />
-            <v-tooltip activator="parent" location="top" :text="$t('actions.clone')"></v-tooltip>
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-          </v-col>
-  </v-row>
+  <DeleteConfirm v-model="deleteDialog.visible" :target="deleteDialog.name" :loading="deleteDialog.loading" @confirm="confirmDelete" />
+  <div class="list-toolbar">
+    <div class="list-toolbar__actions">
+      <v-btn color="primary" prepend-icon="mdi-plus" @click="showModal(0)">{{ $t('actions.add') }}</v-btn>
+    </div>
+    <v-text-field v-model="query" class="list-toolbar__search" :placeholder="$t('list.search')" prepend-inner-icon="mdi-magnify" clearable density="compact" hide-details />
+  </div>
+  <v-data-table
+    class="list-table"
+    :headers="headers"
+    :items="filteredConfigs"
+    item-value="id"
+    v-model:items-per-page="itemsPerPage"
+    :items-per-page-options="pageSizeItems"
+    :mobile="smAndDown"
+    :hide-default-header="smAndDown"
+    :no-data-text="$t('noData')"
+    hover
+  >
+    <template #item.name="{ item }">
+      <span class="list-main">{{ item.name }}</span>
+    </template>
+    <template #item.sni="{ item }">
+      <span class="list-mono">{{ item.server?.server_name?.length > 0 ? item.server.server_name : '-' }}</span>
+    </template>
+    <template #item.inbounds="{ item }">
+      <span :title="tlsInbounds(item.id).join('\n') || undefined">{{ tlsInbounds(item.id).length || '-' }}</span>
+    </template>
+    <template #item.features="{ item }">
+      <div class="d-flex flex-wrap ga-1">
+        <v-chip v-if="item.server?.reality?.enabled" size="small" label variant="tonal" color="primary">REALITY</v-chip>
+        <v-chip v-if="!isOpenWrtLite && item.server?.acme != undefined" size="small" label variant="tonal" color="success">ACME</v-chip>
+        <v-chip v-if="item.server?.ech != undefined" size="small" label variant="tonal" color="info">ECH</v-chip>
+        <span v-if="!item.server?.reality?.enabled && (isOpenWrtLite || item.server?.acme == undefined) && item.server?.ech == undefined">-</span>
+      </div>
+    </template>
+    <template #item.actions="{ item }">
+      <div class="list-ops">
+        <v-btn size="small" variant="text" color="primary" @click="showModal(item.id)">{{ $t('actions.edit') }}</v-btn>
+        <v-btn size="small" variant="text" color="primary" @click="clone(item)">{{ $t('actions.clone') }}</v-btn>
+        <v-btn v-if="tlsInbounds(item.id).length == 0" size="small" variant="text" color="error" @click="requestDelete(item)">{{ $t('actions.del') }}</v-btn>
+      </div>
+    </template>
+  </v-data-table>
 </template>
 
 <script lang="ts" setup>
@@ -90,6 +59,9 @@ import Data from '@/store/modules/data'
 import { computed, ref } from 'vue'
 import { Inbound } from '@/types/inbounds'
 import { tls } from '@/types/tls'
+import DeleteConfirm from '@/components/DeleteConfirm.vue'
+import { i18n } from '@/locales'
+import { matchesQuery, useListTable } from '@/utils/listTable'
 
 const isOpenWrtLite = import.meta.env.VITE_OPENWRT_LITE === 'true'
 
@@ -111,7 +83,31 @@ const modal = ref({
   data: "",
 })
 
-const delOverlay = ref(new Array<boolean>(tlsConfigs.value.length).fill(false))
+const t = i18n.global.t
+const query = ref('')
+const { smAndDown, itemsPerPage, pageSizeItems } = useListTable()
+const headers = computed(() => [
+  { title: t('list.name'), key: 'name' },
+  { title: 'SNI', key: 'sni', sortable: false },
+  { title: t('pages.inbounds'), key: 'inbounds', sortable: false },
+  { title: t('list.features'), key: 'features', sortable: false },
+  { title: t('list.actions'), key: 'actions', sortable: false },
+])
+const filteredConfigs = computed(() => tlsConfigs.value.filter((item: any) =>
+  matchesQuery(query.value, item.name, item.server?.server_name)))
+
+const deleteDialog = ref({ visible: false, loading: false, id: 0, name: '' })
+const requestDelete = (item: any) => {
+  deleteDialog.value = { visible: true, loading: false, id: item.id, name: item.name }
+}
+const confirmDelete = async () => {
+  deleteDialog.value.loading = true
+  try {
+    if (await Data().save('tls', 'del', deleteDialog.value.id)) deleteDialog.value.visible = false
+  } finally {
+    deleteDialog.value.loading = false
+  }
+}
 
 const showModal = (id: number) => {
   modal.value.id = id
@@ -132,12 +128,6 @@ const closeModal = () => {
 const saveModal = async (data:tls) => {
   const success = await Data().save("tls", data.id > 0 ? "edit" : "new", data)
   if (success) modal.value.visible = false
-}
-
-const delTls = async (id: number) => {
-  const index = tlsConfigs.value.findIndex(t => t.id == id)
-  const success = await Data().save("tls", "del", id)
-  if (success) delOverlay.value[index] = false
 }
 
 </script>

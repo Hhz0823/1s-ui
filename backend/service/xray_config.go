@@ -14,6 +14,7 @@ import (
 	"github.com/Hhz0823/1s-ui/core"
 	"github.com/Hhz0823/1s-ui/database"
 	"github.com/Hhz0823/1s-ui/database/model"
+	"github.com/Hhz0823/1s-ui/util"
 	"github.com/Hhz0823/1s-ui/util/common"
 
 	"gorm.io/gorm"
@@ -197,19 +198,22 @@ func (s *InboundService) buildXrayVlessInbound(db *gorm.DB, inbound *model.Inbou
 		network = tp
 	}
 
-	clients, err := s.fetchXrayVlessClients(db, inbound.Id, network)
+	streamSettings, err := buildXrayStreamSettings(inbound, transport, network)
 	if err != nil {
 		return nil, err
 	}
 
-	streamSettings, err := buildXrayStreamSettings(inbound, transport, network)
+	decryption := stringValue((*full)["decryption"], "none")
+	security, _ := streamSettings["security"].(string)
+	vision := util.XrayVlessVisionAllowed(network, decryption != "none", security == "tls" || security == "reality")
+	clients, err := s.fetchXrayVlessClients(db, inbound.Id, vision)
 	if err != nil {
 		return nil, err
 	}
 
 	settings := map[string]interface{}{
 		"clients":    clients,
-		"decryption": stringValue((*full)["decryption"], "none"),
+		"decryption": decryption,
 	}
 	if encryption, _ := (*full)["encryption"].(string); encryption != "" {
 		settings["encryption"] = encryption
@@ -672,7 +676,9 @@ func boolValueDefault(value interface{}, fallback bool) bool {
 	return fallback
 }
 
-func (s *InboundService) fetchXrayVlessClients(db *gorm.DB, inboundId uint, network string) ([]map[string]interface{}, error) {
+// fetchXrayVlessClients returns the users of a VLESS inbound; vision keeps
+// their XTLS Vision flow (see util.XrayVlessVisionAllowed).
+func (s *InboundService) fetchXrayVlessClients(db *gorm.DB, inboundId uint, vision bool) ([]map[string]interface{}, error) {
 	var users []struct {
 		Name   string
 		Config string
@@ -700,10 +706,8 @@ func (s *InboundService) fetchXrayVlessClients(db *gorm.DB, inboundId uint, netw
 			"id":    uuid,
 			"email": user.Name,
 		}
-		if network == "tcp" || network == "raw" {
-			if flow, _ := cfg["flow"].(string); flow != "" {
-				client["flow"] = flow
-			}
+		if flow, _ := cfg["flow"].(string); flow != "" && vision {
+			client["flow"] = flow
 		}
 		clients = append(clients, client)
 	}

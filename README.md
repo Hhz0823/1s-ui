@@ -11,7 +11,7 @@
   [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8)](backend/go.mod)
   [![Vue](https://img.shields.io/badge/Vue-3-42b883)](frontend/package.json)
 
-  **[Linux v1.6.2](https://github.com/Hhz0823/1s-ui/releases/tag/v1.6.2)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
+  **[Linux v1.6.3](https://github.com/Hhz0823/1s-ui/releases/tag/v1.6.3)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
 </div>
 
 > 1S-UI 基于 [alireza0/s-ui](https://github.com/alireza0/s-ui) 二次开发，仅用于学习、研究与技术交流。请遵守当地法律法规。
@@ -19,13 +19,21 @@
 
 **语言 Languages:** [简体中文](#简体中文) · [English](#english) · [日本語](#日本語) · [한국어](#한국어) · [Tiếng Việt](#tiếng-việt) · [فارسی](#فارسی)
 
-**导航:** [页面截图](#页面截图) · [群控架构](#群控架构) · [快速部署](#快速部署) · [功能矩阵](#功能矩阵) · [群控与远程管理](#群控与远程管理) · [一键中转](#一键中转) · [SD-WAN 智能组网](#sd-wan-智能组网) · [客户端导入](#客户端导入兼容性) · [安全](#安全与权限)
+**导航:** [页面截图](#页面截图) · [面板界面](#面板界面宝塔--1panel-风格) · [群控架构](#群控架构) · [快速部署](#快速部署) · [功能矩阵](#功能矩阵) · [群控与远程管理](#群控与远程管理) · [一键中转](#一键中转) · [SD-WAN 智能组网](#sd-wan-智能组网) · [客户端导入](#客户端导入兼容性) · [安全](#安全与权限)
 
 ---
 
 ## 页面截图
 
-截图来自 `v1.6.0-boost` 默认液态玻璃主题。服务器、域名、地址和指标均为演示数据，不包含账号密码、Token、证书私钥、真实服务器 IP 或节点密钥。
+默认界面为宝塔 / 1Panel 风格面板；液态玻璃截图来自 `v1.6.0-boost`，可在「设置 → 界面」切换回玻璃风格。服务器、域名、地址和指标均为演示数据，不包含账号密码、Token、证书私钥、真实服务器 IP 或节点密钥。
+
+| 宝塔绿主页 BaoTa Home | 1Panel 暗色主页 1Panel Dark Home |
+| --- | --- |
+| ![BaoTa style home dashboard](docs/screenshots/dashboard-panel.jpg) | ![1Panel dark home dashboard](docs/screenshots/dashboard-onepanel-dark.jpg) |
+
+| 入站列表 Inbound List | 路由规则 Routing Rules |
+| --- | --- |
+| ![BaoTa style inbound table](docs/screenshots/inbounds-panel.jpg) | ![1Panel style routing rules](docs/screenshots/rules-onepanel.jpg) |
 
 | 服务器群控 Server Fleet | 节点实时指标 Live Metrics |
 | --- | --- |
@@ -147,6 +155,14 @@ s-ui update
 入站、证书、Xray 二进制和运行配置不会被删除。在线更新不可用时，仍可使用上面的 `s-ui update`
 或安装脚本升级。
 
+**服务器连不上 GitHub（例如 api.github.com 超时）时**，面板更新和 Xray-core 安装会自动换用其他通道：
+
+1. 通过 github.com 的 `/releases/latest` 跳转获取最新版本，并直接从 github.com 下载；Xray-core 按 XTLS 官方 `.dgst` 中的 SHA2-256 校验。
+2. github.com 也不可用时，Xray-core 改装经过测试的 v26.3.27，从 github.com 或内置加速镜像（ghfast.top、gh-proxy.com、ghproxy.net）下载，并按面板内置的官方 SHA2-256 校验，镜像无法篡改。
+3. 面板更新包在没有 GitHub 提供的校验值时，只会从 GitHub 或你自己在 **设置 → 服务端面板 → GitHub 加速地址** 填写的地址下载（例如 `https://ghfast.top/`）。
+
+安装脚本同样会在 api.github.com 不可用时改用 github.com 获取版本号。
+
 ---
 
 ## 简体中文
@@ -193,7 +209,7 @@ s-ui update
 | 一键中转 | IPv6 出口池或上游 SOCKS5，自动创建入站、出站、用户和路由 |
 | SD-WAN 智能组网 | 多台受管服务器合并为一个入口：每台服务器同时部署 VLESS Reality（TCP）与 Hysteria2（QUIC）上行，按实时延迟选择最快线路，故障约 5 秒内自动切换；内置网络检测与一键调优 |
 | 出站导入 | 支持 SOCKS5/SOCKS4、HTTP(S)、Hysteria2 端口跳跃与 `user:pass` 认证、VMess、VLESS、Trojan、Shadowsocks、TUIC、AnyTLS、Naive 链接 |
-| 界面 | 默认实色；可选玻璃/清透、自定义背景、模糊、菜单布局和紧凑密度 |
+| 界面 | 默认宝塔 / 1Panel 风格面板（分组侧栏、面包屑、工具栏 + 表格列表、宝塔绿 / 1Panel 蓝 / 1Panel 暗色主题）；可选玻璃、实色、清透、自定义背景、菜单布局和紧凑密度 |
 | 反向代理 | 在服务端面板查看和管理 Caddy / Nginx 状态、域名与配置应用 |
 
 #### sing-box 入站
@@ -307,23 +323,41 @@ flowchart LR
 
 ### 一键创建 VLESS 与 NaiveProxy
 
-一键创建（本机与受管服务器使用同一套后端逻辑）的 VLESS 可选 5 种模式，默认 **REALITY + Vision**。选择仅 Xray-core 支持的模式时会自动切换到 Xray-core：
+一键创建（本机与受管服务器使用同一套后端逻辑）的 VLESS 可选 6 种模式，默认 **REALITY + Vision**。选择仅 Xray-core 支持的模式时会自动切换到 Xray-core：
 
-| 模式 | 内核 | v2rayN | v2rayNG | 小火箭（Shadowrocket） | Anywhere |
-| --- | --- | --- | --- | --- | --- |
-| REALITY + Vision（默认，推荐） | sing-box / Xray-core | ✅ | ✅ | ✅ | ✅ |
-| REALITY + XHTTP | Xray-core | ✅ | ✅ | ✅ | ✅ |
-| VLESS Encryption + Vision | Xray-core | ✅ | ✅ | 未确认 | iOS 26+ |
-| VLESS Encryption + XHTTP | Xray-core | ✅ | ✅ | 未确认 | iOS 26+ |
-| TLS + 自签名证书 | sing-box / Xray-core | ✅ | ✅ | ✅ | 需先在 Trusted Certificates 添加链接中的 `pcs` 指纹 |
-| NaiveProxy（HTTPS / HTTP/2） | sing-box | ✅（分享链接） | ❌ 客户端未实现 | 手动添加：NaiveProxy 类型，旧版为 HTTPS/HTTP2 并开启 Padding | ❌ 客户端未实现 |
+| 模式 | 内核 | v2rayN | v2rayNG | 小火箭（Shadowrocket） | Anywhere | PassWall / PassWall 2 |
+| --- | --- | --- | --- | --- | --- | --- |
+| REALITY + Vision（默认，推荐） | sing-box / Xray-core | ✅ | ✅ | ✅ | ✅ | ✅ |
+| REALITY + XHTTP | Xray-core | ✅ | ✅ | ✅ | ✅ | ✅ |
+| REALITY + XHTTP + Vision（含 VLESS Encryption） | Xray-core | ✅ | ✅ | 未确认 | iOS 26+ | ✅ |
+| VLESS Encryption + Vision | Xray-core | ✅ | ✅ | 未确认 | iOS 26+ | ✅ 订阅导入；在节点页粘贴链接会丢失 flow，需手动选 `xtls-rprx-vision` |
+| VLESS Encryption + XHTTP | Xray-core | ✅ | ✅ | 未确认 | iOS 26+ | ✅ |
+| TLS + 自签名证书 | sing-box / Xray-core | ✅ | ✅ | ✅ | 需先在 Trusted Certificates 添加链接中的 `pcs` 指纹 | ✅ |
+| NaiveProxy（HTTPS / HTTP/2） | sing-box | ✅（分享链接） | ❌ 客户端未实现 | 手动添加：NaiveProxy 类型，旧版为 HTTPS/HTTP2 并开启 Padding | ❌ 客户端未实现 | 可解析 `naive+https` 链接（未实测） |
 
 - **REALITY**：每批节点生成独立的 x25519 密钥和 Short ID，客户端使用 Chrome 指纹；伪装目标留空时服务器自动探测最快可达的 TLS 1.3 + HTTP/2 网站。自动候选已排除 Xray-core 警告会增加 IP 被封概率的 Apple、iCloud、Microsoft 及 `.cn/.ru/.ir` 网站；REALITY 在 443 端口（未被占用时）最自然。
 - **Xray-core 版本**：Xray-core 26.9.8 起 REALITY 服务端会拒绝不带 X25519MLKEM768 密钥交换的 ClientHello（小火箭 2.2.92、iOS 26 以下的 Anywhere）。面板安装的是最新稳定版 26.3.27，不受影响；sing-box 的 REALITY 服务端也不受影响，需要最广兼容时选择 sing-box。
 - **VLESS Encryption**：抗量子的 `mlkem768x25519plus`（ML-KEM-768 + X25519），不需要 TLS 层，可叠加 XTLS Vision；服务端私钥只保存在面板，链接中只有客户端公钥。
-- **XHTTP**：随机路径、`mode=auto`，不下发 `flow`（Vision 仅用于 TCP）。
+- **XHTTP**：随机路径、`mode=auto`。REALITY + XHTTP 和 VLESS Encryption + XHTTP 不下发 `flow`。
+- **REALITY + XHTTP + Vision**：Xray-core 只在 VLESS Encryption 之上允许 XTLS Vision 走 XHTTP（否则报错 “XTLS only supports TLS and REALITY directly”，已用 26.3.27 与 26.9.9 实测），因此该模式同时启用抗量子 VLESS Encryption，链接同时带 `encryption`、`flow=xtls-rprx-vision`、`security=reality` 与 `type=xhttp`。只有这种组合会在 XHTTP 上保留用户的 Vision flow；只开 VLESS Encryption 的 XHTTP 节点仍不下发，老链接不受影响。
+- **PassWall / PassWall 2**：订阅导入和在节点页粘贴链接都已按其解析代码逐项校验，并按它生成的 Xray 出站配置实测连通。XHTTP 节点会自动使用 Xray-core；当前 PassWall 生成的配置需要 Xray-core 26.7.11 及以上。
 - **NaiveProxy**：一键创建默认改为 HTTPS / HTTP/2（小火箭只支持这一种），QUIC / HTTP/3 仍可选。sing-box 的 Naive 入站只接受带 NaiveProxy Padding 的请求，普通 HTTPS 代理客户端无法连接；v2rayNG 与 Anywhere 请使用 VLESS REALITY 节点。
-- 所有模式都有回归测试：链接按 v2rayN、v2rayNG 与 Anywhere 的真实解析规则逐项校验，并用真实 Xray-core（26.3.27 与 26.9.9）客户端仅凭分享链接连接面板生成的服务端、实际转发流量。
+- 所有模式都有回归测试：链接按 v2rayN、v2rayNG、Anywhere 与 PassWall / PassWall 2 的真实解析规则逐项校验，并用真实 Xray-core（26.3.27 与 26.9.9）客户端仅凭分享链接（以及按 PassWall 的方式）连接面板生成的服务端、实际转发流量。
+
+### 面板界面：宝塔 / 1Panel 风格
+
+- **布局**：左侧按「总览 / 代理 / 系统 / 路由 / 管理」分组的固定侧栏，顶部面包屑；浅灰工作区搭配白色平面卡片和表格，桌面与手机端自适应（手机端列表以卡片逐条显示）。
+- **首页仪表盘**：概览计数（入站、用户、在线、出站、用户流量、服务器）；负载、CPU、内存、磁盘、Swap 环形仪表，负载按宝塔规则显示「运行流畅 / 运行正常 / 运行缓慢 / 运行堵塞」；流量、磁盘 IO、CPU、内存实时曲线；系统信息（系统版本、内核、架构、IP、运行时间）与 sing-box / Xray 内核状态和启停操作。
+- **列表页**：入站、用户、出站、节点、服务、TLS、管理员、路由和 DNS 统一为「操作按钮 + 搜索 + 表格」，行内文字操作（编辑 / 克隆 / 流量 / 删除），删除统一二次确认，并支持每页数量与「全部」。
+- **路由与 DNS 规则**：表格保留匹配顺序，可拖动行或用箭头调整顺序，显示匹配条件摘要（悬停查看明细）和「有未保存的更改」提示。
+- **主题**：新增宝塔绿（默认）、1Panel 蓝与 1Panel 暗色，原有主题仍可在右上角切换；「设置 → 界面」可切回玻璃、实色或清透风格。
+
+### v1.6.3 更新重点
+
+- **宝塔 / 1Panel 风格面板**：分组侧栏与面包屑、服务器仪表盘（负载 / CPU / 内存 / 磁盘 / 交换分区仪表与实时曲线）、工具栏 + 表格列表页；新增宝塔绿、1Panel 蓝与 1Panel 暗色主题，详见[面板界面](#面板界面宝塔--1panel-风格)。
+- **一键创建 REALITY + XHTTP + Vision**：Xray-core 只在 VLESS Encryption 之上允许 Vision 走 XHTTP，因此该模式同时启用抗量子 VLESS Encryption；可导入 v2rayN、v2rayNG、PassWall / PassWall 2 与 iOS 26+ 的 Anywhere，兼容性见[一键创建 VLESS 与 NaiveProxy](#一键创建-vless-与-naiveproxy)。
+- **PassWall / PassWall 2**：所有 VLESS 模式都按它的订阅与粘贴链接解析规则校验并实测连通。
+- **连不上 GitHub 也能安装 Xray-core、更新面板**：api.github.com 不可用时改用 github.com；再不行时 Xray-core 从加速镜像安装经过测试的 v26.3.27 并按官方校验值校验；设置中新增「GitHub 加速地址」，下载不再因总超时中断。
 
 ### v1.6.2 更新重点
 
@@ -406,8 +440,8 @@ flowchart LR
 - IPv6 egress pools and upstream SOCKS5 relays with BitBrowser Excel/plain-text export.
 - SD-WAN: users connect to the controller while it deploys private uplinks on every managed server (VLESS Reality over TCP plus Hysteria2 over QUIC by default), always exits through the fastest path and fails over within seconds; built-in detection (latency, jitter, loss, bandwidth, kernel, clock) and one-click tuning (BBR/fq kernel profile, protocol upgrade, uplink repair, adaptive switch tolerance).
 - Share links built for v2rayN and Shadowrocket (SIP002, `socks://`, pinned self-signed TLS with compatibility flags) and outbound import of SOCKS5/HTTP/Hysteria2 port-hopping links.
-- One-click VLESS nodes in five modes: REALITY + Vision (default, sing-box or Xray-core), REALITY + XHTTP, post-quantum VLESS Encryption + Vision or XHTTP, and self-signed TLS. Links are checked against the v2rayN, v2rayNG and Anywhere parsers, and real Xray-core clients carry traffic using nothing but the share link. One-click NaiveProxy now defaults to HTTPS (HTTP/2).
-- Default solid UI, responsive desktop/mobile layouts, optional backgrounds and glass/clear styles.
+- One-click VLESS nodes in six modes: REALITY + Vision (default, sing-box or Xray-core), REALITY + XHTTP, REALITY + XHTTP + Vision (Xray-core runs Vision on XHTTP only on top of VLESS Encryption, which the node therefore adds), post-quantum VLESS Encryption + Vision or XHTTP, and self-signed TLS. Links are checked against the v2rayN, v2rayNG, Anywhere and PassWall / PassWall 2 parsers, and real Xray-core clients carry traffic using nothing but the share link. One-click NaiveProxy now defaults to HTTPS (HTTP/2).
+- BaoTa / 1Panel style panel UI by default: grouped sidebar with breadcrumbs, a server dashboard (load, CPU, memory, disk and swap gauges, live traffic/disk IO charts, system and core status) and toolbar + table list pages with drag-to-reorder routing and DNS rules; BaoTa green, 1Panel blue and 1Panel dark themes, with the glass, solid and clear styles still available.
 
 ### Resource profiles
 

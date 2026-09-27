@@ -25,7 +25,8 @@ import (
 
 // These tests run the real Xray-core binary named by XRAY_TEST_BINARY on
 // both ends: the server from the configuration the panel generates, the
-// client from nothing but the share link, the way v2rayN and v2rayNG use it.
+// client from nothing but the share link, the way v2rayN and v2rayNG use it
+// and the way PassWall / PassWall 2 import it (passwallXrayOutbound).
 
 func requireXrayBinary(t *testing.T) string {
 	t.Helper()
@@ -100,6 +101,11 @@ func xrayClientOutbound(t *testing.T, link, fingerprint string) map[string]inter
 // the outbound built from the link and returns the SOCKS port.
 func startXrayClient(t *testing.T, binary, link, fingerprint string) int {
 	t.Helper()
+	return startXrayClientOutbound(t, binary, xrayClientOutbound(t, link, fingerprint))
+}
+
+func startXrayClientOutbound(t *testing.T, binary string, outbound map[string]interface{}) int {
+	t.Helper()
 	socksPort := freeLocalPort(t)
 	config := map[string]interface{}{
 		"log": map[string]interface{}{"loglevel": "warning"},
@@ -107,7 +113,7 @@ func startXrayClient(t *testing.T, binary, link, fingerprint string) int {
 			"tag": "socks", "listen": "127.0.0.1", "port": socksPort, "protocol": "socks",
 			"settings": map[string]interface{}{"udp": true},
 		}},
-		"outbounds": []interface{}{xrayClientOutbound(t, link, fingerprint)},
+		"outbounds": []interface{}{outbound},
 	}
 	raw, err := json.Marshal(config)
 	if err != nil {
@@ -132,6 +138,28 @@ func startXrayClient(t *testing.T, binary, link, fingerprint string) int {
 	})
 	waitTCP(t, fmt.Sprintf("127.0.0.1:%d", socksPort))
 	return socksPort
+}
+
+// passwallClientOutbound is passwallXrayOutbound for the test binary. PassWall
+// writes streamSettings.method, which Xray-core reads since v26.7.11 (and
+// PassWall installs a current Xray-core); older binaries get it as network.
+func passwallClientOutbound(t *testing.T, binary string, node passwallNode) map[string]interface{} {
+	t.Helper()
+	outbound := passwallXrayOutbound(node)
+	output, err := exec.Command(binary, "version").Output()
+	if err != nil {
+		t.Fatalf("xray version: %v", err)
+	}
+	var major, minor, patch int
+	if _, err = fmt.Sscanf(string(output), "Xray %d.%d.%d", &major, &minor, &patch); err != nil {
+		t.Fatalf("unexpected xray version output %q", output)
+	}
+	if major < 26 || (major == 26 && (minor < 7 || (minor == 7 && patch < 11))) {
+		stream := outbound["streamSettings"].(map[string]interface{})
+		stream["network"] = stream["method"]
+		delete(stream, "method")
+	}
+	return outbound
 }
 
 func waitTCP(t *testing.T, address string) {
@@ -235,6 +263,10 @@ func TestQuickAddVlessVariantsCarryTrafficWithRealXray(t *testing.T) {
 	}{
 		{VlessVariantRealityVision, []string{"security=reality", "flow=xtls-rprx-vision", "type=tcp", "pbk=", "sid=", "fp=chrome"}},
 		{VlessVariantRealityXHTTP, []string{"security=reality", "type=xhttp", "mode=auto", "pbk="}},
+		{VlessVariantRealityXHTTPVision, []string{
+			"encryption=mlkem768x25519plus.native.0rtt.", "security=reality", "type=xhttp", "mode=auto",
+			"flow=xtls-rprx-vision", "pbk=", "sid=", "fp=chrome",
+		}},
 		{VlessVariantEncVision, []string{"encryption=mlkem768x25519plus.native.0rtt.", "security=none", "flow=xtls-rprx-vision", "type=tcp"}},
 		{VlessVariantEncXHTTP, []string{"encryption=mlkem768x25519plus.native.0rtt.", "security=none", "type=xhttp"}},
 		{VlessVariantTLS, []string{"security=tls", "type=xhttp", "pcs="}},
@@ -253,19 +285,23 @@ func TestQuickAddVlessVariantsCarryTrafficWithRealXray(t *testing.T) {
 			pointRealityAt(t, realityPort)
 			link := quickAddClientLink(t, response.Created[0].ClientID)
 			t.Log(link)
-			checkVlessLinkForClients(t, link)
+			passwall := checkVlessLinkForPassWall(t, link)
 			for _, fragment := range test.want {
 				if !strings.Contains(link, fragment) {
 					t.Fatalf("%s link lacks %q: %s", test.variant, fragment, link)
 				}
 			}
-			if strings.Contains(link, "flow=") && strings.Contains(link, "type=xhttp") {
-				t.Fatalf("XTLS Vision must not be exported for XHTTP: %s", link)
-			}
 			startQuickAddXrayServer(t, control, port)
+			probe := quickAddProbe(t)
 			socks := startXrayClient(t, binary, link, "")
-			if err = fetchThroughSocks(socks, quickAddProbe(t)); err != nil {
+			if err = fetchThroughSocks(socks, probe); err != nil {
 				t.Fatalf("no traffic through the %s node: %v\nlink: %s", test.variant, err, link)
+			}
+			for name, node := range passwall {
+				socks = startXrayClientOutbound(t, binary, passwallClientOutbound(t, binary, node))
+				if err = fetchThroughSocks(socks, probe); err != nil {
+					t.Fatalf("PassWall (%s import) has no traffic through the %s node: %v\nlink: %s", name, test.variant, err, link)
+				}
 			}
 		})
 	}
@@ -278,6 +314,9 @@ func TestQuickAddVlessVariantsCarryTrafficWithRealXray(t *testing.T) {
 // REALITY servers reject.
 func TestQuickAddRealityOnSingBoxAcceptsClientsWithoutMLKEM(t *testing.T) {
 	binary := requireXrayBinary(t)
+	if !sdwanRealitySupported {
+		t.Skip("sing-box REALITY needs the with_utls build tag")
+	}
 	control := setupXrayQuickAddTest(t, binary)
 	realityPort := localRealityTarget(t)
 	port := freeLocalPort(t)
@@ -301,12 +340,67 @@ func TestQuickAddRealityOnSingBoxAcceptsClientsWithoutMLKEM(t *testing.T) {
 	waitTCP(t, fmt.Sprintf("127.0.0.1:%d", port))
 
 	link := quickAddClientLink(t, response.Created[0].ClientID)
-	checkVlessLinkForClients(t, link)
+	passwall := checkVlessLinkForPassWall(t, link)
 	probe := quickAddProbe(t)
 	for _, fingerprint := range []string{"", "hellochrome_120"} {
 		socks := startXrayClient(t, binary, link, fingerprint)
 		if err = fetchThroughSocks(socks, probe); err != nil {
 			t.Fatalf("fingerprint %q could not use the sing-box REALITY node: %v\nlink: %s", fingerprint, err, link)
+		}
+	}
+	for name, node := range passwall {
+		socks := startXrayClientOutbound(t, binary, passwallClientOutbound(t, binary, node))
+		if err = fetchThroughSocks(socks, probe); err != nil {
+			t.Fatalf("PassWall (%s import) could not use the sing-box REALITY node: %v\nlink: %s", name, err, link)
+		}
+	}
+}
+
+// TestQuickAddXHTTPVisionKeepsOtherNodesUnchanged checks both sides of the
+// new Vision rule on the server: the REALITY + XHTTP + Vision node keeps its
+// users' flow, while an XHTTP node with VLESS Encryption alone still drops it
+// for users added later with the default Vision flow, as before.
+func TestQuickAddXHTTPVisionKeepsOtherNodesUnchanged(t *testing.T) {
+	// Quick add only asks the binary for its version.
+	stub := filepath.Join(t.TempDir(), "xray")
+	if err := os.WriteFile(stub, []byte("#!/bin/sh\necho 'Xray 26.3.27 (Xray, Penetrates Everything.)'\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	control := setupXrayQuickAddTest(t, stub)
+	flows := map[string]string{}
+	for index, variant := range []string{VlessVariantRealityXHTTPVision, VlessVariantEncXHTTP} {
+		response, err := control.QuickAddLocalInbounds(RemoteQuickAddRequest{
+			CoreType: model.CoreTypeXray, Protocol: "vless", VlessVariant: variant,
+			Count: 1, Port: 42300 + index, PublicHost: "198.51.100.60",
+		}, "admin")
+		if err != nil {
+			t.Fatalf("%s: %v", variant, err)
+		}
+		var inbound model.Inbound
+		if err = database.GetDB().Preload("Tls").Where("tag = ?", response.Created[0].Tag).First(&inbound).Error; err != nil {
+			t.Fatal(err)
+		}
+		late := model.Client{
+			Enable: true, Name: "late-" + variant,
+			Config:   json.RawMessage(`{"vless":{"uuid":"22222222-2222-4222-8222-22222222222` + strconv.Itoa(index) + `","flow":"xtls-rprx-vision"}}`),
+			Inbounds: json.RawMessage(`[` + strconv.Itoa(int(inbound.Id)) + `]`),
+		}
+		if err = database.GetDB().Create(&late).Error; err != nil {
+			t.Fatal(err)
+		}
+		built, err := (&InboundService{}).buildXrayVlessInbound(database.GetDB(), &inbound)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, client := range built["settings"].(map[string]interface{})["clients"].([]map[string]interface{}) {
+			flow, _ := client["flow"].(string)
+			flows[variant+"/"+client["email"].(string)[:5]] = flow
+		}
+	}
+	for key, flow := range flows {
+		wantVision := strings.HasPrefix(key, VlessVariantRealityXHTTPVision+"/")
+		if (flow == vlessVisionFlow) != wantVision {
+			t.Fatalf("%s flow = %q, want Vision %v (all: %v)", key, flow, wantVision, flows)
 		}
 	}
 }

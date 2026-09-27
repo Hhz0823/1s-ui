@@ -10,67 +10,44 @@
     :tlsConfigs="tlsConfigs"
     @close="closeModal"
   />
-  <v-row>
-    <v-col cols="12" justify="center" align="center">
-      <v-btn color="primary" @click="showModal(0)">{{ $t('actions.add') }}</v-btn>
-    </v-col>
-  </v-row>
-  <v-row>
-    <v-col cols="12" sm="4" md="3" lg="2" v-for="(item, index) in <any[]>services" :key="item.tag">
-      <v-card rounded="xl" elevation="2" min-width="180" :title="item.tag">
-        <v-card-subtitle >
-          <v-row>
-            <v-col>{{ item.type }}</v-col>
-          </v-row>
-        </v-card-subtitle>
-        <v-card-text>
-          <v-row>
-            <v-col>{{ $t('in.addr') }}</v-col>
-            <v-col>
-              {{ item.listen }}
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>{{ $t('in.port') }}</v-col>
-            <v-col>
-              {{ item.listen_port }}
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>{{ $t('objects.tls') }}</v-col>
-            <v-col>
-              {{ item.tls_id > 0 ? $t('enable') : $t('disable') }}
-            </v-col>
-          </v-row>
-        </v-card-text>
-        <v-divider></v-divider>
-        <v-card-actions>
-          <v-btn icon="mdi-file-edit" @click="showModal(item.id)">
-            <v-icon />
-            <v-tooltip activator="parent" location="top" :text="$t('actions.edit')"></v-tooltip>
-          </v-btn>
-          <v-btn icon="mdi-file-remove"  color="warning" @click="delOverlay[index] = true">
-            <v-icon />
-            <v-tooltip activator="parent" location="top" :text="$t('actions.del')"></v-tooltip>
-          </v-btn>
-          <v-overlay
-            v-model="delOverlay[index]"
-            contained
-            class="align-center justify-center"
-          >
-            <v-card :title="$t('actions.del')" rounded="lg">
-              <v-divider></v-divider>
-              <v-card-text>{{ $t('confirm') }}</v-card-text>
-              <v-card-actions>
-                <v-btn color="error" variant="outlined" @click="delSrv(item.id)">{{ $t('yes') }}</v-btn>
-                <v-btn color="success" variant="outlined" @click="delOverlay[index] = false">{{ $t('no') }}</v-btn>
-              </v-card-actions>
-            </v-card>
-          </v-overlay>
-        </v-card-actions>
-      </v-card>      
-    </v-col>
-  </v-row>
+  <DeleteConfirm v-model="deleteDialog.visible" :target="deleteDialog.tag" :loading="deleteDialog.loading" @confirm="confirmDelete" />
+  <div class="list-toolbar">
+    <div class="list-toolbar__actions">
+      <v-btn color="primary" prepend-icon="mdi-plus" @click="showModal(0)">{{ $t('actions.add') }}</v-btn>
+    </div>
+    <v-text-field v-model="query" class="list-toolbar__search" :placeholder="$t('list.search')" prepend-inner-icon="mdi-magnify" clearable density="compact" hide-details />
+  </div>
+  <v-data-table
+    class="list-table"
+    :headers="headers"
+    :items="filteredServices"
+    item-value="tag"
+    v-model:items-per-page="itemsPerPage"
+    :items-per-page-options="pageSizeItems"
+    :mobile="smAndDown"
+    :hide-default-header="smAndDown"
+    :no-data-text="$t('noData')"
+    hover
+  >
+    <template #item.tag="{ item }">
+      <span class="list-main">{{ item.tag }}</span>
+    </template>
+    <template #item.type="{ item }">
+      <v-chip size="small" label variant="tonal" color="primary">{{ item.type }}</v-chip>
+    </template>
+    <template #item.listen="{ item }">
+      <span class="list-mono">{{ hostPort(item.listen, item.listen_port) }}</span>
+    </template>
+    <template #item.tls_id="{ item }">
+      <v-chip size="small" label variant="tonal" :color="item.tls_id > 0 ? 'success' : undefined">{{ item.tls_id > 0 ? $t('enable') : $t('disable') }}</v-chip>
+    </template>
+    <template #item.actions="{ item }">
+      <div class="list-ops">
+        <v-btn size="small" variant="text" color="primary" @click="showModal(item.id)">{{ $t('actions.edit') }}</v-btn>
+        <v-btn size="small" variant="text" color="error" @click="requestDelete(item.tag)">{{ $t('actions.del') }}</v-btn>
+      </div>
+    </template>
+  </v-data-table>
 </template>
 
 <script lang="ts" setup>
@@ -78,6 +55,9 @@ import Data from '@/store/modules/data'
 import { Srv } from '@/types/services'
 import { computed, ref } from 'vue'
 import ServiceVue from '@/layouts/modals/Service.vue'
+import DeleteConfirm from '@/components/DeleteConfirm.vue'
+import { i18n } from '@/locales'
+import { hostPort, matchesQuery, useListTable } from '@/utils/listTable'
 
 const services = computed((): Srv[] => {
   return <Srv[]> Data().services
@@ -109,7 +89,31 @@ const modal = ref({
   data: "",
 })
 
-let delOverlay = ref(new Array<boolean>)
+const t = i18n.global.t
+const query = ref('')
+const { smAndDown, itemsPerPage, pageSizeItems } = useListTable()
+const headers = computed(() => [
+  { title: t('objects.tag'), key: 'tag' },
+  { title: t('list.type'), key: 'type' },
+  { title: t('list.listen'), key: 'listen', sortable: false },
+  { title: 'TLS', key: 'tls_id' },
+  { title: t('list.actions'), key: 'actions', sortable: false },
+])
+const filteredServices = computed(() => services.value.filter((item: any) =>
+  matchesQuery(query.value, item.tag, item.type, item.listen, item.listen_port)))
+
+const deleteDialog = ref({ visible: false, loading: false, tag: '' })
+const requestDelete = (tag: string) => {
+  deleteDialog.value = { visible: true, loading: false, tag }
+}
+const confirmDelete = async () => {
+  deleteDialog.value.loading = true
+  try {
+    if (await Data().save('services', 'del', deleteDialog.value.tag)) deleteDialog.value.visible = false
+  } finally {
+    deleteDialog.value.loading = false
+  }
+}
 
 const showModal = (id: number) => {
   modal.value.id = id
@@ -121,11 +125,4 @@ const closeModal = () => {
   modal.value.visible = false
 }
 
-const delSrv = async (id: number) => {
-  const index = services.value.findIndex(i => i.id == id)
-  const tag = services.value[index].tag
-
-  const success = await Data().save("services", "del", tag)
-  if (success) delOverlay.value[index] = false
-}
 </script>

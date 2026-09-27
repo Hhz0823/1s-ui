@@ -18,52 +18,40 @@
     :visible="tokenModal.visible"
     @close="closeTokenModal"
   />
-  <v-row>
-    <v-col cols="12" justify="center" align="center">
-      <v-btn color="primary" @click="showChangesModal('')" style="margin: 0 5px;">{{ $t('admin.changes') }}</v-btn>
-      <v-btn color="primary" @click="showTokenModal()">{{ $t('admin.api.token') }}</v-btn>
-    </v-col>
-  </v-row>
-  <v-row>
-    <v-col cols="12" sm="4" md="3" lg="2" v-for="(item, index) in <any[]>users" :key="item.id">
-      <v-card rounded="xl" elevation="2" min-width="180" :title="item.username">
-        <v-card-subtitle >
-          {{ $t('admin.lastLogin') }}
-        </v-card-subtitle>
-        <v-card-text>
-          <v-row>
-            <v-col>{{ $t('admin.date') }}</v-col>
-            <v-col>
-              {{ item.loginDate }}
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>{{ $t('admin.time') }}</v-col>
-            <v-col>
-              {{ item.loginTime }}
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>IP</v-col>
-            <v-col>
-              {{ item.ip }}
-            </v-col>
-          </v-row>
-        </v-card-text>
-        <v-divider></v-divider>
-        <v-card-actions>
-          <v-btn icon="mdi-account-edit" @click="showEditModal(item)">
-            <v-icon />
-            <v-tooltip activator="parent" location="top" :text="$t('actions.edit')"></v-tooltip>
-          </v-btn>
-          <v-btn icon="mdi-list-box-outline" @click="showChangesModal(item.username)">
-            <v-icon />
-            <v-tooltip activator="parent" location="top" :text="$t('admin.changes')"></v-tooltip>
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-col>
-  </v-row>
+  <div class="list-toolbar">
+    <div class="list-toolbar__actions">
+      <v-btn color="primary" prepend-icon="mdi-history" @click="showChangesModal('')">{{ $t('admin.changes') }}</v-btn>
+      <v-btn color="primary" variant="outlined" prepend-icon="mdi-key-variant" @click="showTokenModal()">{{ $t('admin.api.token') }}</v-btn>
+    </div>
+  </div>
+  <v-data-table
+    class="list-table"
+    :headers="headers"
+    :items="users"
+    item-value="id"
+    :items-per-page="-1"
+    :mobile="smAndDown"
+    :hide-default-header="smAndDown"
+    :no-data-text="$t('noData')"
+    hide-default-footer
+    hover
+  >
+    <template #item.username="{ item }">
+      <span class="list-main">{{ item.username }}</span>
+    </template>
+    <template #item.lastLogin="{ item }">
+      {{ item.loginDate == '-' ? '-' : `${item.loginDate} ${item.loginTime}` }}
+    </template>
+    <template #item.ip="{ item }">
+      <span class="list-mono">{{ item.ip }}</span>
+    </template>
+    <template #item.actions="{ item }">
+      <div class="list-ops">
+        <v-btn size="small" variant="text" color="primary" @click="showEditModal(item)">{{ $t('actions.edit') }}</v-btn>
+        <v-btn size="small" variant="text" color="primary" @click="showChangesModal(item.username)">{{ $t('admin.changes') }}</v-btn>
+      </div>
+    </template>
+  </v-data-table>
 </template>
 
 <script lang="ts" setup>
@@ -72,11 +60,19 @@ import ChangeModal  from '@/layouts/modals/Changes.vue'
 import TokenModal from '@/layouts/modals/Token.vue'
 import { i18n } from '@/locales'
 import HttpUtils from '@/plugins/httputil'
-import { Ref, ref, inject, onMounted } from 'vue'
+import { Ref, computed, ref, inject, onMounted } from 'vue'
+import { useDisplay } from 'vuetify'
 
 const loading:Ref = inject('loading')?? ref(false)
 
 const users = ref(<any[]>[])
+const { smAndDown } = useDisplay()
+const headers = computed(() => [
+  { title: i18n.global.t('login.username'), key: 'username' },
+  { title: i18n.global.t('admin.lastLogin'), key: 'lastLogin', sortable: false },
+  { title: 'IP', key: 'ip', sortable: false },
+  { title: i18n.global.t('list.actions'), key: 'actions', sortable: false },
+])
 
 onMounted(async () => {
   loading.value = true

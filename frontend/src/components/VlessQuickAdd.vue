@@ -60,7 +60,9 @@ const props = withDefaults(defineProps<{
   // build can). Vue casts an absent boolean prop to false, hence the default.
   singBoxReality?: boolean
   port?: number
-}>(), { singBoxReality: true, port: 0 })
+  // Variants the target server's panel is too old to build.
+  unsupportedVariants?: VlessQuickAddVariant[]
+}>(), { singBoxReality: true, port: 0, unsupportedVariants: () => [] })
 
 const emit = defineEmits<{ (event: 'update:coreType', value: string): void }>()
 
@@ -71,13 +73,16 @@ const riskyTarget = computed(() => realityTargetDiscouraged(props.data.reality_s
 // REALITY runs on sing-box too unless the server's build lacks it.
 const needsXray = (variant: VlessQuickAddVariant): boolean =>
   vlessXrayOnlyVariants.includes(variant) || (vlessVariantIsReality(variant) && props.singBoxReality === false)
-const variantAllowed = (variant: VlessQuickAddVariant): boolean => !needsXray(variant) || props.xrayAvailable
+const variantAllowed = (variant: VlessQuickAddVariant): boolean =>
+  !props.unsupportedVariants.includes(variant) && (!needsXray(variant) || props.xrayAvailable)
 const singBoxDefault = (): VlessQuickAddVariant => props.singBoxReality === false ? 'tls' : 'reality-vision'
 
 const variantItems = computed(() => vlessQuickAddVariants.map(item => ({
   value: item.value,
   title: i18n.global.t(`quickAdd.variants.${item.key}`),
-  subtitle: i18n.global.t(needsXray(item.value) ? 'quickAdd.xrayOnly' : 'quickAdd.anyCore'),
+  subtitle: i18n.global.t(props.unsupportedVariants.includes(item.value)
+    ? 'quickAdd.needsPanelUpgrade'
+    : needsXray(item.value) ? 'quickAdd.xrayOnly' : 'quickAdd.anyCore'),
   disabled: !variantAllowed(item.value),
 })))
 
@@ -87,7 +92,10 @@ const compatText = computed(() => {
       return i18n.global.t(isXray.value ? 'quickAdd.compat.realityVisionXray' : 'quickAdd.compat.realityVision')
     case 'reality-xhttp':
       return i18n.global.t('quickAdd.compat.realityXhttp')
+    case 'reality-xhttp-vision':
+      return i18n.global.t('quickAdd.compat.realityXhttpVision')
     case 'enc-vision':
+      return i18n.global.t('quickAdd.compat.encryption') + ' ' + i18n.global.t('quickAdd.compat.passwallSubscription')
     case 'enc-xhttp':
       return i18n.global.t('quickAdd.compat.encryption')
     default:

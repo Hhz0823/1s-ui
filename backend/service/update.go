@@ -22,14 +22,15 @@ import (
 )
 
 const (
-	panelReleaseAPI = "https://api.github.com/repos/Hhz0823/1s-ui/releases/latest"
+	panelRepo       = "Hhz0823/1s-ui"
+	panelReleaseAPI = "https://api.github.com/repos/" + panelRepo + "/releases/latest"
 	maxReleaseSize  = 256 << 20
 	maxMemberSize   = 160 << 20
 )
 
 var (
 	panelReleaseAPIURL = panelReleaseAPI
-	panelHTTPClient    = &http.Client{Timeout: 20 * time.Second}
+	panelHTTPClient    = newGitHubHTTPClient()
 	panelUpdateState   = struct {
 		sync.Mutex
 		value UpdateStatus
@@ -141,8 +142,30 @@ func buildVersionInfo(release githubRelease) VersionInfo {
 	}
 }
 
+// fetchLatestPanelRelease reads the latest stable release from the GitHub API,
+// or only its tag from github.com or a mirror when the API is unreachable.
+// Without the API there is no SHA-256, so the archive then comes from GitHub
+// or the administrator's mirror.
 func fetchLatestPanelRelease() (githubRelease, error) {
-	req, err := http.NewRequest(http.MethodGet, panelReleaseAPIURL, nil)
+	release, apiErr := fetchLatestPanelReleaseFromAPI()
+	if apiErr == nil {
+		return release, nil
+	}
+	tag, err := githubLatestTagFromAny(panelHTTPClient, panelRepo)
+	if err != nil {
+		return githubRelease{}, fmt.Errorf("%s: %s; %v", urlHost(panelReleaseAPIURL), shortNetError(apiErr), err)
+	}
+	release = githubRelease{TagName: tag, HTMLURL: githubWebBase + "/" + panelRepo + "/releases/tag/" + tag}
+	if name := linuxReleaseAssetName(); name != "" {
+		release.Assets = []releaseAsset{{Name: name, BrowserDownloadURL: githubAssetURL(panelRepo, tag, name)}}
+	}
+	return release, nil
+}
+
+func fetchLatestPanelReleaseFromAPI() (githubRelease, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), githubLookupTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, panelReleaseAPIURL, nil)
 	if err != nil {
 		return githubRelease{}, err
 	}
@@ -287,49 +310,18 @@ func runPanelUpdate(release githubRelease, asset releaseAsset) {
 	finishPanelUpdate("success", fmt.Sprintf("updated to %s", releaseVersion(release.TagName)))
 }
 
+// downloadReleaseAsset fetches the release archive, checked against the API's
+// SHA-256 when the release came from the API.
 func downloadReleaseAsset(asset releaseAsset) (string, error) {
 	if asset.BrowserDownloadURL == "" || asset.Size > maxReleaseSize {
 		return "", fmt.Errorf("release asset is missing or too large")
 	}
-	req, err := http.NewRequest(http.MethodGet, asset.BrowserDownloadURL, nil)
-	if err != nil {
-		return "", err
+	if !isGitHubAssetURL(asset.BrowserDownloadURL, panelRepo) {
+		return "", fmt.Errorf("release asset has an untrusted download URL")
 	}
-	req.Header.Set("Accept", "application/octet-stream")
-	req.Header.Set("User-Agent", "1s-ui-updater")
-	resp, err := panelHTTPClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("release download returned %s", resp.Status)
-	}
-	if resp.ContentLength > maxReleaseSize {
-		return "", fmt.Errorf("release asset exceeds %d MiB", maxReleaseSize>>20)
-	}
-	file, err := os.CreateTemp("", "s-ui-release-*.tar.gz")
-	if err != nil {
-		return "", err
-	}
-	name := file.Name()
-	defer func() {
-		_ = file.Close()
-		if err != nil {
-			_ = os.Remove(name)
-		}
-	}()
-	written, err := io.Copy(file, io.LimitReader(resp.Body, maxReleaseSize+1))
-	if err != nil {
-		return "", err
-	}
-	if written > maxReleaseSize {
-		return "", fmt.Errorf("release asset exceeds %d MiB", maxReleaseSize>>20)
-	}
-	if err = file.Close(); err != nil {
-		return "", err
-	}
-	return name, nil
+	return downloadGitHubAsset(panelHTTPClient, asset.BrowserDownloadURL, asset.Digest, maxReleaseSize, "s-ui-release-*.tar.gz", func(source string) {
+		setPanelUpdateState("downloading", "downloading release asset from "+source)
+	})
 }
 
 func extractReleaseArchive(archivePath, destination string) error {

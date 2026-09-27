@@ -1,4 +1,4 @@
-export type VlessQuickAddVariant = 'reality-vision' | 'reality-xhttp' | 'enc-vision' | 'enc-xhttp' | 'tls'
+export type VlessQuickAddVariant = 'reality-vision' | 'reality-xhttp' | 'reality-xhttp-vision' | 'enc-vision' | 'enc-xhttp' | 'tls'
 
 export interface VlessQuickAddOptions {
   variant: VlessQuickAddVariant
@@ -6,11 +6,12 @@ export interface VlessQuickAddOptions {
 }
 
 // Variants the panel only builds on Xray-core.
-export const vlessXrayOnlyVariants: VlessQuickAddVariant[] = ['reality-xhttp', 'enc-vision', 'enc-xhttp']
+export const vlessXrayOnlyVariants: VlessQuickAddVariant[] = ['reality-xhttp', 'reality-xhttp-vision', 'enc-vision', 'enc-xhttp']
 
 export const vlessQuickAddVariants: { value: VlessQuickAddVariant, key: string }[] = [
   { value: 'reality-vision', key: 'realityVision' },
   { value: 'reality-xhttp', key: 'realityXhttp' },
+  { value: 'reality-xhttp-vision', key: 'realityXhttpVision' },
   { value: 'enc-vision', key: 'encVision' },
   { value: 'enc-xhttp', key: 'encXhttp' },
   { value: 'tls', key: 'tls' },
@@ -21,7 +22,7 @@ export function createVlessQuickAddOptions(): VlessQuickAddOptions {
 }
 
 export function vlessVariantIsReality(variant: VlessQuickAddVariant): boolean {
-  return variant === 'reality-vision' || variant === 'reality-xhttp'
+  return variant === 'reality-vision' || variant === 'reality-xhttp' || variant === 'reality-xhttp-vision'
 }
 
 // Mirrors the panel's REALITY target check: a bare domain name.

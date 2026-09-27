@@ -28,251 +28,96 @@
     :tag="stats.tag"
     @close="closeStats"
   />
-  <v-row justify="center" align="center">
-    <v-col cols="auto">
-      <v-btn color="primary" @click="showModal(0)">{{ $t('actions.add') }}</v-btn>
-    </v-col>
-    <v-col cols="auto">
-      <v-btn color="primary" @click="showBulkModal">{{ $t('actions.addbulk') }}</v-btn>
-    </v-col>
-    <v-col cols="auto">
-      <v-btn
-        color="info"
-        variant="tonal"
-        prepend-icon="mdi-cloud-sync"
-        :loading="creatingWarp"
-        :disabled="creatingWarp"
-        @click="createWarpOutbound"
-      >
+  <v-dialog v-model="deleteDialog.visible" width="min(420px, calc(100vw - 24px))">
+    <v-card :title="$t('actions.del')" rounded="lg">
+      <v-divider />
+      <v-card-text>
+        {{ $t('confirm') }}
+        <div class="delete-target-tag">{{ deleteDialog.tag }}</div>
+      </v-card-text>
+      <v-card-actions class="justify-end">
+        <v-btn color="secondary" variant="outlined" :disabled="deleteDialog.loading" @click="deleteDialog.visible = false">{{ $t('no') }}</v-btn>
+        <v-btn color="error" variant="tonal" :loading="deleteDialog.loading" @click="confirmDelete">{{ $t('yes') }}</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+  <div class="list-toolbar">
+    <div class="list-toolbar__actions">
+      <v-btn color="primary" prepend-icon="mdi-plus" @click="showModal(0)">{{ $t('actions.add') }}</v-btn>
+      <v-btn color="primary" variant="outlined" prepend-icon="mdi-playlist-plus" @click="showBulkModal">{{ $t('actions.addbulk') }}</v-btn>
+      <v-btn variant="outlined" prepend-icon="mdi-cloud-sync" :loading="creatingWarp" :disabled="creatingWarp" @click="createWarpOutbound">
         {{ $t('actions.addWarp') }}
         <v-tooltip activator="parent" location="top" :text="$t('out.warpSafeTip')"></v-tooltip>
       </v-btn>
-    </v-col>
-    <v-col cols="auto">
-      <v-btn
-        color="secondary"
-        variant="outlined"
-        :loading="testingAll"
-        append-icon="mdi-speedometer"
-        :disabled="testingAll || checkableTags.length === 0"
-        @click="checkAllOutbounds"
-      >
-        {{ $t('actions.testAll') || 'Test all' }}
+      <v-btn variant="outlined" prepend-icon="mdi-speedometer" :loading="testingAll" :disabled="testingAll || checkableTags.length === 0" @click="checkAllOutbounds">
+        {{ $t('actions.testAll') }}
       </v-btn>
-    </v-col>
-  </v-row>
-  <v-row>
-    <v-col cols="12" sm="4" md="3" lg="2" v-for="(item, index) in <any[]>outbounds" :key="item.tag">
-      <v-card rounded="xl" elevation="2" min-width="180" :title="item.tag">
-        <v-card-subtitle >
-          <v-row>
-            <v-col>{{ item.type }}</v-col>
-          </v-row>
-        </v-card-subtitle>
-        <v-card-text>
-          <v-row>
-            <v-col>{{ $t('in.addr') }}</v-col>
-            <v-col>
-              {{ item.server?? '-' }}
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>{{ $t('in.port') }}</v-col>
-            <v-col>
-              {{ item.server_port?? '-' }}
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>{{ $t('objects.tls') }}</v-col>
-            <v-col>
-              {{ Object.hasOwn(item,'tls') ? $t(item.tls?.enabled ? 'enable' : 'disable') : '-'  }}
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>{{ $t('online') }}</v-col>
-            <v-col>
-              <template v-if="onlines.includes(item.tag)">
-                <v-chip density="comfortable" size="small" color="success" variant="flat">{{ $t('online') }}</v-chip>
-              </template>
-              <template v-else>-</template>
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>{{ $t('out.delay') }}</v-col>
-            <v-col>
-              <v-progress-circular
-                v-if="checkResults[item.tag]?.loading"
-                indeterminate
-                size="20"
-              />
-              <v-icon
-                icon="mdi-speedometer"
-                v-else
-                @click="checkOutbound(item.tag)"
-              >
-                <v-tooltip activator="parent" location="top" :text="$t('actions.test')"></v-tooltip>
-              </v-icon>
-              <template v-if="checkResults[item.tag]?.loading == false">
-                <template v-if="checkResults[item.tag]">
-                  <v-chip
-                    v-if="checkResults[item.tag].success"
-                    density="compact"
-                    size="small"
-                    color="success"
-                    variant="flat"
-                  >
-                    {{ checkResults[item.tag].data?.Delay + $t('date.ms') }}
-                  </v-chip>
-                  <v-tooltip v-else location="top" :text="checkResults[item.tag].errorMessage || $t('failed')">
-                    <template v-slot:activator="{ props }">
-                      <v-icon v-bind="props" size="small" color="error" icon="mdi-close-circle" />
-                    </template>
-                  </v-tooltip>
-                </template>
-              </template>
-            </v-col>
-          </v-row>
-        </v-card-text>
-        <v-divider></v-divider>
-        <v-card-actions>
-          <v-btn icon="mdi-file-edit" @click="showModal(item.id)">
-            <v-icon />
-            <v-tooltip activator="parent" location="top" :text="$t('actions.edit')"></v-tooltip>
-          </v-btn>
-          <v-btn icon="mdi-file-remove"  color="warning" @click="delOverlay[index] = true">
-            <v-icon />
-            <v-tooltip activator="parent" location="top" :text="$t('actions.del')"></v-tooltip>
-          </v-btn>
-          <v-overlay
-            v-model="delOverlay[index]"
-            contained
-            class="align-center justify-center"
-          >
-            <v-card :title="$t('actions.del')" rounded="lg">
-              <v-divider></v-divider>
-              <v-card-text>{{ $t('confirm') }}</v-card-text>
-              <v-card-actions>
-                <v-btn color="error" variant="outlined" @click="delOutbound(item.tag)">{{ $t('yes') }}</v-btn>
-                <v-btn color="success" variant="outlined" @click="delOverlay[index] = false">{{ $t('no') }}</v-btn>
-              </v-card-actions>
-            </v-card>
-          </v-overlay>
-          <v-btn icon="mdi-chart-line" @click="showStats(item.tag)" v-if="Data().enableTraffic">
-            <v-icon />
-            <v-tooltip activator="parent" location="top" :text="$t('stats.graphTitle')"></v-tooltip>
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-col>
-    <v-col cols="12" sm="4" md="3" lg="2" v-for="(item, index) in <any[]>warpEndpoints" :key="'warp-' + item.tag">
-      <v-card rounded="xl" elevation="2" min-width="180" :title="item.tag">
-        <v-card-subtitle>
-          <v-row>
-            <v-col>WARP / {{ $t('objects.outbound') }}</v-col>
-          </v-row>
-        </v-card-subtitle>
-        <v-card-text>
-          <v-row>
-            <v-col>{{ $t('types.wg.localIp') }}</v-col>
-            <v-col>
-              {{ formatEndpointAddress(item) }}
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>{{ $t('types.wg.peer') }}</v-col>
-            <v-col>
-              {{ formatEndpointPeer(item) }}
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>{{ $t('out.warpExit') }}</v-col>
-            <v-col>
-              {{ formatWarpTrace(item.tag) }}
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>{{ $t('types.wg.sysIf') }}</v-col>
-            <v-col>
-              {{ $t(item.system ? 'enable' : 'disable') }}
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>{{ $t('online') }}</v-col>
-            <v-col>
-              <template v-if="endpointOnlines.includes(item.tag)">
-                <v-chip density="comfortable" size="small" color="success" variant="flat">{{ $t('online') }}</v-chip>
-              </template>
-              <template v-else>-</template>
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>{{ $t('out.delay') }}</v-col>
-            <v-col>
-              <v-progress-circular
-                v-if="checkResults[item.tag]?.loading"
-                indeterminate
-                size="20"
-              />
-              <v-icon
-                icon="mdi-speedometer"
-                v-else
-                @click="checkWarpEndpoint(item.tag)"
-              >
-                <v-tooltip activator="parent" location="top" :text="$t('out.warpTrace')"></v-tooltip>
-              </v-icon>
-              <template v-if="checkResults[item.tag]?.loading == false">
-                <template v-if="checkResults[item.tag]">
-                  <v-chip
-                    v-if="checkResults[item.tag].success"
-                    density="compact"
-                    size="small"
-                    color="success"
-                    variant="flat"
-                  >
-                    {{ checkResults[item.tag].data?.Delay + $t('date.ms') }}
-                  </v-chip>
-                  <v-tooltip v-else location="top" :text="checkResults[item.tag].errorMessage || $t('failed')">
-                    <template v-slot:activator="{ props }">
-                      <v-icon v-bind="props" size="small" color="error" icon="mdi-close-circle" />
-                    </template>
-                  </v-tooltip>
-                </template>
-              </template>
-            </v-col>
-          </v-row>
-        </v-card-text>
-        <v-divider></v-divider>
-        <v-card-actions>
-          <v-btn icon="mdi-file-edit" @click="showEndpointModal(item.id)">
-            <v-icon />
-            <v-tooltip activator="parent" location="top" :text="$t('actions.edit')"></v-tooltip>
-          </v-btn>
-          <v-btn icon="mdi-file-remove" color="warning" @click="endpointDelOverlay[index] = true">
-            <v-icon />
-            <v-tooltip activator="parent" location="top" :text="$t('actions.del')"></v-tooltip>
-          </v-btn>
-          <v-overlay
-            v-model="endpointDelOverlay[index]"
-            contained
-            class="align-center justify-center"
-          >
-            <v-card :title="$t('actions.del')" rounded="lg">
-              <v-divider></v-divider>
-              <v-card-text>{{ $t('confirm') }}</v-card-text>
-              <v-card-actions>
-                <v-btn color="error" variant="outlined" @click="delEndpoint(item.tag)">{{ $t('yes') }}</v-btn>
-                <v-btn color="success" variant="outlined" @click="endpointDelOverlay[index] = false">{{ $t('no') }}</v-btn>
-              </v-card-actions>
-            </v-card>
-          </v-overlay>
-          <v-btn icon="mdi-chart-line" @click="showStats(item.tag, 'endpoint')" v-if="Data().enableTraffic">
-            <v-icon />
-            <v-tooltip activator="parent" location="top" :text="$t('stats.graphTitle')"></v-tooltip>
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-col>
-  </v-row>
+    </div>
+    <v-text-field
+      v-model="query"
+      class="list-toolbar__search"
+      :placeholder="$t('list.search')"
+      prepend-inner-icon="mdi-magnify"
+      clearable
+      density="compact"
+      hide-details
+    />
+  </div>
+  <v-data-table
+    class="list-table"
+    :headers="headers"
+    :items="filteredRows"
+    item-value="key"
+    v-model:items-per-page="itemsPerPage"
+    :items-per-page-options="pageSizeItems"
+    :mobile="smAndDown"
+    :hide-default-header="smAndDown"
+    :no-data-text="$t('noData')"
+    hover
+  >
+    <template #item.tag="{ item }">
+      <span class="list-main">{{ item.tag }}</span>
+    </template>
+    <template #item.type="{ item }">
+      <v-chip size="small" label variant="tonal" :color="item.kind === 'warp' ? 'info' : 'primary'">{{ item.kind === 'warp' ? 'WARP' : item.type }}</v-chip>
+    </template>
+    <template #item.address="{ item }">
+      <div class="list-mono">{{ item.address }}</div>
+      <div v-if="item.kind === 'warp'" class="list-sub">{{ $t('types.wg.localIp') }}: {{ item.local }}</div>
+      <div v-if="item.kind === 'warp' && formatWarpTrace(item.tag) !== '-'" class="list-sub">{{ $t('out.warpExit') }}: {{ formatWarpTrace(item.tag) }}</div>
+    </template>
+    <template #item.tls="{ item }">
+      <v-chip v-if="item.tls" size="small" label variant="tonal" :color="item.tls === 'on' ? 'success' : undefined">{{ item.tls === 'on' ? $t('enable') : $t('disable') }}</v-chip>
+      <span v-else>-</span>
+    </template>
+    <template #item.online="{ item }">
+      <span class="list-status" :class="{ 'list-status--on': item.online }">{{ item.online ? $t('online') : $t('list.idle') }}</span>
+    </template>
+    <template #item.delay="{ item }">
+      <div class="list-delay">
+        <v-progress-circular v-if="checkResults[item.tag]?.loading" indeterminate size="16" width="2" />
+        <template v-else-if="checkResults[item.tag]">
+          <span v-if="checkResults[item.tag].success" class="text-success">{{ checkResults[item.tag].data?.Delay }} {{ $t('date.ms') }}</span>
+          <span v-else class="text-error" :title="checkResults[item.tag].errorMessage || $t('failed')">{{ $t('failed') }}</span>
+        </template>
+        <v-btn
+          size="small"
+          variant="text"
+          icon="mdi-speedometer"
+          :title="item.kind === 'warp' ? $t('out.warpTrace') : $t('actions.test')"
+          :disabled="checkResults[item.tag]?.loading"
+          @click="item.kind === 'warp' ? checkWarpEndpoint(item.tag) : checkOutbound(item.tag)"
+        />
+      </div>
+    </template>
+    <template #item.actions="{ item }">
+      <div class="list-ops">
+        <v-btn size="small" variant="text" color="primary" @click="item.kind === 'warp' ? showEndpointModal(item.id) : showModal(item.id)">{{ $t('actions.edit') }}</v-btn>
+        <v-btn v-if="Data().enableTraffic" size="small" variant="text" color="primary" @click="showStats(item.tag, item.kind === 'warp' ? 'endpoint' : 'outbound')">{{ $t('list.traffic') }}</v-btn>
+        <v-btn size="small" variant="text" color="error" @click="requestDelete(item)">{{ $t('actions.del') }}</v-btn>
+      </div>
+    </template>
+  </v-data-table>
 </template>
 
 <script lang="ts" setup>
@@ -286,6 +131,8 @@ import Stats from '@/layouts/modals/Stats.vue'
 import { Outbound } from '@/types/outbounds'
 import { Endpoint, EpTypes, createEndpoint } from '@/types/endpoints'
 import { computed, ref } from 'vue'
+import { useDisplay } from 'vuetify'
+import { i18n } from '@/locales'
 
 interface CheckResult {
   loading?: boolean
@@ -375,8 +222,76 @@ const modal = ref({
   data: "",
 })
 
-let delOverlay = ref(new Array<boolean>)
-let endpointDelOverlay = ref(new Array<boolean>)
+const t = i18n.global.t
+const { smAndDown } = useDisplay()
+const query = ref('')
+const itemsPerPage = ref(20)
+const pageSizeItems = computed(() => [
+  ...[20, 40, 80].map(value => ({ value, title: String(value) })),
+  { value: -1, title: t('list.all') },
+])
+const headers = computed(() => [
+  { title: t('objects.tag'), key: 'tag' },
+  { title: t('list.type'), key: 'type' },
+  { title: t('list.server'), key: 'address', sortable: false },
+  { title: 'TLS', key: 'tls', sortable: false },
+  { title: t('list.status'), key: 'online', sortable: false },
+  { title: t('out.delay'), key: 'delay', sortable: false },
+  { title: t('list.actions'), key: 'actions', sortable: false },
+])
+
+const hostPort = (host: unknown, port: unknown) => {
+  if (!host) return '-'
+  const text = String(host)
+  return (text.includes(':') ? `[${text}]` : text) + (port ? `:${port}` : '')
+}
+
+// Outbounds and WARP endpoints share one table.
+const rows = computed(() => [
+  ...outbounds.value.map((item: any) => ({
+    key: 'out-' + item.tag,
+    kind: 'outbound',
+    id: item.id,
+    tag: item.tag,
+    type: item.type,
+    address: hostPort(item.server, item.server_port),
+    local: '',
+    tls: Object.hasOwn(item, 'tls') ? (item.tls?.enabled ? 'on' : 'off') : '',
+    online: onlines.value.includes(item.tag),
+  })),
+  ...warpEndpoints.value.map((item: any) => ({
+    key: 'warp-' + item.tag,
+    kind: 'warp',
+    id: item.id,
+    tag: item.tag,
+    type: 'warp',
+    address: formatEndpointPeer(item),
+    local: formatEndpointAddress(item),
+    tls: '',
+    online: endpointOnlines.value.includes(item.tag),
+  })),
+])
+
+const filteredRows = computed(() => {
+  const value = (query.value || '').trim().toLocaleLowerCase()
+  if (!value) return rows.value
+  return rows.value.filter(row => [row.tag, row.type, row.address]
+    .some(field => String(field ?? '').toLocaleLowerCase().includes(value)))
+})
+
+const deleteDialog = ref({ visible: false, loading: false, kind: 'outbound', tag: '' })
+const requestDelete = (row: any) => {
+  deleteDialog.value = { visible: true, loading: false, kind: row.kind, tag: row.tag }
+}
+const confirmDelete = async () => {
+  deleteDialog.value.loading = true
+  try {
+    const object = deleteDialog.value.kind === 'warp' ? 'endpoints' : 'outbounds'
+    if (await Data().save(object, 'del', deleteDialog.value.tag)) deleteDialog.value.visible = false
+  } finally {
+    deleteDialog.value.loading = false
+  }
+}
 
 const showModal = (id: number) => {
   modal.value.id = id
@@ -463,18 +378,6 @@ const stats = ref({
   resource: "outbound",
   tag: "",
 })
-
-const delOutbound = async (tag: string) => {
-  const index = outbounds.value.findIndex(i => i.tag == tag)
-  const success = await Data().save("outbounds", "del", tag)
-  if (success) delOverlay.value[index] = false
-}
-
-const delEndpoint = async (tag: string) => {
-  const index = warpEndpoints.value.findIndex((i: any) => i.tag == tag)
-  const success = await Data().save("endpoints", "del", tag)
-  if (success && index >= 0) endpointDelOverlay.value[index] = false
-}
 
 const showStats = (tag: string, resource = "outbound") => {
   stats.value.resource = resource

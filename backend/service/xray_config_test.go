@@ -168,7 +168,7 @@ func TestFetchXrayVlessClientsKeepsVisionFlowOnRaw(t *testing.T) {
 	if err := db.Create(&client).Error; err != nil {
 		t.Fatal(err)
 	}
-	clients, err := (&InboundService{}).fetchXrayVlessClients(db, 42, "raw")
+	clients, err := (&InboundService{}).fetchXrayVlessClients(db, 42, true)
 	if err != nil {
 		t.Fatal(err)
 	}
