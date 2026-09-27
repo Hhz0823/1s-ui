@@ -544,7 +544,9 @@ func validAgentRPCMethod(method string) bool {
 		agent.RPCMethodRelayExport,
 		agent.RPCMethodPanelAccess,
 		agent.RPCMethodSdwanProvision,
-		agent.RPCMethodSdwanRemove:
+		agent.RPCMethodSdwanRemove,
+		agent.RPCMethodSdwanDiagnose,
+		agent.RPCMethodSdwanTune:
 		return true
 	default:
 		return false
@@ -555,7 +557,7 @@ func agentRPCTimeout(method string) time.Duration {
 	switch method {
 	case agent.RPCMethodInboundQuickAdd, agent.RPCMethodRelayCreate, agent.RPCMethodRelayDelete:
 		return 10 * time.Minute
-	case agent.RPCMethodSdwanProvision, agent.RPCMethodSdwanRemove:
+	case agent.RPCMethodSdwanProvision, agent.RPCMethodSdwanRemove, agent.RPCMethodSdwanTune:
 		return 3 * time.Minute
 	default:
 		return agentCommandTimeout
@@ -565,7 +567,7 @@ func agentRPCTimeout(method string) time.Duration {
 func agentRPCMutatesConfig(method string) bool {
 	switch method {
 	case agent.RPCMethodInboundSave, agent.RPCMethodInboundQuickAdd, agent.RPCMethodRelayCreate, agent.RPCMethodRelayDelete,
-		agent.RPCMethodSdwanProvision, agent.RPCMethodSdwanRemove:
+		agent.RPCMethodSdwanProvision, agent.RPCMethodSdwanRemove, agent.RPCMethodSdwanTune:
 		return true
 	default:
 		return false

@@ -22,40 +22,64 @@ import (
 )
 
 // SD-WAN turns the controller into a smart gateway: every managed server gets
-// a private uplink, the controller keeps them in a sing-box urltest group and
-// routes the selected entry inbounds through whichever server currently has
-// the lowest latency, failing over automatically when a server goes down.
+// private uplinks (by default VLESS Reality over TCP and Hysteria2 over QUIC),
+// the controller keeps every path in a sing-box urltest group and routes the
+// selected entry inbounds through whichever path is currently fastest, failing
+// over automatically when a path or server breaks.
 const (
 	sdwanConfigKey        = "sdwanConfig"
 	SdwanGroupTag         = "sdwan-auto"
 	sdwanMemberTagPrefix  = "sdwan-node-"
+	SdwanModeAuto         = "auto"
 	defaultSdwanTestURL   = "https://www.gstatic.com/generate_204"
+	defaultSdwanSpeedURL  = "https://speed.cloudflare.com/__down?bytes=10000000"
 	defaultSdwanInterval  = 60
 	defaultSdwanTolerance = 50
 	maxSdwanEntryInbounds = 256
 )
 
 type SdwanSettings struct {
-	// Enabled routes the entry inbounds through the SD-WAN group. Members and
+	// Enabled routes the entry inbounds through the SD-WAN group. Paths and
 	// the group exist whenever members are configured, so latency can be
 	// checked (and custom rules can use sdwan-auto) before switching traffic.
 	Enabled       bool     `json:"enabled"`
-	Protocol      string   `json:"protocol"`
+	Mode          string   `json:"mode"`
 	EntryInbounds []string `json:"entry_inbounds"`
 	TestURL       string   `json:"test_url"`
+	SpeedTestURL  string   `json:"speed_test_url"`
 	Interval      int      `json:"interval"`
 	Tolerance     int      `json:"tolerance"`
+	RealityServer string   `json:"reality_server"`
 	IncludeDirect bool     `json:"include_direct"`
 	RulesFirst    bool     `json:"rules_first"`
+}
+
+// SdwanPath is one uplink of a member server as the controller dials it.
+type SdwanPath struct {
+	Protocol string          `json:"protocol"`
+	Port     int             `json:"port"`
+	Detail   string          `json:"detail,omitempty"`
+	Outbound json.RawMessage `json:"outbound"`
+	Disabled bool            `json:"disabled,omitempty"`
+	Reason   string          `json:"reason,omitempty"`
+}
+
+type SdwanPathView struct {
+	Protocol string  `json:"protocol"`
+	Tag      string  `json:"tag"`
+	Port     int     `json:"port"`
+	Detail   string  `json:"detail,omitempty"`
+	Disabled bool    `json:"disabled"`
+	Reason   string  `json:"reason,omitempty"`
+	Delay    *uint16 `json:"delay,omitempty"`
+	DelayAt  int64   `json:"delay_at,omitempty"`
+	Selected bool    `json:"selected"`
 }
 
 type SdwanMemberView struct {
 	NodeID      uint             `json:"node_id"`
 	Name        string           `json:"name"`
-	Tag         string           `json:"tag"`
-	Protocol    string           `json:"protocol"`
 	Server      string           `json:"server"`
-	Port        int              `json:"port"`
 	UpdatedAt   int64            `json:"updated_at"`
 	Online      bool             `json:"online"`
 	Managed     bool             `json:"managed"`
@@ -63,8 +87,8 @@ type SdwanMemberView struct {
 	CPUPercent  float64          `json:"cpu_percent"`
 	NetSentRate uint64           `json:"net_sent_rate"`
 	NetRecvRate uint64           `json:"net_recv_rate"`
-	Delay       *uint16          `json:"delay,omitempty"`
-	DelayAt     int64            `json:"delay_at,omitempty"`
+	Paths       []SdwanPathView  `json:"paths"`
+	Desired     []string         `json:"desired"`
 	Selected    bool             `json:"selected"`
 	NeedsResync bool             `json:"needs_resync"`
 }
@@ -84,6 +108,7 @@ type SdwanState struct {
 	Members      []SdwanMemberView `json:"members"`
 	Nodes        []SdwanNodeOption `json:"nodes"`
 	Inbounds     []string          `json:"inbounds"`
+	Protocols    []string          `json:"protocols"`
 	GroupTag     string            `json:"group_tag"`
 	Active       bool              `json:"active"`
 	Selected     string            `json:"selected,omitempty"`
@@ -91,44 +116,119 @@ type SdwanState struct {
 	CoreRunning  bool              `json:"core_running"`
 	CanControl   bool              `json:"can_control"`
 	Warnings     []string          `json:"warnings,omitempty"`
+	Job          *SdwanJob         `json:"job,omitempty"`
 }
 
 type SdwanService struct {
 	agents AgentService
 	config ConfigService
-	// restartCore applies a new SD-WAN topology; replaceable in tests.
+	// restartCore applies a new SD-WAN topology; rpc, listNodes and getNode
+	// reach the managed servers. All are replaceable in tests.
 	restartCore func() error
+	rpc         func(nodeID uint, method string, payload interface{}, actor string) (*agent.RPCResponse, error)
+	listNodes   func() ([]AgentNodeView, error)
+	getNode     func(id uint) (*AgentNodeView, error)
+}
+
+func (s *SdwanService) dispatch(nodeID uint, method string, payload interface{}, actor string) (*agent.RPCResponse, error) {
+	if s.rpc != nil {
+		return s.rpc(nodeID, method, payload, actor)
+	}
+	return s.agents.DispatchRPC(nodeID, method, payload, actor)
+}
+
+func (s *SdwanService) nodes() ([]AgentNodeView, error) {
+	if s.listNodes != nil {
+		return s.listNodes()
+	}
+	return s.agents.List()
+}
+
+func (s *SdwanService) node(id uint) (*AgentNodeView, error) {
+	if s.getNode != nil {
+		return s.getNode(id)
+	}
+	return s.agents.Get(id)
 }
 
 var sdwanMu sync.Mutex
 
-func sdwanMemberTag(nodeID uint) string {
-	return fmt.Sprintf("%s%d", sdwanMemberTagPrefix, nodeID)
+var sdwanShortProtocol = map[string]string{
+	SdwanProtocolReality:     "reality",
+	SdwanProtocolHysteria2:   "hy2",
+	SdwanProtocolShadowsocks: "ss",
+}
+
+func sdwanPathTag(nodeID uint, protocol string) string {
+	return fmt.Sprintf("%s%d-%s", sdwanMemberTagPrefix, nodeID, sdwanShortProtocol[protocol])
+}
+
+func pathProtocols(paths []SdwanPath) []string {
+	protocols := make([]string, 0, len(paths))
+	for _, path := range paths {
+		protocols = append(protocols, path.Protocol)
+	}
+	return protocols
+}
+
+func memberPaths(member model.SdwanMember) []SdwanPath {
+	var paths []SdwanPath
+	if len(member.Paths) > 0 {
+		_ = json.Unmarshal(member.Paths, &paths)
+	}
+	return paths
+}
+
+func setMemberPaths(member *model.SdwanMember, paths []SdwanPath) error {
+	raw, err := json.Marshal(paths)
+	if err != nil {
+		return err
+	}
+	member.Paths = raw
+	return nil
 }
 
 func defaultSdwanSettings() SdwanSettings {
 	return SdwanSettings{
-		Protocol:      SdwanProtocolShadowsocks,
+		Mode:          SdwanModeAuto,
 		EntryInbounds: []string{},
 		TestURL:       defaultSdwanTestURL,
+		SpeedTestURL:  defaultSdwanSpeedURL,
 		Interval:      defaultSdwanInterval,
 		Tolerance:     defaultSdwanTolerance,
 	}
 }
 
+func validHTTPURL(value string) bool {
+	parsed, err := url.Parse(value)
+	return err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != ""
+}
+
 func normalizeSdwanSettings(settings *SdwanSettings) error {
-	protocol, err := normalizeSdwanProtocol(settings.Protocol)
-	if err != nil {
-		return err
+	settings.Mode = strings.ToLower(strings.TrimSpace(settings.Mode))
+	if settings.Mode == "" {
+		settings.Mode = SdwanModeAuto
 	}
-	settings.Protocol = protocol
+	if settings.Mode != SdwanModeAuto {
+		protocol, err := normalizeSdwanProtocol(settings.Mode)
+		if err != nil {
+			return err
+		}
+		settings.Mode = protocol
+	}
 	settings.TestURL = strings.TrimSpace(settings.TestURL)
 	if settings.TestURL == "" {
 		settings.TestURL = defaultSdwanTestURL
 	}
-	parsed, err := url.Parse(settings.TestURL)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+	if !validHTTPURL(settings.TestURL) {
 		return common.NewError("SD-WAN test URL must be an http(s) URL")
+	}
+	settings.SpeedTestURL = strings.TrimSpace(settings.SpeedTestURL)
+	if settings.SpeedTestURL == "" {
+		settings.SpeedTestURL = defaultSdwanSpeedURL
+	}
+	if !validHTTPURL(settings.SpeedTestURL) {
+		return common.NewError("SD-WAN speed test URL must be an http(s) URL")
 	}
 	if settings.Interval == 0 {
 		settings.Interval = defaultSdwanInterval
@@ -142,6 +242,11 @@ func normalizeSdwanSettings(settings *SdwanSettings) error {
 	if settings.Tolerance < 1 || settings.Tolerance > 5000 {
 		return common.NewError("SD-WAN tolerance must be between 1 and 5000 ms")
 	}
+	realityServer, err := normalizeRealityServer(settings.RealityServer)
+	if err != nil {
+		return err
+	}
+	settings.RealityServer = realityServer
 	entries := make([]string, 0, len(settings.EntryInbounds))
 	for _, tag := range settings.EntryInbounds {
 		tag = strings.TrimSpace(tag)
@@ -207,13 +312,51 @@ func (s *SdwanService) apply() error {
 }
 
 func sdwanNodeSupported(node *AgentNodeView) bool {
-	return node != nil && node.Managed && slices.Contains(node.Report.Panel.Capabilities, agent.CapabilitySdwanV1)
+	return node != nil && node.Managed && slices.Contains(node.Report.Panel.Capabilities, agent.CapabilitySdwanV2)
+}
+
+// sdwanProtocolsFor resolves the configured mode into the uplink protocols that
+// both the managed server and this controller can run. "auto" uses Reality
+// (TCP, most robust and secure) plus Hysteria2 (QUIC, fastest on lossy
+// links); Shadowsocks 2022 is the fallback when neither is available.
+func sdwanProtocolsFor(mode string, capabilities []string) []string {
+	usable := func(protocol string) bool {
+		if !sdwanProtocolAvailable(protocol) {
+			return false
+		}
+		switch protocol {
+		case SdwanProtocolReality:
+			return slices.Contains(capabilities, agent.CapabilitySdwanReality)
+		case SdwanProtocolHysteria2:
+			return slices.Contains(capabilities, agent.CapabilitySdwanHysteria2)
+		}
+		return true
+	}
+	if mode != SdwanModeAuto {
+		if usable(mode) {
+			return []string{mode}
+		}
+		return []string{SdwanProtocolShadowsocks}
+	}
+	var protocols []string
+	for _, protocol := range []string{SdwanProtocolReality, SdwanProtocolHysteria2} {
+		if usable(protocol) {
+			protocols = append(protocols, protocol)
+		}
+	}
+	if len(protocols) == 0 {
+		protocols = []string{SdwanProtocolShadowsocks}
+	}
+	return protocols
 }
 
 // SdwanState reports configuration, members, runtime selection and candidates.
 func (s *SdwanService) SdwanState() (*SdwanState, error) {
 	db := database.GetDB()
-	state := &SdwanState{GroupTag: SdwanGroupTag, Members: []SdwanMemberView{}, Nodes: []SdwanNodeOption{}, Inbounds: []string{}}
+	state := &SdwanState{
+		GroupTag: SdwanGroupTag, Members: []SdwanMemberView{}, Nodes: []SdwanNodeOption{},
+		Inbounds: []string{}, Protocols: localSdwanProtocols(), Job: currentSdwanJob(),
+	}
 	settings, err := loadSdwanSettings(db)
 	if err != nil {
 		state.Warnings = append(state.Warnings, "invalid stored SD-WAN settings were reset: "+err.Error())
@@ -229,13 +372,16 @@ func (s *SdwanService) SdwanState() (*SdwanState, error) {
 	var inboundTags []string
 	if err = db.Model(&model.Inbound{}).
 		Where("core_type = ? OR core_type = '' OR core_type IS NULL", model.CoreTypeSingBox).
-		Where("tag <> ?", sdwanUplinkTag).
 		Order("id").Pluck("tag", &inboundTags).Error; err != nil {
 		return nil, err
 	}
-	state.Inbounds = append(state.Inbounds, inboundTags...)
+	for _, tag := range inboundTags {
+		if !isSdwanUplinkTag(tag) {
+			state.Inbounds = append(state.Inbounds, tag)
+		}
+	}
 
-	nodes, err := s.agents.List()
+	nodes, err := s.nodes()
 	if err != nil {
 		return nil, err
 	}
@@ -261,26 +407,36 @@ func (s *SdwanService) SdwanState() (*SdwanState, error) {
 	for _, member := range members {
 		memberIDs[member.NodeId] = true
 		node := nodeByID[member.NodeId]
+		paths := memberPaths(member)
 		view := SdwanMemberView{
-			NodeID: member.NodeId, Name: node.Name, Tag: sdwanMemberTag(member.NodeId),
-			Protocol: member.Protocol, Server: member.Server, Port: member.Port, UpdatedAt: member.UpdatedAt,
+			NodeID: member.NodeId, Name: node.Name, Server: member.Server, UpdatedAt: member.UpdatedAt,
 			Online: node.Online, Managed: node.Managed, Latency: node.Latency,
 			CPUPercent: node.Report.CPUPercent, NetSentRate: node.Report.NetRate.Sent, NetRecvRate: node.Report.NetRate.Recv,
-			NeedsResync: member.Protocol != settings.Protocol,
+			Paths:   []SdwanPathView{},
+			Desired: sdwanProtocolsFor(settings.Mode, node.Report.Panel.Capabilities),
 		}
 		if view.Name == "" {
 			view.Name = fmt.Sprintf("#%d", member.NodeId)
 		}
-		if groupStatus != nil {
-			if delay, ok := groupStatus.Delays[view.Tag]; ok {
-				value := delay.Delay
-				view.Delay = &value
-				view.DelayAt = delay.Time.Unix()
+		view.NeedsResync = !sameProtocolSet(pathProtocols(paths), view.Desired)
+		for _, path := range paths {
+			pathView := SdwanPathView{
+				Protocol: path.Protocol, Tag: sdwanPathTag(member.NodeId, path.Protocol), Port: path.Port,
+				Detail: path.Detail, Disabled: path.Disabled, Reason: path.Reason,
 			}
-			view.Selected = groupStatus.Now == view.Tag
-			if view.Selected {
-				state.SelectedName = view.Name
+			if groupStatus != nil {
+				if delay, ok := groupStatus.Delays[pathView.Tag]; ok {
+					value := delay.Delay
+					pathView.Delay = &value
+					pathView.DelayAt = delay.Time.Unix()
+				}
+				pathView.Selected = groupStatus.Now == pathView.Tag
 			}
+			if pathView.Selected {
+				view.Selected = true
+				state.SelectedName = view.Name + " · " + path.Protocol
+			}
+			view.Paths = append(view.Paths, pathView)
 		}
 		state.Members = append(state.Members, view)
 	}
@@ -299,10 +455,13 @@ func (s *SdwanService) SdwanState() (*SdwanState, error) {
 }
 
 // SaveSdwanSettings stores the settings, re-provisions members when the uplink
-// protocol changed, and restarts sing-box so routing follows the new topology.
+// mode or Reality target changed, and restarts sing-box so routing follows.
 func (s *SdwanService) SaveSdwanSettings(settings SdwanSettings, actor string) (*SdwanState, error) {
 	if err := (&SettingService{}).RequireControllerControl(); err != nil {
 		return nil, err
+	}
+	if sdwanJobRunning() {
+		return nil, errSdwanJobRunning
 	}
 	if err := normalizeSdwanSettings(&settings); err != nil {
 		return nil, err
@@ -315,7 +474,7 @@ func (s *SdwanService) SaveSdwanSettings(settings SdwanSettings, actor string) (
 		return nil, err
 	}
 	var warnings []string
-	if previous.Protocol != settings.Protocol {
+	if previous.Mode != settings.Mode || previous.RealityServer != settings.RealityServer {
 		warnings = s.resyncLocked(settings, actor)
 	}
 	applyErr := s.apply()
@@ -326,15 +485,18 @@ func (s *SdwanService) SaveSdwanSettings(settings SdwanSettings, actor string) (
 	return s.stateWithWarnings(warnings)
 }
 
-// AddSdwanMember provisions the SD-WAN uplink on a managed server and adds it
-// to the group. Calling it again refreshes the member (e.g. after an IP change).
+// AddSdwanMember provisions the uplinks on a managed server and adds its paths
+// to the group. Calling it again refreshes them (e.g. after an IP change).
 func (s *SdwanService) AddSdwanMember(nodeID uint, actor string) (*SdwanState, error) {
 	if err := (&SettingService{}).RequireControllerControl(); err != nil {
 		return nil, err
 	}
+	if sdwanJobRunning() {
+		return nil, errSdwanJobRunning
+	}
 	sdwanMu.Lock()
 	settings, _ := loadSdwanSettings(database.GetDB())
-	err := s.provisionLocked(nodeID, settings, actor)
+	err := s.provisionLocked(nodeID, settings, actor, false)
 	if err == nil {
 		err = s.apply()
 		if err != nil {
@@ -348,11 +510,14 @@ func (s *SdwanService) AddSdwanMember(nodeID uint, actor string) (*SdwanState, e
 	return s.SdwanState()
 }
 
-// RemoveSdwanMember removes a member and deletes its uplink on the managed
+// RemoveSdwanMember removes a member and deletes its uplinks on the managed
 // server when that server is reachable.
 func (s *SdwanService) RemoveSdwanMember(nodeID uint, actor string) (*SdwanState, error) {
 	if err := (&SettingService{}).RequireControllerControl(); err != nil {
 		return nil, err
+	}
+	if sdwanJobRunning() {
+		return nil, errSdwanJobRunning
 	}
 	sdwanMu.Lock()
 	db := database.GetDB()
@@ -362,13 +527,13 @@ func (s *SdwanService) RemoveSdwanMember(nodeID uint, actor string) (*SdwanState
 		return nil, result.Error
 	}
 	var warnings []string
-	if node, err := s.agents.Get(nodeID); err == nil && sdwanNodeSupported(node) {
+	if node, err := s.node(nodeID); err == nil && sdwanNodeSupported(node) {
 		request := SdwanRemoveRequest{Actor: actor, PublicHost: ManagedNodePublicHost(node)}
-		if _, rpcErr := s.agents.DispatchRPC(nodeID, agent.RPCMethodSdwanRemove, request, actor); rpcErr != nil {
-			warnings = append(warnings, fmt.Sprintf("%s: uplink was not removed on the server: %v", node.Name, rpcErr))
+		if _, rpcErr := s.dispatch(nodeID, agent.RPCMethodSdwanRemove, request, actor); rpcErr != nil {
+			warnings = append(warnings, fmt.Sprintf("%s: uplinks were not removed on the server: %v", node.Name, rpcErr))
 		}
 	} else {
-		warnings = append(warnings, "the server is offline; remove the sdwan-uplink inbound on it manually if it still exists")
+		warnings = append(warnings, "the server is offline; remove its sdwan-uplink inbounds manually if they still exist")
 	}
 	applyErr := s.apply()
 	sdwanMu.Unlock()
@@ -383,6 +548,9 @@ func (s *SdwanService) ResyncSdwan(actor string) (*SdwanState, error) {
 	if err := (&SettingService{}).RequireControllerControl(); err != nil {
 		return nil, err
 	}
+	if sdwanJobRunning() {
+		return nil, errSdwanJobRunning
+	}
 	sdwanMu.Lock()
 	settings, _ := loadSdwanSettings(database.GetDB())
 	warnings := s.resyncLocked(settings, actor)
@@ -394,7 +562,7 @@ func (s *SdwanService) ResyncSdwan(actor string) (*SdwanState, error) {
 	return s.stateWithWarnings(warnings)
 }
 
-// TestSdwan re-measures every member through the running group right now and
+// TestSdwan re-measures every path through the running group right now and
 // lets the group switch to the fastest one.
 func (s *SdwanService) TestSdwan() (*SdwanState, error) {
 	if corePtr == nil || !corePtr.IsRunning() {
@@ -435,15 +603,17 @@ func (s *SdwanService) resyncLocked(settings SdwanSettings, actor string) []stri
 	}
 	var warnings []string
 	for _, member := range members {
-		if err := s.provisionLocked(member.NodeId, settings, actor); err != nil {
+		if err := s.provisionLocked(member.NodeId, settings, actor, false); err != nil {
 			warnings = append(warnings, fmt.Sprintf("#%d: %v", member.NodeId, err))
 		}
 	}
 	return warnings
 }
 
-func (s *SdwanService) provisionLocked(nodeID uint, settings SdwanSettings, actor string) error {
-	node, err := s.agents.Get(nodeID)
+// provisionLocked (re)creates the uplinks of one member; rotate replaces the
+// existing uplinks and credentials with new ones on new ports.
+func (s *SdwanService) provisionLocked(nodeID uint, settings SdwanSettings, actor string, rotate bool) error {
+	node, err := s.node(nodeID)
 	if err != nil {
 		return common.NewError("managed server not found")
 	}
@@ -457,8 +627,14 @@ func (s *SdwanService) provisionLocked(nodeID uint, settings SdwanSettings, acto
 	if publicHost == "" {
 		return common.NewErrorf("%s has no public address; set one on the server page", node.Name)
 	}
-	request := SdwanProvisionRequest{Protocol: settings.Protocol, Actor: actor, PublicHost: publicHost}
-	response, err := s.agents.DispatchRPC(nodeID, agent.RPCMethodSdwanProvision, request, actor)
+	request := SdwanProvisionRequest{
+		Protocols:     sdwanProtocolsFor(settings.Mode, node.Report.Panel.Capabilities),
+		RealityServer: settings.RealityServer,
+		Rotate:        rotate,
+		Actor:         actor,
+		PublicHost:    publicHost,
+	}
+	response, err := s.dispatch(nodeID, agent.RPCMethodSdwanProvision, request, actor)
 	if err != nil {
 		return err
 	}
@@ -466,46 +642,93 @@ func (s *SdwanService) provisionLocked(nodeID uint, settings SdwanSettings, acto
 	if err = json.Unmarshal(response.Payload, &provisioned); err != nil {
 		return err
 	}
-	outbound, err := sdwanMemberOutbound(nodeID, provisioned.Outbound)
-	if err != nil {
-		return common.NewErrorf("%s returned an unusable uplink: %v", node.Name, err)
+	return saveSdwanMemberUplinks(nodeID, provisioned)
+}
+
+func saveSdwanMemberUplinks(nodeID uint, provisioned SdwanProvisionResponse) error {
+	paths := make([]SdwanPath, 0, len(provisioned.Uplinks))
+	for _, uplink := range provisioned.Uplinks {
+		protocol, err := normalizeSdwanProtocol(uplink.Protocol)
+		if err != nil {
+			return err
+		}
+		outbound, err := sdwanMemberOutbound(sdwanPathTag(nodeID, protocol), uplink.Outbound)
+		if err != nil {
+			return common.NewErrorf("the %s uplink is unusable: %v", protocol, err)
+		}
+		paths = append(paths, SdwanPath{Protocol: protocol, Port: uplink.Port, Detail: uplink.Detail, Outbound: outbound})
 	}
-	now := time.Now().Unix()
-	member := model.SdwanMember{
-		NodeId: nodeID, Protocol: provisioned.Protocol, Server: provisioned.Server, Port: provisioned.Port,
-		Outbound: outbound, CreatedAt: now, UpdatedAt: now,
+	if len(paths) == 0 {
+		return common.NewError("the server returned no SD-WAN uplinks")
 	}
 	db := database.GetDB()
 	var existing model.SdwanMember
-	err = db.Where("node_id = ?", nodeID).First(&existing).Error
-	if database.IsNotFound(err) {
-		return db.Create(&member).Error
-	}
-	if err != nil {
+	err := db.Where("node_id = ?", nodeID).First(&existing).Error
+	if err != nil && !database.IsNotFound(err) {
 		return err
 	}
+	found := err == nil
+	if found {
+		// A path taken out of the group (e.g. Hysteria2 behind a UDP
+		// firewall) stays out while its uplink is unchanged.
+		for _, previous := range memberPaths(existing) {
+			for index := range paths {
+				if paths[index].Protocol == previous.Protocol && paths[index].Port == previous.Port &&
+					string(paths[index].Outbound) == string(previous.Outbound) {
+					paths[index].Disabled, paths[index].Reason = previous.Disabled, previous.Reason
+				}
+			}
+		}
+	}
+	now := time.Now().Unix()
+	member := model.SdwanMember{NodeId: nodeID, Server: provisioned.Server, CreatedAt: now, UpdatedAt: now}
+	if err = setMemberPaths(&member, paths); err != nil {
+		return err
+	}
+	if !found {
+		return db.Create(&member).Error
+	}
 	return db.Model(&existing).Updates(map[string]interface{}{
-		"protocol": member.Protocol, "server": member.Server, "port": member.Port,
-		"outbound": member.Outbound, "updated_at": now,
+		"server": member.Server, "paths": member.Paths, "updated_at": now,
 	}).Error
 }
 
-// sdwanMemberOutbound tags and validates an uplink outbound so a broken member
+// updateSdwanPathState enables or disables one path of a member.
+func updateSdwanPathState(nodeID uint, protocol string, disabled bool, reason string) error {
+	db := database.GetDB()
+	var member model.SdwanMember
+	if err := db.Where("node_id = ?", nodeID).First(&member).Error; err != nil {
+		return err
+	}
+	paths := memberPaths(member)
+	for index := range paths {
+		if paths[index].Protocol == protocol {
+			paths[index].Disabled = disabled
+			paths[index].Reason = reason
+		}
+	}
+	if err := setMemberPaths(&member, paths); err != nil {
+		return err
+	}
+	return db.Model(&member).Updates(map[string]interface{}{"paths": member.Paths, "updated_at": time.Now().Unix()}).Error
+}
+
+// sdwanMemberOutbound tags and validates an uplink outbound so a broken path
 // can never stop sing-box from starting.
-func sdwanMemberOutbound(nodeID uint, raw json.RawMessage) (json.RawMessage, error) {
+func sdwanMemberOutbound(tag string, raw json.RawMessage) (json.RawMessage, error) {
 	var outbound map[string]interface{}
 	if err := json.Unmarshal(raw, &outbound); err != nil {
 		return nil, err
 	}
 	switch outbound["type"] {
-	case SdwanProtocolShadowsocks, SdwanProtocolHysteria2:
+	case "vless", "hysteria2", "shadowsocks":
 	default:
 		return nil, common.NewErrorf("unexpected outbound type %v", outbound["type"])
 	}
 	for _, key := range []string{"detour", "bind_interface", "inet4_bind_address", "inet6_bind_address", "routing_mark", "netns"} {
 		delete(outbound, key)
 	}
-	outbound["tag"] = sdwanMemberTag(nodeID)
+	outbound["tag"] = tag
 	util.NormalizeSingBoxOutbound(outbound)
 	tagged, err := json.Marshal(outbound)
 	if err != nil {
@@ -531,8 +754,38 @@ func configTags(items []json.RawMessage) map[string]string {
 	return tags
 }
 
-// applySdwanConfig adds member outbounds, the urltest group and, when routing
-// is enabled, the entry rule to a sing-box configuration being built.
+// sdwanActivePaths returns the validated outbounds of every path this
+// controller build can dial, and the tags of the enabled ones that join the
+// group. Disabled paths keep their outbound so detection can re-test them.
+func sdwanActivePaths(members []model.SdwanMember, existing map[string]string) ([]string, []json.RawMessage) {
+	var groupTags []string
+	var outbounds []json.RawMessage
+	for _, member := range members {
+		for _, path := range memberPaths(member) {
+			tag := sdwanPathTag(member.NodeId, path.Protocol)
+			if !sdwanProtocolAvailable(path.Protocol) {
+				continue
+			}
+			if _, taken := existing[tag]; taken {
+				logger.Warning("SD-WAN path skipped: outbound tag ", tag, " is already used")
+				continue
+			}
+			outbound, err := sdwanMemberOutbound(tag, path.Outbound)
+			if err != nil {
+				logger.Warning("SD-WAN path ", tag, " skipped: ", err)
+				continue
+			}
+			outbounds = append(outbounds, outbound)
+			if !path.Disabled {
+				groupTags = append(groupTags, tag)
+			}
+		}
+	}
+	return groupTags, outbounds
+}
+
+// applySdwanConfig adds path outbounds, the urltest group and, when routing is
+// enabled, the entry rule to a sing-box configuration being built.
 func applySdwanConfig(db *gorm.DB, singboxConfig *SingBoxConfig) {
 	var members []model.SdwanMember
 	if err := db.Order("node_id").Find(&members).Error; err != nil || len(members) == 0 {
@@ -550,26 +803,13 @@ func applySdwanConfig(db *gorm.DB, singboxConfig *SingBoxConfig) {
 		logger.Warning("SD-WAN disabled: outbound tag ", SdwanGroupTag, " is already used")
 		return
 	}
-	var memberTags []string
-	var memberOutbounds []json.RawMessage
-	for _, member := range members {
-		tag := sdwanMemberTag(member.NodeId)
-		if _, taken := existing[tag]; taken {
-			logger.Warning("SD-WAN member skipped: outbound tag ", tag, " is already used")
-			continue
-		}
-		outbound, err := sdwanMemberOutbound(member.NodeId, member.Outbound)
-		if err != nil {
-			logger.Warning("SD-WAN member ", tag, " skipped: ", err)
-			continue
-		}
-		memberTags = append(memberTags, tag)
-		memberOutbounds = append(memberOutbounds, outbound)
-	}
-	if len(memberTags) == 0 {
+	pathTags, pathOutbounds := sdwanActivePaths(members, existing)
+	if len(pathTags) == 0 {
+		// Every path is disabled: keep them dialable for detection only.
+		singboxConfig.Outbounds = append(singboxConfig.Outbounds, pathOutbounds...)
 		return
 	}
-	groupMembers := append([]string(nil), memberTags...)
+	groupMembers := append([]string(nil), pathTags...)
 	if settings.IncludeDirect && existing["direct"] == "direct" {
 		groupMembers = append(groupMembers, "direct")
 	}
@@ -586,7 +826,7 @@ func applySdwanConfig(db *gorm.DB, singboxConfig *SingBoxConfig) {
 	if err != nil {
 		return
 	}
-	singboxConfig.Outbounds = append(singboxConfig.Outbounds, memberOutbounds...)
+	singboxConfig.Outbounds = append(singboxConfig.Outbounds, pathOutbounds...)
 	singboxConfig.Outbounds = append(singboxConfig.Outbounds, group)
 
 	if !settings.Enabled {
@@ -595,7 +835,7 @@ func applySdwanConfig(db *gorm.DB, singboxConfig *SingBoxConfig) {
 	inbounds := configTags(singboxConfig.Inbounds)
 	var entries []string
 	for _, tag := range settings.EntryInbounds {
-		if _, ok := inbounds[tag]; ok && tag != sdwanUplinkTag {
+		if _, ok := inbounds[tag]; ok && !isSdwanUplinkTag(tag) {
 			entries = append(entries, tag)
 		}
 	}

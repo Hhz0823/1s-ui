@@ -131,6 +131,10 @@ func (s *Server) startControlSocket() error {
 			if callErr == nil {
 				result, callErr = local.RemoveSdwanUplink(payload)
 			}
+		case agent.RPCMethodSdwanDiagnose:
+			result, callErr = local.DiagnoseSdwanUplink()
+		case agent.RPCMethodSdwanTune:
+			result = service.ApplySdwanTuning()
 		case agent.RPCMethodRelayExport:
 			var payload service.RemoteRelayExportRequest
 			callErr = decodeLocalRPCPayload(request.Payload, &payload)

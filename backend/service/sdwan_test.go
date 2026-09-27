@@ -2,14 +2,17 @@ package service
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/Hhz0823/1s-ui/agent"
 	"github.com/Hhz0823/1s-ui/core"
 	"github.com/Hhz0823/1s-ui/database"
 	"github.com/Hhz0823/1s-ui/database/model"
@@ -48,19 +51,27 @@ func TestInjectSdwanRouteRuleKeepsLeadingActions(t *testing.T) {
 }
 
 func TestNormalizeSdwanSettingsValidatesInput(t *testing.T) {
-	settings := SdwanSettings{Protocol: "hy2", EntryInbounds: []string{" a ", "a", "", "b"}}
+	settings := SdwanSettings{EntryInbounds: []string{" a ", "a", "", "b"}, RealityServer: " WWW.Apple.com "}
 	if err := normalizeSdwanSettings(&settings); err != nil {
 		t.Fatal(err)
 	}
-	if settings.Protocol != SdwanProtocolHysteria2 || len(settings.EntryInbounds) != 2 ||
-		settings.TestURL != defaultSdwanTestURL || settings.Interval != defaultSdwanInterval || settings.Tolerance != defaultSdwanTolerance {
+	if settings.Mode != SdwanModeAuto || len(settings.EntryInbounds) != 2 || settings.RealityServer != "www.apple.com" ||
+		settings.TestURL != defaultSdwanTestURL || settings.SpeedTestURL != defaultSdwanSpeedURL ||
+		settings.Interval != defaultSdwanInterval || settings.Tolerance != defaultSdwanTolerance {
 		t.Fatalf("normalized = %#v", settings)
 	}
+	settings = SdwanSettings{Mode: "hy2"}
+	if err := normalizeSdwanSettings(&settings); err != nil || settings.Mode != SdwanProtocolHysteria2 {
+		t.Fatalf("hy2 mode = %q (%v)", settings.Mode, err)
+	}
 	for _, invalid := range []SdwanSettings{
-		{Protocol: "vmess"},
+		{Mode: "vmess"},
 		{TestURL: "ftp://example.com"},
+		{SpeedTestURL: "file:///etc/passwd"},
 		{Interval: 5},
 		{Tolerance: 9000},
+		{RealityServer: "198.51.100.1"},
+		{RealityServer: "example.com:443"},
 		{EntryInbounds: []string{"bad\ntag"}},
 	} {
 		if err := normalizeSdwanSettings(&invalid); err == nil {
@@ -69,87 +80,259 @@ func TestNormalizeSdwanSettingsValidatesInput(t *testing.T) {
 	}
 }
 
+func TestSdwanProtocolsFollowModeAndCapabilities(t *testing.T) {
+	all := []string{agent.CapabilitySdwanV2, agent.CapabilitySdwanReality, agent.CapabilitySdwanHysteria2}
+	var want []string
+	if sdwanRealitySupported {
+		want = append(want, SdwanProtocolReality)
+	}
+	if sdwanHysteria2Supported {
+		want = append(want, SdwanProtocolHysteria2)
+	}
+	if len(want) == 0 {
+		want = []string{SdwanProtocolShadowsocks}
+	}
+	if got := sdwanProtocolsFor(SdwanModeAuto, all); !slices.Equal(got, want) {
+		t.Fatalf("auto = %v, want %v", got, want)
+	}
+	ss := []string{SdwanProtocolShadowsocks}
+	if got := sdwanProtocolsFor(SdwanModeAuto, []string{agent.CapabilitySdwanV2}); !slices.Equal(got, ss) {
+		t.Fatalf("a server without Reality/QUIC support must fall back to Shadowsocks 2022, got %v", got)
+	}
+	if got := sdwanProtocolsFor(SdwanProtocolHysteria2, []string{agent.CapabilitySdwanV2}); !slices.Equal(got, ss) {
+		t.Fatalf("an explicit mode the server cannot run must fall back, got %v", got)
+	}
+	if got := sdwanProtocolsFor(SdwanProtocolShadowsocks, all); !slices.Equal(got, ss) {
+		t.Fatalf("explicit Shadowsocks = %v", got)
+	}
+}
+
+func stubRealityProbe(t *testing.T, host string) {
+	t.Helper()
+	previous := probeRealityServer
+	probeRealityServer = func(context.Context) string { return host }
+	t.Cleanup(func() { probeRealityServer = previous })
+}
+
+// localRealityTarget starts a TLS 1.3 + h2 server standing in for the public
+// website a Reality uplink imitates, because tests have no internet access.
+func localRealityTarget(t *testing.T) int {
+	t.Helper()
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	server.EnableHTTP2 = true
+	server.TLS = &tls.Config{MinVersion: tls.VersionTLS13}
+	server.StartTLS()
+	t.Cleanup(server.Close)
+	return server.Listener.Addr().(*net.TCPAddr).Port
+}
+
+// pointRealityAt makes every generated Reality uplink hand unauthenticated
+// handshakes to the local target instead of the public website.
+func pointRealityAt(t *testing.T, port int) {
+	t.Helper()
+	db := database.GetDB()
+	var records []model.Tls
+	if err := db.Where("name LIKE ?", sdwanRealityTLSPrefix+"%").Find(&records).Error; err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range records {
+		var server map[string]interface{}
+		if err := json.Unmarshal(record.Server, &server); err != nil {
+			t.Fatal(err)
+		}
+		reality := server["reality"].(map[string]interface{})
+		reality["handshake"] = map[string]interface{}{"server": "127.0.0.1", "server_port": port}
+		raw, _ := json.Marshal(server)
+		if err := db.Model(&model.Tls{}).Where("id = ?", record.Id).Update("server", json.RawMessage(raw)).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func countSdwanUplinks(t *testing.T) (inbounds, clients, tlsConfigs int64) {
+	t.Helper()
+	db := database.GetDB()
+	tags := []string{sdwanLegacyUplinkTag}
+	for _, tag := range sdwanUplinkTags {
+		tags = append(tags, tag)
+	}
+	db.Model(&model.Inbound{}).Where("tag IN ?", tags).Count(&inbounds)
+	db.Model(&model.Client{}).Where("name = ?", sdwanUplinkClient).Count(&clients)
+	db.Model(&model.Tls{}).Count(&tlsConfigs)
+	return
+}
+
+func uplinkByProtocol(response *SdwanProvisionResponse, protocol string) *SdwanUplink {
+	for index := range response.Uplinks {
+		if response.Uplinks[index].Protocol == protocol {
+			return &response.Uplinks[index]
+		}
+	}
+	return nil
+}
+
 func TestSdwanUplinkProvisioningIsIdempotentAndRemovable(t *testing.T) {
 	control := setupQuickAddTest(t)
-	for _, protocol := range []string{SdwanProtocolShadowsocks, SdwanProtocolHysteria2} {
-		first, err := control.ProvisionSdwanUplink(SdwanProvisionRequest{Protocol: protocol, Actor: "controller", PublicHost: "198.51.100.60"})
-		if err != nil {
-			t.Fatalf("provision %s: %v", protocol, err)
-		}
-		if err = core.ValidateOutboundJSON(first.Outbound); err != nil {
-			t.Fatalf("%s uplink outbound rejected by sing-box: %v\n%s", protocol, err, first.Outbound)
+	stubRealityProbe(t, "www.example.com")
+	protocols := localSdwanProtocols()
+	request := SdwanProvisionRequest{Protocols: protocols, Actor: "controller", PublicHost: "198.51.100.60"}
+	first, err := control.ProvisionSdwanUplink(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Uplinks) != len(protocols) || first.Server != "198.51.100.60" {
+		t.Fatalf("provisioned %#v for %v", first, protocols)
+	}
+	for _, uplink := range first.Uplinks {
+		if err = core.ValidateOutboundJSON(uplink.Outbound); err != nil {
+			t.Fatalf("%s uplink outbound rejected by sing-box: %v\n%s", uplink.Protocol, err, uplink.Outbound)
 		}
 		var outbound map[string]interface{}
-		_ = json.Unmarshal(first.Outbound, &outbound)
-		if outbound["type"] != protocol || outbound["server"] != "198.51.100.60" || int(outbound["server_port"].(float64)) != first.Port {
-			t.Fatalf("unexpected uplink outbound: %s", first.Outbound)
+		_ = json.Unmarshal(uplink.Outbound, &outbound)
+		if outbound["type"] != sdwanInboundTypes[uplink.Protocol] || outbound["server"] != "198.51.100.60" ||
+			int(outbound["server_port"].(float64)) != uplink.Port || uplink.Tag != sdwanUplinkTags[uplink.Protocol] {
+			t.Fatalf("unexpected %s uplink: %#v %s", uplink.Protocol, uplink, uplink.Outbound)
 		}
-		if protocol == SdwanProtocolHysteria2 {
-			tlsConfig := outbound["tls"].(map[string]interface{})
+		tlsConfig, _ := outbound["tls"].(map[string]interface{})
+		switch uplink.Protocol {
+		case SdwanProtocolReality:
+			reality, _ := tlsConfig["reality"].(map[string]interface{})
+			utls, _ := tlsConfig["utls"].(map[string]interface{})
+			if outbound["flow"] != "xtls-rprx-vision" || reality["public_key"] == "" || reality["short_id"] == "" ||
+				utls["fingerprint"] != sdwanRealityFingerprint || tlsConfig["server_name"] != "www.example.com" || uplink.Detail != "www.example.com" {
+				t.Fatalf("Reality uplink must use Vision, uTLS and the probed target: %s", uplink.Outbound)
+			}
+		case SdwanProtocolHysteria2:
 			if tlsConfig["insecure"] != nil || tlsConfig["certificate"] == nil {
 				t.Fatalf("Hysteria2 uplink must pin the generated certificate instead of skipping verification: %#v", tlsConfig)
 			}
+			if obfs, _ := outbound["obfs"].(map[string]interface{}); obfs["type"] != "salamander" {
+				t.Fatalf("Hysteria2 uplink must be obfuscated: %s", uplink.Outbound)
+			}
+		case SdwanProtocolShadowsocks:
+			if outbound["method"] != sdwanShadowsocksMethod {
+				t.Fatalf("Shadowsocks uplink must use SS2022: %s", uplink.Outbound)
+			}
 		}
-		again, err := control.ProvisionSdwanUplink(SdwanProvisionRequest{Protocol: protocol, Actor: "controller", PublicHost: "198.51.100.60"})
-		if err != nil {
-			t.Fatal(err)
+	}
+
+	again, err := control.ProvisionSdwanUplink(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, uplink := range first.Uplinks {
+		if repeated := uplinkByProtocol(again, uplink.Protocol); repeated == nil || string(repeated.Outbound) != string(uplink.Outbound) {
+			t.Fatalf("re-provisioning changed the %s credentials", uplink.Protocol)
 		}
-		if string(again.Outbound) != string(first.Outbound) {
-			t.Fatalf("re-provisioning changed the credentials:\n%s\n%s", first.Outbound, again.Outbound)
-		}
-		var inbounds, clients int64
-		database.GetDB().Model(&model.Inbound{}).Where("tag = ?", sdwanUplinkTag).Count(&inbounds)
-		database.GetDB().Model(&model.Client{}).Where("name = ?", sdwanUplinkClient).Count(&clients)
-		if inbounds != 1 || clients != 1 {
-			t.Fatalf("expected exactly one uplink inbound/client, got %d/%d", inbounds, clients)
-		}
+	}
+	if inbounds, clients, _ := countSdwanUplinks(t); inbounds != int64(len(protocols)) || clients != 1 {
+		t.Fatalf("expected %d uplink inbounds and one client, got %d/%d", len(protocols), inbounds, clients)
+	}
+
+	// Narrowing to Shadowsocks removes the other uplinks and their TLS records
+	// but keeps the Shadowsocks credentials.
+	only, err := control.ProvisionSdwanUplink(SdwanProvisionRequest{
+		Protocols: []string{SdwanProtocolShadowsocks}, Actor: "controller", PublicHost: "198.51.100.60",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(only.Uplinks) != 1 || string(only.Uplinks[0].Outbound) != string(uplinkByProtocol(first, SdwanProtocolShadowsocks).Outbound) {
+		t.Fatalf("narrowed uplinks = %#v", only.Uplinks)
+	}
+	if inbounds, _, tlsConfigs := countSdwanUplinks(t); inbounds != 1 || tlsConfigs != 0 {
+		t.Fatalf("leftovers after narrowing: inbounds=%d tls=%d", inbounds, tlsConfigs)
+	}
+
+	// Rotation issues new credentials.
+	rotated, err := control.ProvisionSdwanUplink(SdwanProvisionRequest{
+		Protocols: []string{SdwanProtocolShadowsocks}, Rotate: true, Actor: "controller", PublicHost: "198.51.100.60",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(rotated.Uplinks[0].Outbound) == string(only.Uplinks[0].Outbound) {
+		t.Fatal("rotation must replace the uplink credentials")
+	}
+
+	// A first-generation uplink is replaced by the current one.
+	database.GetDB().Model(&model.Inbound{}).Where("tag = ?", sdwanUplinkTags[SdwanProtocolShadowsocks]).Update("tag", sdwanLegacyUplinkTag)
+	if _, err = control.ProvisionSdwanUplink(SdwanProvisionRequest{
+		Protocols: []string{SdwanProtocolShadowsocks}, Actor: "controller", PublicHost: "198.51.100.60",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var legacy int64
+	database.GetDB().Model(&model.Inbound{}).Where("tag = ?", sdwanLegacyUplinkTag).Count(&legacy)
+	if inbounds, _, _ := countSdwanUplinks(t); legacy != 0 || inbounds != 1 {
+		t.Fatalf("legacy uplink not replaced: legacy=%d inbounds=%d", legacy, inbounds)
 	}
 
 	removed, err := control.RemoveSdwanUplink(SdwanRemoveRequest{Actor: "controller", PublicHost: "198.51.100.60"})
 	if err != nil || !removed.Removed {
 		t.Fatalf("remove uplink = %#v, %v", removed, err)
 	}
-	var inbounds, clients, tlsConfigs int64
-	database.GetDB().Model(&model.Inbound{}).Where("tag = ?", sdwanUplinkTag).Count(&inbounds)
-	database.GetDB().Model(&model.Client{}).Where("name = ?", sdwanUplinkClient).Count(&clients)
-	database.GetDB().Model(&model.Tls{}).Count(&tlsConfigs)
-	if inbounds != 0 || clients != 0 || tlsConfigs != 0 {
+	if inbounds, clients, tlsConfigs := countSdwanUplinks(t); inbounds != 0 || clients != 0 || tlsConfigs != 0 {
 		t.Fatalf("uplink leftovers: inbounds=%d clients=%d tls=%d", inbounds, clients, tlsConfigs)
 	}
 }
 
-// TestSdwanGroupRoutesThroughUplink runs a managed server's uplink and the
-// controller's SD-WAN group in one sing-box instance and proves traffic flows
-// through the uplink: the group's URL test must succeed via the member.
-func TestSdwanGroupRoutesThroughUplink(t *testing.T) {
+func TestSdwanProvisioningRejectsUnsupportedRequests(t *testing.T) {
 	control := setupQuickAddTest(t)
+	for _, request := range []SdwanProvisionRequest{
+		{Actor: "controller", PublicHost: "198.51.100.60"},
+		{Protocols: []string{"vmess"}, Actor: "controller", PublicHost: "198.51.100.60"},
+		{Protocols: []string{SdwanProtocolShadowsocks}, Actor: "controller"},
+		{Protocols: []string{SdwanProtocolShadowsocks}, RealityServer: "10.0.0.1", Actor: "controller", PublicHost: "198.51.100.60"},
+	} {
+		if _, err := control.ProvisionSdwanUplink(request); err == nil {
+			t.Fatalf("accepted %#v", request)
+		}
+	}
+	for _, protocol := range []string{SdwanProtocolReality, SdwanProtocolHysteria2} {
+		if sdwanProtocolAvailable(protocol) {
+			continue
+		}
+		if _, err := control.ProvisionSdwanUplink(SdwanProvisionRequest{
+			Protocols: []string{protocol}, Actor: "controller", PublicHost: "198.51.100.60",
+		}); err == nil {
+			t.Fatalf("a build without %s support accepted that uplink", protocol)
+		}
+	}
+}
+
+func sdwanPathTags(nodeID uint, protocols []string) []string {
+	tags := make([]string, 0, len(protocols))
+	for _, protocol := range protocols {
+		tags = append(tags, sdwanPathTag(nodeID, protocol))
+	}
+	return tags
+}
+
+// TestSdwanPathsCarryTraffic runs a managed server's uplinks and the
+// controller's SD-WAN group in one sing-box instance and proves traffic flows
+// through every uplink protocol this build supports.
+func TestSdwanPathsCarryTraffic(t *testing.T) {
+	control := setupQuickAddTest(t)
+	stubRealityProbe(t, "reality.test")
 	probe := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer probe.Close()
 
-	uplink, err := control.ProvisionSdwanUplink(SdwanProvisionRequest{
-		Protocol: SdwanProtocolShadowsocks, Actor: "controller", PublicHost: "127.0.0.1",
-	})
+	protocols := localSdwanProtocols()
+	uplinks, err := control.ProvisionSdwanUplink(SdwanProvisionRequest{Protocols: protocols, Actor: "controller", PublicHost: "127.0.0.1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	outbound, err := sdwanMemberOutbound(7, uplink.Outbound)
-	if err != nil {
+	pointRealityAt(t, localRealityTarget(t))
+	if err = saveSdwanMemberUplinks(7, *uplinks); err != nil {
 		t.Fatal(err)
 	}
 	db := database.GetDB()
-	if err = db.Create(&model.SdwanMember{NodeId: 7, Protocol: uplink.Protocol, Server: uplink.Server, Port: uplink.Port, Outbound: outbound}).Error; err != nil {
-		t.Fatal(err)
-	}
-	var entry model.Inbound
-	if err = db.Where("tag = ?", sdwanUplinkTag).First(&entry).Error; err != nil {
-		t.Fatal(err)
-	}
 	settings := defaultSdwanSettings()
 	settings.Enabled = true
 	settings.TestURL = probe.URL
-	settings.Interval = 10
 	settings.EntryInbounds = []string{"missing-entry"}
 	if err = storeSdwanSettings(db, settings); err != nil {
 		t.Fatal(err)
@@ -168,13 +351,17 @@ func TestSdwanGroupRoutesThroughUplink(t *testing.T) {
 	if err = json.Unmarshal(*config, &built); err != nil {
 		t.Fatal(err)
 	}
+	want := sdwanPathTags(7, protocols)
 	foundGroup := false
 	for _, item := range built.Outbounds {
 		if item["tag"] == SdwanGroupTag {
 			foundGroup = true
-			members, _ := item["outbounds"].([]interface{})
-			if len(members) != 1 || members[0] != sdwanMemberTag(7) {
-				t.Fatalf("group members = %#v", item["outbounds"])
+			var members []string
+			for _, member := range item["outbounds"].([]interface{}) {
+				members = append(members, member.(string))
+			}
+			if !slices.Equal(members, want) {
+				t.Fatalf("group members = %v, want %v", members, want)
 			}
 		}
 	}
@@ -192,39 +379,64 @@ func TestSdwanGroupRoutesThroughUplink(t *testing.T) {
 		t.Fatalf("start controller+uplink config: %v\n%s", err, *config)
 	}
 	defer instance.Stop()
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-	results, err := instance.GroupURLTest(ctx, SdwanGroupTag)
-	if err != nil {
-		t.Fatalf("URL test through the uplink failed: %v", err)
+	waitGroupReady(t, instance)
+	for _, tag := range want {
+		if result := core.CheckOutbound(context.Background(), tag, probe.URL); !result.OK {
+			t.Fatalf("no traffic through %s: %s", tag, result.Error)
+		}
 	}
-	if _, ok := results[sdwanMemberTag(7)]; !ok {
-		t.Fatalf("member was not reachable through the uplink: %#v", results)
+	if err = instance.GroupCheckNow(SdwanGroupTag); err != nil {
+		t.Fatal(err)
 	}
 	status, err := instance.GroupStatus(SdwanGroupTag)
-	if err != nil || status.Now != sdwanMemberTag(7) {
+	if err != nil || !slices.Contains(want, status.Now) {
 		t.Fatalf("group status = %#v, %v", status, err)
 	}
-	if _, ok := status.Delays[sdwanMemberTag(7)]; !ok {
-		t.Fatalf("shared URL-test history did not record the member delay: %#v", status)
+	for _, tag := range want {
+		if _, ok := status.Delays[tag]; !ok {
+			t.Fatalf("shared URL-test history did not record %s: %#v", tag, status.Delays)
+		}
 	}
 }
 
-func TestApplySdwanConfigSkipsBrokenMembersAndCollisions(t *testing.T) {
+func sdwanTestPaths(t *testing.T, paths ...SdwanPath) json.RawMessage {
+	t.Helper()
+	raw, err := json.Marshal(paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func TestApplySdwanConfigSkipsBrokenPathsAndCollisions(t *testing.T) {
 	setupQuickAddTest(t)
 	db := database.GetDB()
 	valid := json.RawMessage(`{"type":"shadowsocks","server":"198.51.100.61","server_port":8388,"method":"2022-blake3-aes-128-gcm","password":"AAAAAAAAAAAAAAAAAAAAAA==:AAAAAAAAAAAAAAAAAAAAAA=="}`)
 	broken := json.RawMessage(`{"type":"shadowsocks","server":"198.51.100.62","server_port":8388,"method":"2022-blake3-aes-128-gcm","password":"x","unknown":true}`)
-	db.Create(&model.SdwanMember{NodeId: 1, Protocol: SdwanProtocolShadowsocks, Outbound: valid})
-	db.Create(&model.SdwanMember{NodeId: 2, Protocol: SdwanProtocolShadowsocks, Outbound: broken})
+	db.Create(&model.SdwanMember{NodeId: 1, Paths: sdwanTestPaths(t, SdwanPath{Protocol: SdwanProtocolShadowsocks, Outbound: valid})})
+	db.Create(&model.SdwanMember{NodeId: 2, Paths: sdwanTestPaths(t, SdwanPath{Protocol: SdwanProtocolShadowsocks, Outbound: broken})})
+	db.Create(&model.SdwanMember{NodeId: 3, Paths: sdwanTestPaths(t, SdwanPath{Protocol: SdwanProtocolShadowsocks, Outbound: valid, Disabled: true})})
 	config := SingBoxConfig{Outbounds: []json.RawMessage{json.RawMessage(`{"type":"direct","tag":"direct"}`)}}
 	applySdwanConfig(db, &config)
 	tags := configTags(config.Outbounds)
-	if tags[sdwanMemberTag(1)] != "shadowsocks" || tags[SdwanGroupTag] != "urltest" {
-		t.Fatalf("valid member/group missing: %#v", tags)
+	if tags[sdwanPathTag(1, SdwanProtocolShadowsocks)] != "shadowsocks" || tags[SdwanGroupTag] != "urltest" {
+		t.Fatalf("valid path/group missing: %#v", tags)
 	}
-	if _, exists := tags[sdwanMemberTag(2)]; exists {
-		t.Fatalf("broken member must be skipped: %#v", tags)
+	if _, exists := tags[sdwanPathTag(2, SdwanProtocolShadowsocks)]; exists {
+		t.Fatalf("broken path must be skipped: %#v", tags)
+	}
+	if tags[sdwanPathTag(3, SdwanProtocolShadowsocks)] != "shadowsocks" {
+		t.Fatalf("a disabled path must stay dialable so detection can re-test it: %#v", tags)
+	}
+	for _, raw := range config.Outbounds {
+		var group struct {
+			Tag       string   `json:"tag"`
+			Outbounds []string `json:"outbounds"`
+		}
+		if json.Unmarshal(raw, &group) == nil && group.Tag == SdwanGroupTag &&
+			!slices.Equal(group.Outbounds, []string{sdwanPathTag(1, SdwanProtocolShadowsocks)}) {
+			t.Fatalf("only enabled paths may join the group: %v", group.Outbounds)
+		}
 	}
 
 	collision := SingBoxConfig{Outbounds: []json.RawMessage{json.RawMessage(`{"type":"direct","tag":"sdwan-auto"}`)}}
@@ -232,6 +444,29 @@ func TestApplySdwanConfigSkipsBrokenMembersAndCollisions(t *testing.T) {
 	if len(collision.Outbounds) != 1 {
 		t.Fatalf("SD-WAN must not touch a config whose tags collide: %d outbounds", len(collision.Outbounds))
 	}
+
+	db.Where("1 = 1").Delete(&model.SdwanMember{})
+	db.Create(&model.SdwanMember{NodeId: 3, Paths: sdwanTestPaths(t, SdwanPath{Protocol: SdwanProtocolShadowsocks, Outbound: valid, Disabled: true})})
+	allDisabled := SingBoxConfig{}
+	applySdwanConfig(db, &allDisabled)
+	tags = configTags(allDisabled.Outbounds)
+	if _, exists := tags[SdwanGroupTag]; exists || len(tags) != 1 {
+		t.Fatalf("with every path disabled there is no group, only dialable paths: %#v", tags)
+	}
+}
+
+// waitGroupReady waits for the URL test sing-box runs when the group starts;
+// until it finishes a forced re-test is skipped.
+func waitGroupReady(t *testing.T, instance *core.Core) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for time.Now().Before(deadline) {
+		if status, err := instance.GroupStatus(SdwanGroupTag); err == nil && status.Now != "" {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("the SD-WAN group never finished its first URL test")
 }
 
 func freeLocalPort(t *testing.T) int {
@@ -254,26 +489,25 @@ func TestSdwanFailsOverWhenExitBreaks(t *testing.T) {
 	defer probe.Close()
 
 	primary, err := control.ProvisionSdwanUplink(SdwanProvisionRequest{
-		Protocol: SdwanProtocolShadowsocks, Actor: "controller", PublicHost: "127.0.0.1",
+		Protocols: []string{SdwanProtocolShadowsocks}, Actor: "controller", PublicHost: "127.0.0.1",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	primaryOutbound, err := sdwanMemberOutbound(7, primary.Outbound)
-	if err != nil {
+	if err = saveSdwanMemberUplinks(7, *primary); err != nil {
 		t.Fatal(err)
 	}
 	backupPort := freeLocalPort(t)
 	backupKey := relayShadowsocksKey(sdwanShadowsocksMethod)
-	backupOutbound, err := sdwanMemberOutbound(8, json.RawMessage(fmt.Sprintf(
-		`{"type":"shadowsocks","server":"127.0.0.1","server_port":%d,"method":%q,"password":%q}`,
-		backupPort, sdwanShadowsocksMethod, backupKey)))
-	if err != nil {
+	backup := SdwanProvisionResponse{Server: "127.0.0.1", Uplinks: []SdwanUplink{{
+		Protocol: SdwanProtocolShadowsocks, Port: backupPort,
+		Outbound: json.RawMessage(fmt.Sprintf(`{"type":"shadowsocks","server":"127.0.0.1","server_port":%d,"method":%q,"password":%q}`,
+			backupPort, sdwanShadowsocksMethod, backupKey)),
+	}}}
+	if err = saveSdwanMemberUplinks(8, backup); err != nil {
 		t.Fatal(err)
 	}
 	db := database.GetDB()
-	db.Create(&model.SdwanMember{NodeId: 7, Protocol: SdwanProtocolShadowsocks, Outbound: primaryOutbound})
-	db.Create(&model.SdwanMember{NodeId: 8, Protocol: SdwanProtocolShadowsocks, Outbound: backupOutbound})
 	settings := defaultSdwanSettings()
 	settings.TestURL = probe.URL
 	if err = storeSdwanSettings(db, settings); err != nil {
@@ -289,11 +523,13 @@ func TestSdwanFailsOverWhenExitBreaks(t *testing.T) {
 	}
 	defer instance.Stop()
 
+	primaryTag, backupTag := sdwanPathTag(7, SdwanProtocolShadowsocks), sdwanPathTag(8, SdwanProtocolShadowsocks)
+	waitGroupReady(t, instance)
 	if err = instance.GroupCheckNow(SdwanGroupTag); err != nil {
 		t.Fatal(err)
 	}
 	status, err := instance.GroupStatus(SdwanGroupTag)
-	if err != nil || status.Now != sdwanMemberTag(7) {
+	if err != nil || status.Now != primaryTag {
 		t.Fatalf("only the primary exit is up, got %#v (%v)", status, err)
 	}
 
@@ -303,7 +539,7 @@ func TestSdwanFailsOverWhenExitBreaks(t *testing.T) {
 	if err = instance.AddInbound([]byte(backupInbound)); err != nil {
 		t.Fatal(err)
 	}
-	if err = instance.RemoveInbound(sdwanUplinkTag); err != nil {
+	if err = instance.RemoveInbound(sdwanUplinkTags[SdwanProtocolShadowsocks]); err != nil {
 		t.Fatal(err)
 	}
 	// A user connection through the group fails and sing-box drops the history
@@ -316,7 +552,7 @@ func TestSdwanFailsOverWhenExitBreaks(t *testing.T) {
 		t.Fatalf("heal did not run: switched=%v err=%v", switched, err)
 	}
 	status, err = instance.GroupStatus(SdwanGroupTag)
-	if err != nil || status.Now != sdwanMemberTag(8) {
+	if err != nil || status.Now != backupTag {
 		t.Fatalf("SD-WAN did not fail over to the backup exit: %#v (%v)", status, err)
 	}
 	if result := core.CheckOutbound(context.Background(), SdwanGroupTag, probe.URL); !result.OK {
@@ -324,5 +560,45 @@ func TestSdwanFailsOverWhenExitBreaks(t *testing.T) {
 	}
 	if switched, _ = instance.GroupHeal(SdwanGroupTag); switched {
 		t.Fatal("a healthy exit must not trigger another re-test")
+	}
+}
+
+func TestSaveSdwanMemberUplinksKeepsDisabledPaths(t *testing.T) {
+	setupQuickAddTest(t)
+	outbound := json.RawMessage(`{"type":"shadowsocks","server":"198.51.100.61","server_port":8388,"method":"2022-blake3-aes-128-gcm","password":"AAAAAAAAAAAAAAAAAAAAAA==:AAAAAAAAAAAAAAAAAAAAAA=="}`)
+	response := SdwanProvisionResponse{Server: "198.51.100.61", Uplinks: []SdwanUplink{{Protocol: SdwanProtocolShadowsocks, Port: 8388, Outbound: outbound}}}
+	if err := saveSdwanMemberUplinks(5, response); err != nil {
+		t.Fatal(err)
+	}
+	if err := updateSdwanPathState(5, SdwanProtocolShadowsocks, true, "unreachable"); err != nil {
+		t.Fatal(err)
+	}
+	load := func() SdwanPath {
+		t.Helper()
+		var member model.SdwanMember
+		if err := database.GetDB().Where("node_id = ?", 5).First(&member).Error; err != nil {
+			t.Fatal(err)
+		}
+		paths := memberPaths(member)
+		if len(paths) != 1 {
+			t.Fatalf("paths = %#v", paths)
+		}
+		return paths[0]
+	}
+	// Re-syncing an unchanged uplink must not put a disabled path back.
+	if err := saveSdwanMemberUplinks(5, response); err != nil {
+		t.Fatal(err)
+	}
+	if path := load(); !path.Disabled || path.Reason != "unreachable" {
+		t.Fatalf("unchanged uplink lost its disabled flag: %#v", path)
+	}
+	// A rebuilt uplink (new port) gets a fresh chance.
+	response.Uplinks[0].Port = 9388
+	response.Uplinks[0].Outbound = json.RawMessage(`{"type":"shadowsocks","server":"198.51.100.61","server_port":9388,"method":"2022-blake3-aes-128-gcm","password":"AAAAAAAAAAAAAAAAAAAAAA==:AAAAAAAAAAAAAAAAAAAAAA=="}`)
+	if err := saveSdwanMemberUplinks(5, response); err != nil {
+		t.Fatal(err)
+	}
+	if path := load(); path.Disabled || path.Port != 9388 {
+		t.Fatalf("rebuilt uplink must be enabled again: %#v", path)
 	}
 }

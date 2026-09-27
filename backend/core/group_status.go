@@ -117,3 +117,22 @@ func ValidateOutboundJSON(raw []byte) error {
 	var outbound option.Outbound
 	return outbound.UnmarshalJSONContext(globalCtx, raw)
 }
+
+// HasInbound reports whether the running core serves an inbound with tag.
+func (c *Core) HasInbound(tag string) bool {
+	if c == nil || !c.isRunning || inbound_manager == nil {
+		return false
+	}
+	_, found := inbound_manager.Get(tag)
+	return found
+}
+
+// HasOutbound reports whether the running core has an outbound or endpoint
+// with tag, i.e. whether it can be measured.
+func (c *Core) HasOutbound(tag string) bool {
+	if c == nil || !c.isRunning {
+		return false
+	}
+	_, err := checkDialer(tag)
+	return err == nil
+}

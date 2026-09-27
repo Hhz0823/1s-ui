@@ -1,6 +1,8 @@
 package api
 
 import (
+	"errors"
+	"io"
 	"net/http"
 
 	"github.com/Hhz0823/1s-ui/service"
@@ -52,4 +54,31 @@ func (a *ApiService) PostSdwanResync(c *gin.Context) {
 func (a *ApiService) PostSdwanTest(c *gin.Context) {
 	state, err := a.SdwanService.TestSdwan()
 	jsonObj(c, state, err)
+}
+
+type sdwanJobRequest struct {
+	Bandwidth bool `json:"bandwidth"`
+}
+
+func (a *ApiService) startSdwanJob(c *gin.Context, kind string) {
+	var request sdwanJobRequest
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 4<<10)
+	if err := c.ShouldBindJSON(&request); err != nil && !errors.Is(err, io.EOF) {
+		jsonObj(c, nil, err)
+		return
+	}
+	job, err := a.SdwanService.StartSdwanJob(kind, request.Bandwidth, GetLoginUser(c))
+	jsonObj(c, job, err)
+}
+
+func (a *ApiService) PostSdwanDiagnose(c *gin.Context) {
+	a.startSdwanJob(c, service.SdwanJobDiagnose)
+}
+
+func (a *ApiService) PostSdwanOptimize(c *gin.Context) {
+	a.startSdwanJob(c, service.SdwanJobOptimize)
+}
+
+func (a *ApiService) GetSdwanJob(c *gin.Context) {
+	jsonObj(c, a.SdwanService.SdwanJob(), nil)
 }
