@@ -782,20 +782,27 @@ func xrayVlessLink(
 
 	uuid, _ := userConfig["uuid"].(string)
 	baseParams := getXrayTransportParams(inbound["transport"])
+	encryption := xrayVlessClientEncryption(inbound)
 	var links []string
 
 	for _, addr := range addrs {
 		params := make([]LinkParam, len(baseParams))
 		copy(params, baseParams)
-		params = append([]LinkParam{{"encryption", "none"}}, params...)
+		params = append([]LinkParam{{"encryption", encryption}}, params...)
+		secured := encryption != "none"
 		if tls, ok := addr["tls"].(map[string]interface{}); ok {
 			if enabled, _ := tls["enabled"].(bool); enabled {
 				getXrayTlsParams(&params, tls, "allowInsecure")
-				if isTcpTransport(params) {
-					if flow, ok := userConfig["flow"].(string); ok && flow != "" {
-						params = append(params, LinkParam{"flow", flow})
-					}
-				}
+				secured = true
+			}
+		}
+		if !hasLinkParam(params, "security") {
+			params = append(params, LinkParam{"security", "none"})
+		}
+		// XTLS Vision runs on raw TCP under TLS, REALITY or VLESS Encryption.
+		if secured && isTcpTransport(params) {
+			if flow, ok := userConfig["flow"].(string); ok && flow != "" {
+				params = append(params, LinkParam{"flow", flow})
 			}
 		}
 		uri := fmt.Sprintf("vless://%s@%s", uuid, linkHostPort(addr))
@@ -804,6 +811,17 @@ func xrayVlessLink(
 	}
 
 	return links
+}
+
+// xrayVlessClientEncryption is the client half of VLESS Encryption kept with
+// an inbound whose decryption is enabled, or "none".
+func xrayVlessClientEncryption(inbound map[string]interface{}) string {
+	decryption, _ := inbound["decryption"].(string)
+	encryption, _ := inbound["encryption"].(string)
+	if decryption == "" || decryption == "none" || encryption == "" {
+		return "none"
+	}
+	return encryption
 }
 
 func xrayTrojanLink(

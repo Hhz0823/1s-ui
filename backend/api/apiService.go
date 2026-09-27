@@ -359,6 +359,22 @@ func (a *ApiService) QuickAddAgentInbounds(c *gin.Context) {
 	jsonObj(c, result, err)
 }
 
+// QuickAddLocalInbounds creates one-click nodes on this panel with the same
+// implementation managed servers use, so both produce identical nodes.
+func (a *ApiService) QuickAddLocalInbounds(c *gin.Context) {
+	var request service.RemoteQuickAddRequest
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10)
+	if err := c.ShouldBindJSON(&request); err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	if strings.TrimSpace(request.PublicHost) == "" {
+		request.PublicHost = strings.Trim(getHostname(c), "[]")
+	}
+	result, err := (&service.LocalControlService{}).QuickAddLocalInbounds(request, GetLoginUser(c))
+	jsonObj(c, result, err)
+}
+
 func (a *ApiService) GetAgentRelayData(c *gin.Context) {
 	id, err := parseAgentNodeID(c)
 	if err != nil {

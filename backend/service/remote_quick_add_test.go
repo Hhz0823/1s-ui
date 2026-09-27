@@ -28,7 +28,10 @@ func TestAllocateRemoteQuickAddSkipsUsedPortsAndTags(t *testing.T) {
 
 func TestBuildRemoteQuickAddXrayVlessUsesXHTTP(t *testing.T) {
 	request := RemoteQuickAddRequest{CoreType: model.CoreTypeXray, Protocol: "vless"}
-	inbound := buildRemoteQuickAddInbound(request, "vless-1", 443, "secret", 2, "node.example.com")
+	inbound, err := buildRemoteQuickAddInbound(request, "vless-1", 443, "secret", 2, "node.example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if inbound["listen"] != "0.0.0.0" {
 		t.Fatalf("listen = %v, want IPv4 wildcard for hostname entry", inbound["listen"])
 	}
@@ -74,7 +77,10 @@ func TestValidateRemoteQuickAddForcesXrayShadowsocks256(t *testing.T) {
 	if request.Method != "2022-blake3-aes-256-gcm" {
 		t.Fatalf("method = %q", request.Method)
 	}
-	inbound := buildRemoteQuickAddInbound(request, "ss", 8388, quickAddPassword(request, 0), 0, "example.com")
+	inbound, err := buildRemoteQuickAddInbound(request, "ss", 8388, quickAddPassword(request, 0), 0, "example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if inbound["method"] != "2022-blake3-aes-256-gcm" {
 		t.Fatalf("inbound method = %v", inbound["method"])
 	}
@@ -112,7 +118,10 @@ func TestRemoteQuickAddNaivePreservesIdentityAndFeatures(t *testing.T) {
 	if err := validateRemoteQuickAddRequest(&request); err != nil {
 		t.Fatal(err)
 	}
-	inbound := buildRemoteQuickAddInbound(request, "naive-443", 443, "secret", 7, "198.51.100.20")
+	inbound, err := buildRemoteQuickAddInbound(request, "naive-443", 443, "secret", 7, "198.51.100.20")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if inbound["network"] != "udp" || inbound["quic_congestion_control"] != "bbr2" {
 		t.Fatalf("unexpected Naive inbound: %#v", inbound)
 	}
@@ -151,7 +160,10 @@ func TestRemoteQuickAddNaiveHTTPSPreservesConcurrency(t *testing.T) {
 	if err := validateRemoteQuickAddRequest(&request); err != nil {
 		t.Fatal(err)
 	}
-	inbound := buildRemoteQuickAddInbound(request, "naive-https", 443, "secret", 7, "198.51.100.20")
+	inbound, err := buildRemoteQuickAddInbound(request, "naive-https", 443, "secret", 7, "198.51.100.20")
+	if err != nil {
+		t.Fatal(err)
+	}
 	outbound := inbound["out_json"].(map[string]interface{})
 	if inbound["network"] != "tcp" || outbound["quic"] != false || outbound["insecure_concurrency"] != 2 {
 		t.Fatalf("unexpected HTTPS Naive options: inbound=%#v outbound=%#v", inbound, outbound)

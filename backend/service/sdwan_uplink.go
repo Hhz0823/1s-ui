@@ -2,10 +2,8 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/tls"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -40,7 +38,7 @@ const (
 	sdwanShadowsocksMethod   = "2022-blake3-aes-128-gcm"
 	sdwanRealityTLSPrefix    = "sdwan-reality-"
 	sdwanRealityFingerprint  = "chrome"
-	defaultSdwanRealitySNI   = "www.microsoft.com"
+	defaultSdwanRealitySNI   = "www.amazon.com"
 )
 
 var sdwanProtocolOrder = []string{SdwanProtocolReality, SdwanProtocolHysteria2, SdwanProtocolShadowsocks}
@@ -58,10 +56,12 @@ var sdwanInboundTypes = map[string]string{
 }
 
 // Large TLS 1.3 + HTTP/2 sites used as Reality handshake targets. Each managed
-// server probes them and uses the fastest one it can reach.
+// server probes them and uses the fastest one it can reach. Apple, iCloud and
+// Microsoft sites (and .cn/.ru/.ir domains) are left out: Xray-core warns that
+// imitating them makes the GFW more likely to block the server's IP.
 var sdwanRealityCandidates = []string{
-	"www.microsoft.com", "www.apple.com", "www.amazon.com", "addons.mozilla.org",
-	"www.nvidia.com", "dl.google.com", "www.samsung.com", "www.oracle.com",
+	"www.amazon.com", "addons.mozilla.org", "www.nvidia.com", "dl.google.com",
+	"www.samsung.com", "www.oracle.com",
 }
 
 // probeRealityServer is replaceable in tests to avoid network access.
@@ -164,7 +164,7 @@ func normalizeRealityServer(value string) (string, error) {
 		return "", nil
 	}
 	if len(value) > 253 || strings.ContainsAny(value, " /?#@:[]\t\r\n") || net.ParseIP(value) != nil || !strings.Contains(value, ".") {
-		return "", common.NewErrorf("Reality target %q must be a domain name such as www.microsoft.com", value)
+		return "", common.NewErrorf("Reality target %q must be a domain name such as www.amazon.com", value)
 	}
 	return strings.ToLower(value), nil
 }
@@ -501,7 +501,7 @@ func (s *LocalControlService) createSdwanInbound(protocol string, clientID uint,
 		revision = nextRevision
 		inbound["tls_id"] = tlsID
 	case SdwanProtocolHysteria2:
-		tlsID, nextRevision, tlsErr := s.createRemoteQuickAddTLS(strings.Trim(publicHost, "[]"), revision, actor, publicHost)
+		tlsID, nextRevision, tlsErr := s.createRemoteQuickAddTLS(strings.Trim(publicHost, "[]"), revision, "agent:"+actor, publicHost)
 		if tlsErr != nil {
 			return revision, tlsErr
 		}
@@ -584,49 +584,7 @@ func allocateSdwanUplinkPort(inbounds []map[string]interface{}, protocol string)
 }
 
 func (s *LocalControlService) createSdwanRealityTLS(serverName string, revision uint64, actor, publicHost string) (uint, uint64, error) {
-	privateKey, err := wgtypes.GeneratePrivateKey()
-	if err != nil {
-		return 0, revision, err
-	}
-	publicKey := privateKey.PublicKey()
-	shortID := make([]byte, 8)
-	if _, err = rand.Read(shortID); err != nil {
-		return 0, revision, err
-	}
-	name := sdwanRealityTLSPrefix + common.Random(8)
-	tlsConfig := map[string]interface{}{
-		"id":   0,
-		"name": name,
-		"server": map[string]interface{}{
-			"enabled":     true,
-			"server_name": serverName,
-			"reality": map[string]interface{}{
-				"enabled":     true,
-				"handshake":   map[string]interface{}{"server": serverName, "server_port": 443},
-				"private_key": base64.RawURLEncoding.EncodeToString(privateKey[:]),
-				"short_id":    []string{hex.EncodeToString(shortID)},
-			},
-		},
-		"client": map[string]interface{}{
-			"utls": map[string]interface{}{"enabled": true, "fingerprint": sdwanRealityFingerprint},
-			"reality": map[string]interface{}{
-				"enabled": true, "public_key": base64.RawURLEncoding.EncodeToString(publicKey[:]),
-				"short_id": hex.EncodeToString(shortID),
-			},
-		},
-	}
-	raw, err := json.Marshal(tlsConfig)
-	if err != nil {
-		return 0, revision, err
-	}
-	if _, revision, err = s.ConfigService.SaveWithRevision(revision, "tls", "new", raw, "", "agent:"+actor, publicHost); err != nil {
-		return 0, revision, err
-	}
-	var saved model.Tls
-	if err = database.GetDB().Where("name = ?", name).First(&saved).Error; err != nil {
-		return 0, revision, err
-	}
-	return saved.Id, revision, nil
+	return s.createRealityTLS(sdwanRealityTLSPrefix+common.Random(8), serverName, revision, "agent:"+actor, publicHost)
 }
 
 // defaultProbeRealityServer returns the fastest candidate that completes a TLS

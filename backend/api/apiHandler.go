@@ -44,6 +44,7 @@ func (a *APIHandler) initRouter(g *gin.RouterGroup) {
 	g.GET("/agents/:id/inbounds/editor", a.ApiService.GetAgentInboundEditor)
 	g.POST("/agents/:id/inbounds/save", a.ApiService.SaveAgentInbound)
 	g.POST("/agents/:id/inbounds/quick-add", a.ApiService.QuickAddAgentInbounds)
+	g.POST("/inbounds/quick-add", a.ApiService.QuickAddLocalInbounds)
 	g.GET("/agents/:id/relay", a.ApiService.GetAgentRelayData)
 	g.POST("/agents/:id/relay/create", a.ApiService.CreateAgentRelay)
 	g.POST("/agents/:id/relay/:relayId/delete", a.ApiService.DeleteAgentRelay)

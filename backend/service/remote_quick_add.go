@@ -69,6 +69,8 @@ type RemoteQuickAddRequest struct {
 	NaiveUDPOverTCP            bool              `json:"naive_udp_over_tcp"`
 	NaiveInsecureConcurrency   int               `json:"naive_insecure_concurrency"`
 	NaiveQUICCongestionControl string            `json:"naive_quic_congestion_control"`
+	VlessVariant               string            `json:"vless_variant"`
+	RealityServer              string            `json:"reality_server"`
 	ExpectedRevision           uint64            `json:"expected_revision"`
 	Actor                      string            `json:"actor"`
 	PublicHost                 string            `json:"public_host"`
@@ -87,12 +89,30 @@ type RemoteQuickAddResponse struct {
 	Created  []RemoteQuickAddItem `json:"created"`
 }
 
+// QuickAddInbounds serves one-click creation requested by the controller.
 func (s *LocalControlService) QuickAddInbounds(request RemoteQuickAddRequest) (*RemoteQuickAddResponse, error) {
-	if err := validateRemoteQuickAddRequest(&request); err != nil {
-		return nil, err
-	}
 	actor, err := normalizeRemoteActor(request.Actor)
 	if err != nil {
+		return nil, err
+	}
+	return s.quickAddInbounds(request, "agent:"+actor)
+}
+
+// QuickAddLocalInbounds runs the same one-click creation for an administrator
+// of this panel, so local and managed servers get identical nodes.
+func (s *LocalControlService) QuickAddLocalInbounds(request RemoteQuickAddRequest, loginUser string) (*RemoteQuickAddResponse, error) {
+	actor, err := normalizeRemoteActor(loginUser)
+	if err != nil {
+		return nil, err
+	}
+	if request.ExpectedRevision, err = s.ConfigService.CurrentRevision(); err != nil {
+		return nil, err
+	}
+	return s.quickAddInbounds(request, actor)
+}
+
+func (s *LocalControlService) quickAddInbounds(request RemoteQuickAddRequest, changeActor string) (*RemoteQuickAddResponse, error) {
+	if err := validateRemoteQuickAddRequest(&request); err != nil {
 		return nil, err
 	}
 	publicHost, err := normalizeAgentPublicHost(request.PublicHost)
@@ -100,7 +120,7 @@ func (s *LocalControlService) QuickAddInbounds(request RemoteQuickAddRequest) (*
 		return nil, err
 	}
 	if publicHost == "" {
-		return nil, common.NewError("managed server public host is required before quick add")
+		return nil, common.NewError("the server's public host is required before quick add")
 	}
 	if request.Protocol == "naive" {
 		request.NaiveServer, err = normalizeAgentPublicHost(request.NaiveServer)
@@ -120,10 +140,10 @@ func (s *LocalControlService) QuickAddInbounds(request RemoteQuickAddRequest) (*
 	if request.CoreType == model.CoreTypeXray {
 		check := s.ConfigService.CheckXray()
 		if check.Disabled {
-			return nil, common.NewError("Xray-core is disabled on this managed server; use sing-box")
+			return nil, common.NewError("Xray-core is disabled on this server; use sing-box")
 		}
 		if !check.BinaryAvailable {
-			return nil, common.NewError("Xray-core is not installed on this managed server")
+			return nil, common.NewError("Xray-core is not installed on this server; install it under Settings first")
 		}
 	}
 
@@ -143,14 +163,18 @@ func (s *LocalControlService) QuickAddInbounds(request RemoteQuickAddRequest) (*
 	revision := request.ExpectedRevision
 	tlsID := uint(0)
 	if remoteQuickAddTLSProtocols[request.Protocol] {
-		if request.Protocol == "naive" && request.NaiveTLSID > 0 {
+		switch {
+		case request.Protocol == "naive" && request.NaiveTLSID > 0:
 			tlsID = request.NaiveTLSID
-		} else {
-			tlsServerName := remoteQuickAddTLSServerName(request, publicHost)
-			tlsID, revision, err = s.createRemoteQuickAddTLS(tlsServerName, revision, actor, publicHost)
-			if err != nil {
-				return nil, err
-			}
+		case request.Protocol == "vless" && vlessVariantEncryption(request.VlessVariant):
+			// VLESS Encryption replaces the TLS layer.
+		case request.Protocol == "vless" && vlessVariantReality(request.VlessVariant):
+			tlsID, revision, err = s.createQuickAddRealityTLS(request, revision, changeActor, publicHost)
+		default:
+			tlsID, revision, err = s.createRemoteQuickAddTLS(remoteQuickAddTLSServerName(request, publicHost), revision, changeActor, publicHost)
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -168,13 +192,16 @@ func (s *LocalControlService) QuickAddInbounds(request RemoteQuickAddRequest) (*
 				}
 				clientName = availableRemoteQuickAddClientName(clientName)
 			}
-			clientID, revision, err = s.createRemoteQuickAddClient(request, clientName, password, revision, actor, publicHost)
+			clientID, revision, err = s.createRemoteQuickAddClient(request, clientName, password, revision, changeActor, publicHost)
 			if err != nil {
 				return nil, common.NewErrorf("quick add stopped after %d/%d nodes: %v", len(created), request.Count, err)
 			}
 		}
 
-		inbound := buildRemoteQuickAddInbound(request, tags[index], ports[index], password, tlsID, publicHost)
+		inbound, buildErr := buildRemoteQuickAddInbound(request, tags[index], ports[index], password, tlsID, publicHost)
+		if buildErr != nil {
+			return nil, buildErr
+		}
 		rawInbound, marshalErr := json.Marshal(inbound)
 		if marshalErr != nil {
 			return nil, marshalErr
@@ -185,7 +212,7 @@ func (s *LocalControlService) QuickAddInbounds(request RemoteQuickAddRequest) (*
 		}
 		_, revision, err = s.ConfigService.SaveWithRevision(
 			revision, "inbounds", "new", rawInbound, initUsers,
-			"agent:"+actor, publicHost,
+			changeActor, publicHost,
 		)
 		if err != nil {
 			return nil, common.NewErrorf("quick add stopped after %d/%d nodes: %v", len(created), request.Count, err)
@@ -245,6 +272,11 @@ func validateRemoteQuickAddRequest(request *RemoteQuickAddRequest) error {
 	}
 	if request.Protocol == "naive" {
 		if err := validateRemoteNaiveQuickAdd(request); err != nil {
+			return err
+		}
+	}
+	if request.Protocol == "vless" {
+		if err := normalizeQuickAddVlessVariant(request); err != nil {
 			return err
 		}
 	}
@@ -420,7 +452,7 @@ func quickAddListenAddress(publicHost string) string {
 	return "0.0.0.0"
 }
 
-func buildRemoteQuickAddInbound(request RemoteQuickAddRequest, tag string, port int, password string, tlsID uint, publicHost string) map[string]interface{} {
+func buildRemoteQuickAddInbound(request RemoteQuickAddRequest, tag string, port int, password string, tlsID uint, publicHost string) (map[string]interface{}, error) {
 	inbound := map[string]interface{}{
 		"id": 0, "core_type": request.CoreType, "type": request.Protocol,
 		"tag": tag, "listen": quickAddListenAddress(publicHost), "listen_port": port, "tls_id": tlsID,
@@ -444,10 +476,8 @@ func buildRemoteQuickAddInbound(request RemoteQuickAddRequest, tag string, port 
 			inbound["transport"] = map[string]interface{}{"type": "ws", "path": "/"}
 		}
 	case "vless":
-		if isXray {
-			inbound["transport"] = map[string]interface{}{"type": "xhttp", "path": "/xhttp", "host": publicHost, "mode": "auto"}
-		} else {
-			inbound["transport"] = map[string]interface{}{}
+		if err := quickAddVlessInbound(inbound, request, publicHost); err != nil {
+			return nil, err
 		}
 	case "trojan":
 		if isXray {
@@ -504,10 +534,10 @@ func buildRemoteQuickAddInbound(request RemoteQuickAddRequest, tag string, port 
 			"enabled": true, "destOverride": []string{"http", "tls", "quic"}, "routeOnly": true,
 		}
 	}
-	return inbound
+	return inbound, nil
 }
 
-func (s *LocalControlService) createRemoteQuickAddClient(request RemoteQuickAddRequest, name, password string, revision uint64, actor, publicHost string) (uint, uint64, error) {
+func (s *LocalControlService) createRemoteQuickAddClient(request RemoteQuickAddRequest, name, password string, revision uint64, changeActor, publicHost string) (uint, uint64, error) {
 	uuidValue := randomUUID()
 	configValue := map[string]interface{}{}
 	switch request.Protocol {
@@ -520,11 +550,7 @@ func (s *LocalControlService) createRemoteQuickAddClient(request RemoteQuickAddR
 	case "vmess":
 		configValue["vmess"] = map[string]interface{}{"name": name, "uuid": uuidValue, "alterId": 0}
 	case "vless":
-		flow := "xtls-rprx-vision"
-		if request.CoreType == model.CoreTypeXray {
-			flow = ""
-		}
-		configValue["vless"] = map[string]interface{}{"name": name, "uuid": uuidValue, "flow": flow}
+		configValue["vless"] = map[string]interface{}{"name": name, "uuid": uuidValue, "flow": quickAddVlessFlow(request)}
 	case "trojan":
 		configValue["trojan"] = map[string]interface{}{"name": name, "password": password}
 	case "hysteria2":
@@ -548,7 +574,7 @@ func (s *LocalControlService) createRemoteQuickAddClient(request RemoteQuickAddR
 		return 0, revision, err
 	}
 	_, revision, err = s.ConfigService.SaveWithRevision(
-		revision, "clients", "new", raw, "", "agent:"+actor, publicHost,
+		revision, "clients", "new", raw, "", changeActor, publicHost,
 	)
 	if err != nil {
 		return 0, revision, err
@@ -560,7 +586,7 @@ func (s *LocalControlService) createRemoteQuickAddClient(request RemoteQuickAddR
 	return saved.Id, revision, nil
 }
 
-func (s *LocalControlService) createRemoteQuickAddTLS(serverName string, revision uint64, actor, publicHost string) (uint, uint64, error) {
+func (s *LocalControlService) createRemoteQuickAddTLS(serverName string, revision uint64, changeActor, publicHost string) (uint, uint64, error) {
 	cleanName := strings.Map(func(r rune) rune {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '.' || r == '-' {
 			return r
@@ -618,7 +644,7 @@ func (s *LocalControlService) createRemoteQuickAddTLS(serverName string, revisio
 		return 0, revision, err
 	}
 	_, revision, err = s.ConfigService.SaveWithRevision(
-		revision, "tls", "new", raw, "", "agent:"+actor, publicHost,
+		revision, "tls", "new", raw, "", changeActor, publicHost,
 	)
 	if err != nil {
 		return 0, revision, err

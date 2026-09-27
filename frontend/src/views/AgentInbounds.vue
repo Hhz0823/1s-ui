@@ -43,6 +43,17 @@
             :data="quickAdd.naive"
             :tls-configs="tlsConfigs"
           />
+          <VlessQuickAdd
+            v-if="quickAdd.protocol === 'vless' && supportsVlessVariants"
+            v-model:core-type="quickAdd.core_type"
+            :data="quickAdd.vless"
+            :xray-available="xrayAvailable"
+            :sing-box-reality="singBoxReality"
+            :port="Number(quickAdd.port)"
+          />
+          <v-col v-else-if="quickAdd.protocol === 'vless'" cols="12">
+            <v-alert type="warning" variant="tonal" density="compact">{{ $t('quickAdd.vlessUpgradeRequired') }}</v-alert>
+          </v-col>
         </v-row>
       </v-card-text>
       <v-divider />
@@ -145,7 +156,9 @@ import RandomUtil from '@/plugins/randomUtil'
 import { CoreTypes } from '@/types/inbounds'
 import { fetchBackendObject as api } from '@/utils/backend'
 import NaiveQuickAdd from '@/components/NaiveQuickAdd.vue'
+import VlessQuickAdd from '@/components/VlessQuickAdd.vue'
 import { createNaiveQuickAddOptions, normalizeNaiveServer, parseNaiveExtraHeaders } from '@/types/naive'
+import { createVlessQuickAddOptions, normalizeRealityServer } from '@/types/vless'
 
 const route = useRoute()
 const router = useRouter()
@@ -173,6 +186,7 @@ const quickAdd = reactive({
   method: '2022-blake3-aes-256-gcm',
   obfs_password: '',
   naive: createNaiveQuickAddOptions(''),
+  vless: createVlessQuickAddOptions(),
 })
 
 const connectionHost = computed(() => {
@@ -184,6 +198,9 @@ const connectionHost = computed(() => {
 const capabilities = computed(() => new Set<string>(node.value?.report?.panel?.capabilities || []))
 const supportsQuickAdd = computed(() => Boolean(node.value?.managed) && capabilities.value.has('inbounds.quick_add.v1'))
 const supportsNaiveQuickAdd = computed(() => capabilities.value.has('inbounds.quick_add.naive.v1'))
+// Servers without it build the self-signed TLS node whatever the dialog asks.
+const supportsVlessVariants = computed(() => capabilities.value.has('inbounds.quick_add.vless.v2'))
+const singBoxReality = computed(() => capabilities.value.has('sdwan.reality'))
 const supportsRelay = computed(() => Boolean(node.value?.managed) && capabilities.value.has('relay.v1'))
 const xrayAvailable = computed(() => Boolean(node.value?.report?.cores?.xray_version))
 const coreOptions = computed(() => {
@@ -333,6 +350,16 @@ const createQuickNodes = async () => {
       return
     }
   }
+  let realityServer = ''
+  if (quickAdd.protocol === 'vless' && supportsVlessVariants.value) {
+    try {
+      realityServer = normalizeRealityServer(quickAdd.vless.reality_server)
+    } catch {
+      push.error({ message: i18n.global.t('quickAdd.invalidRealityServer') })
+      return
+    }
+  }
+  const vlessVariants = quickAdd.protocol === 'vless' && supportsVlessVariants.value
   quickAdd.loading = true
   try {
     const result = await api(`api/agents/${nodeId}/inbounds/quick-add`, {
@@ -354,6 +381,8 @@ const createQuickNodes = async () => {
         naive_udp_over_tcp: quickAdd.naive.udp_over_tcp,
         naive_insecure_concurrency: quickAdd.naive.insecure_concurrency,
         naive_quic_congestion_control: quickAdd.naive.quic_congestion_control,
+        vless_variant: vlessVariants ? quickAdd.vless.variant : undefined,
+        reality_server: vlessVariants ? realityServer : undefined,
         expected_revision: revision.value,
       }),
     })

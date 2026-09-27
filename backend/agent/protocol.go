@@ -34,6 +34,9 @@ const (
 	CapabilityInboundWriteV1  = "inbounds.write.v1"
 	CapabilityQuickAddV1      = "inbounds.quick_add.v1"
 	CapabilityQuickAddNaiveV1 = "inbounds.quick_add.naive.v1"
+	// VLESS quick add understands vless_variant (REALITY, XHTTP, Vision and
+	// VLESS Encryption) and reality_server.
+	CapabilityQuickAddVlessV2 = "inbounds.quick_add.vless.v2"
 	CapabilityRelayV1         = "relay.v1"
 	CapabilityPortTrafficV1   = "port.traffic.v1"
 	CapabilityPanelAccessV1   = "panel.access.v1"

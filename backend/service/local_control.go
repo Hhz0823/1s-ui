@@ -64,6 +64,7 @@ func (s *LocalControlService) Capabilities() agent.PanelStatus {
 		agent.CapabilityInboundWriteV1,
 		agent.CapabilityQuickAddV1,
 		agent.CapabilityQuickAddNaiveV1,
+		agent.CapabilityQuickAddVlessV2,
 		agent.CapabilityRelayV1,
 		agent.CapabilityPortTrafficV1,
 		agent.CapabilityPanelAccessV1,

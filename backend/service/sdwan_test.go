@@ -126,13 +126,13 @@ func localRealityTarget(t *testing.T) int {
 	return server.Listener.Addr().(*net.TCPAddr).Port
 }
 
-// pointRealityAt makes every generated Reality uplink hand unauthenticated
-// handshakes to the local target instead of the public website.
+// pointRealityAt makes every generated REALITY configuration hand
+// unauthenticated handshakes to the local target instead of the public site.
 func pointRealityAt(t *testing.T, port int) {
 	t.Helper()
 	db := database.GetDB()
 	var records []model.Tls
-	if err := db.Where("name LIKE ?", sdwanRealityTLSPrefix+"%").Find(&records).Error; err != nil {
+	if err := db.Find(&records).Error; err != nil {
 		t.Fatal(err)
 	}
 	for _, record := range records {
@@ -140,7 +140,10 @@ func pointRealityAt(t *testing.T, port int) {
 		if err := json.Unmarshal(record.Server, &server); err != nil {
 			t.Fatal(err)
 		}
-		reality := server["reality"].(map[string]interface{})
+		reality, _ := server["reality"].(map[string]interface{})
+		if enabled, _ := reality["enabled"].(bool); !enabled {
+			continue
+		}
 		reality["handshake"] = map[string]interface{}{"server": "127.0.0.1", "server_port": port}
 		raw, _ := json.Marshal(server)
 		if err := db.Model(&model.Tls{}).Where("id = ?", record.Id).Update("server", json.RawMessage(raw)).Error; err != nil {
