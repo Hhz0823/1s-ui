@@ -50,6 +50,7 @@
             :xray-available="xrayAvailable"
             :sing-box-reality="singBoxReality"
             :unsupported-variants="supportsXhttpVision ? [] : ['reality-xhttp-vision']"
+            :cdn-supported="supportsCdnDownlink"
             :port="Number(quickAdd.port)"
           />
           <v-col v-else-if="quickAdd.protocol === 'vless'" cols="12">
@@ -159,7 +160,7 @@ import { fetchBackendObject as api } from '@/utils/backend'
 import NaiveQuickAdd from '@/components/NaiveQuickAdd.vue'
 import VlessQuickAdd from '@/components/VlessQuickAdd.vue'
 import { createNaiveQuickAddOptions, normalizeNaiveServer, parseNaiveExtraHeaders } from '@/types/naive'
-import { createVlessQuickAddOptions, normalizeRealityServer } from '@/types/vless'
+import { createVlessQuickAddOptions, normalizeCdnDomain, normalizeRealityServer, vlessCdnVariants } from '@/types/vless'
 
 const route = useRoute()
 const router = useRouter()
@@ -202,6 +203,7 @@ const supportsNaiveQuickAdd = computed(() => capabilities.value.has('inbounds.qu
 // Servers without it build the self-signed TLS node whatever the dialog asks.
 const supportsVlessVariants = computed(() => capabilities.value.has('inbounds.quick_add.vless.v2'))
 const supportsXhttpVision = computed(() => capabilities.value.has('inbounds.quick_add.vless.xhttp_vision'))
+const supportsCdnDownlink = computed(() => capabilities.value.has('inbounds.quick_add.vless.cdn'))
 const singBoxReality = computed(() => capabilities.value.has('sdwan.reality'))
 const supportsRelay = computed(() => Boolean(node.value?.managed) && capabilities.value.has('relay.v1'))
 const xrayAvailable = computed(() => Boolean(node.value?.report?.cores?.xray_version))
@@ -353,12 +355,21 @@ const createQuickNodes = async () => {
     }
   }
   let realityServer = ''
+  let cdnDomain = ''
   if (quickAdd.protocol === 'vless' && supportsVlessVariants.value) {
     try {
       realityServer = normalizeRealityServer(quickAdd.vless.reality_server)
     } catch {
       push.error({ message: i18n.global.t('quickAdd.invalidRealityServer') })
       return
+    }
+    if (supportsCdnDownlink.value && quickAdd.vless.cdn_enabled && vlessCdnVariants.includes(quickAdd.vless.variant)) {
+      try {
+        cdnDomain = normalizeCdnDomain(quickAdd.vless.cdn_domain)
+      } catch {
+        push.error({ message: i18n.global.t('quickAdd.invalidCdnDomain') })
+        return
+      }
     }
   }
   const vlessVariants = quickAdd.protocol === 'vless' && supportsVlessVariants.value
@@ -385,6 +396,8 @@ const createQuickNodes = async () => {
         naive_quic_congestion_control: quickAdd.naive.quic_congestion_control,
         vless_variant: vlessVariants ? quickAdd.vless.variant : undefined,
         reality_server: vlessVariants ? realityServer : undefined,
+        cdn_domain: cdnDomain || undefined,
+        cdn_port: cdnDomain ? Number(quickAdd.vless.cdn_port) || 0 : undefined,
         expected_revision: revision.value,
       }),
     })

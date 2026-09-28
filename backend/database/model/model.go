@@ -15,6 +15,16 @@ type Tls struct {
 	Client json.RawMessage `json:"client" form:"client"`
 }
 
+// TlsAuthority is the private CA of a generated TLS configuration, kept so the
+// panel can renew its short-lived server certificate (service/tls_authority.go).
+// It never leaves the server: the TLS configuration carries only the CA
+// certificate.
+type TlsAuthority struct {
+	TlsId       uint   `json:"-" gorm:"primaryKey;autoIncrement:false"`
+	Certificate string `json:"-"`
+	Key         string `json:"-"`
+}
+
 type User struct {
 	Id         uint   `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`
 	Username   string `json:"username" form:"username"`

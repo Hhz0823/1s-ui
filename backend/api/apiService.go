@@ -698,6 +698,8 @@ func (a *ApiService) getData(c *gin.Context) (interface{}, error) {
 		return "", err
 	}
 	data["lastUpdate"] = serverTime
+	// The web UI compares it with its own version to notice a stale page.
+	data["panelVersion"] = config.GetVersion()
 	// Always expose host capacity check for the web UI banner.
 	data["hostRequirements"] = a.ServerService.GetHostRequirements()
 	controllerMode, err := a.SettingService.GetControllerModeStatus()

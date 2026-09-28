@@ -107,11 +107,11 @@ func (s *InboundService) GetAllXrayConfig(db *gorm.DB) ([]map[string]interface{}
 	for _, inbound := range inbounds {
 		switch inbound.Type {
 		case "vless":
-			config, err := s.buildXrayVlessInbound(db, inbound)
+			configs, err := s.buildXrayVlessInbounds(db, inbound)
 			if err != nil {
 				return nil, err
 			}
-			result = append(result, config)
+			result = append(result, configs...)
 		case "vmess":
 			config, err := s.buildXrayVMessInbound(db, inbound)
 			if err != nil {
@@ -175,6 +175,31 @@ func (s *InboundService) GetAllXrayConfig(db *gorm.DB) ([]map[string]interface{}
 		}
 	}
 	return result, nil
+}
+
+// buildXrayVlessInbounds builds a VLESS node, which takes several Xray
+// inbounds when its downloads go through a CDN (see xhttp_cdn.go).
+func (s *InboundService) buildXrayVlessInbounds(db *gorm.DB, inbound *model.Inbound) ([]map[string]interface{}, error) {
+	config, err := s.buildXrayVlessInbound(db, inbound)
+	if err != nil {
+		return nil, err
+	}
+	full, err := inbound.MarshalFull()
+	if err != nil {
+		return nil, err
+	}
+	cdn, err := parseXHTTPCDN((*full)["cdn"])
+	if err != nil {
+		return nil, common.NewErrorf("inbound <%s>: %v", inbound.Tag, err)
+	}
+	if cdn == nil {
+		return []map[string]interface{}{config}, nil
+	}
+	configs, err := splitXHTTPForCDN(inbound.Id, config, cdn)
+	if err != nil {
+		return nil, common.NewErrorf("inbound <%s>: %v", inbound.Tag, err)
+	}
+	return configs, nil
 }
 
 func (s *InboundService) buildXrayVlessInbound(db *gorm.DB, inbound *model.Inbound) (map[string]interface{}, error) {

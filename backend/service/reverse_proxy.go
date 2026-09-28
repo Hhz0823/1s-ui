@@ -248,6 +248,8 @@ server {
 %s    location ^~ %s {
         alias %s/;
         try_files $uri $uri/ %sindex.html;
+        # Browsers re-check the UI after a panel update instead of showing a cached one.
+        add_header Cache-Control "no-cache" always;
     }
 }
 %s

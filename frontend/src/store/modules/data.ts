@@ -4,6 +4,7 @@ import { push } from 'notivue'
 import { i18n } from '@/locales'
 import { Inbound } from '@/types/inbounds'
 import { Client } from '@/types/clients'
+import { resolveFrontendUrl } from '@/utils/backend'
 
 let pendingLoadData: Promise<void> | null = null
 let pendingControllerMode: Promise<boolean> | null = null
@@ -38,6 +39,9 @@ const Data = defineStore('Data', {
     clients: <any>[],
     tlsConfigs: <any[]>[],
     hostRequirements: <any>null,
+    // Set when this page is older than the panel and no newer UI is served yet.
+    uiOutdated: <{ ui: string, panel: string } | null>null,
+    uiVersionChecked: '',
     controllerMode: <any>emptyControllerMode(),
     controllerModeLoaded: false,
     lastCoreLog: "",
@@ -87,6 +91,7 @@ const Data = defineStore('Data', {
         const msg = await HttpUtils.get('api/load', this.lastLoad > 0 ? { lu: this.lastLoad } : {})
         if (msg.success) {
           if (msg.obj.lastUpdate) this.lastLoad = msg.obj.lastUpdate
+          if (msg.obj.panelVersion) this.checkPanelVersion(msg.obj.panelVersion)
           this.onlines = msg.obj.onlines
           if (msg.obj.hostRequirements) {
             this.hostRequirements = msg.obj.hostRequirements
@@ -111,6 +116,32 @@ const Data = defineStore('Data', {
       } finally {
         pendingLoadData = null
       }
+    },
+    // The panel and its UI are released together. A page older than the
+    // panel is either cached by the browser, when the server already serves
+    // the matching UI (reload once), or waits for the panel to install it.
+    async checkPanelVersion(panelVersion: string) {
+      const panel = String(panelVersion).replace(/^v/, '')
+      const ui = __APP_VERSION__.replace(/^v/, '')
+      if (panel === ui) {
+        this.uiOutdated = null
+        return
+      }
+      if (this.uiVersionChecked === panel) return
+      this.uiVersionChecked = panel
+      try {
+        const response = await fetch(resolveFrontendUrl('version.json') + '?t=' + Date.now(), { cache: 'no-store' })
+        const served = response.ok ? String((await response.json())?.version || '').replace(/^v/, '') : ''
+        const reloadKey = 'ui-reloaded-for'
+        if (served === panel && sessionStorage.getItem(reloadKey) !== panel) {
+          sessionStorage.setItem(reloadKey, panel)
+          window.location.reload()
+          return
+        }
+      } catch {
+        // version.json is missing on UIs installed before it existed.
+      }
+      this.uiOutdated = { ui, panel }
     },
     setNewData(data: any) {
       if (data.hostRequirements) this.hostRequirements = data.hostRequirements

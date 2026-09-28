@@ -71,6 +71,8 @@ type RemoteQuickAddRequest struct {
 	NaiveQUICCongestionControl string            `json:"naive_quic_congestion_control"`
 	VlessVariant               string            `json:"vless_variant"`
 	RealityServer              string            `json:"reality_server"`
+	CDNDomain                  string            `json:"cdn_domain"`
+	CDNPort                    int               `json:"cdn_port"`
 	ExpectedRevision           uint64            `json:"expected_revision"`
 	Actor                      string            `json:"actor"`
 	PublicHost                 string            `json:"public_host"`
@@ -135,6 +137,9 @@ func (s *LocalControlService) quickAddInbounds(request RemoteQuickAddRequest, ch
 			if err = database.GetDB().First(&tlsConfig, request.NaiveTLSID).Error; err != nil {
 				return nil, common.NewError("selected NaiveProxy TLS configuration does not exist")
 			}
+			if err = checkNaiveCertificate(tlsConfig); err != nil {
+				return nil, err
+			}
 		}
 	}
 	if request.CoreType == model.CoreTypeXray {
@@ -159,6 +164,12 @@ func (s *LocalControlService) quickAddInbounds(request RemoteQuickAddRequest, ch
 	if err != nil {
 		return nil, err
 	}
+	var cdn *quickAddCDN
+	if request.CDNDomain != "" {
+		if cdn, err = prepareQuickAddCDN(request, items, ports, publicHost); err != nil {
+			return nil, err
+		}
+	}
 
 	revision := request.ExpectedRevision
 	tlsID := uint(0)
@@ -170,6 +181,12 @@ func (s *LocalControlService) quickAddInbounds(request RemoteQuickAddRequest, ch
 			tlsID, revision, err = s.createQuickAddRealityTLS(request, revision, changeActor, publicHost)
 		case request.Protocol == "vless" && vlessVariantEncryption(request.VlessVariant):
 			// VLESS Encryption without REALITY replaces the TLS layer.
+		case request.Protocol == "naive":
+			serverName := remoteQuickAddTLSServerName(request, publicHost)
+			var name string
+			if name, err = generatedTLSName(serverName); err == nil {
+				tlsID, revision, err = s.createAuthorityTLS(name, serverName, revision, changeActor, publicHost)
+			}
 		default:
 			tlsID, revision, err = s.createRemoteQuickAddTLS(remoteQuickAddTLSServerName(request, publicHost), revision, changeActor, publicHost)
 		}
@@ -201,6 +218,13 @@ func (s *LocalControlService) quickAddInbounds(request RemoteQuickAddRequest, ch
 		inbound, buildErr := buildRemoteQuickAddInbound(request, tags[index], ports[index], password, tlsID, publicHost)
 		if buildErr != nil {
 			return nil, buildErr
+		}
+		if cdn != nil {
+			inbound["cdn"] = map[string]interface{}{
+				"domain": request.CDNDomain, "port": cdn.ports[index], "certificate": cdn.certificate, "key": cdn.key,
+			}
+			// Links keep the direct address whatever host later edits come from.
+			inbound["addrs"] = []interface{}{map[string]interface{}{"server": cdn.nodeHost, "server_port": ports[index], "remark": ""}}
 		}
 		rawInbound, marshalErr := json.Marshal(inbound)
 		if marshalErr != nil {
@@ -279,6 +303,8 @@ func validateRemoteQuickAddRequest(request *RemoteQuickAddRequest) error {
 		if err := normalizeQuickAddVlessVariant(request); err != nil {
 			return err
 		}
+	} else if strings.TrimSpace(request.CDNDomain) != "" || request.CDNPort != 0 {
+		return common.NewError("downlink through a CDN is only available for VLESS XHTTP nodes")
 	}
 	return nil
 }
@@ -364,12 +390,9 @@ func normalizeRemoteActor(value string) (string, error) {
 }
 
 func allocateRemoteQuickAdd(inbounds []map[string]interface{}, start, count int, baseTag, protocol string) ([]int, []string, error) {
-	usedPorts := make(map[int]bool, len(inbounds))
+	usedPorts := quickAddUsedPorts(inbounds)
 	usedTags := make(map[string]bool, len(inbounds))
 	for _, inbound := range inbounds {
-		if port := intFromInterface(inbound["listen_port"]); port > 0 {
-			usedPorts[port] = true
-		}
 		if tag, ok := inbound["tag"].(string); ok && tag != "" {
 			usedTags[tag] = true
 		}
@@ -586,7 +609,8 @@ func (s *LocalControlService) createRemoteQuickAddClient(request RemoteQuickAddR
 	return saved.Id, revision, nil
 }
 
-func (s *LocalControlService) createRemoteQuickAddTLS(serverName string, revision uint64, changeActor, publicHost string) (uint, uint64, error) {
+// generatedTLSName is an unused "auto-" name for a generated configuration.
+func generatedTLSName(serverName string) (string, error) {
 	cleanName := strings.Map(func(r rune) rune {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '.' || r == '-' {
 			return r
@@ -595,6 +619,14 @@ func (s *LocalControlService) createRemoteQuickAddTLS(serverName string, revisio
 	}, serverName)
 	if cleanName == "" {
 		cleanName = "managed-node"
+	}
+	return availableTLSName(generatedTLSNamePrefix + cleanName)
+}
+
+func (s *LocalControlService) createRemoteQuickAddTLS(serverName string, revision uint64, changeActor, publicHost string) (uint, uint64, error) {
+	name, err := generatedTLSName(serverName)
+	if err != nil {
+		return 0, revision, err
 	}
 	now := time.Now()
 	privateKey, certificate, err := panelutil.GenerateSelfSignedTLS(serverName, now, now.AddDate(0, 12, 0))
@@ -610,21 +642,6 @@ func (s *LocalControlService) createRemoteQuickAddTLS(serverName string, revisio
 		return 0, revision, err
 	}
 	certificateHash := sha256.Sum256(parsed.Raw)
-	name := "auto-" + cleanName
-	for copyIndex := 0; ; copyIndex++ {
-		candidate := name
-		if copyIndex > 0 {
-			candidate = fmt.Sprintf("%s-copy%d", name, copyIndex)
-		}
-		var count int64
-		if err = database.GetDB().Model(&model.Tls{}).Where("name = ?", candidate).Count(&count).Error; err != nil {
-			return 0, revision, err
-		}
-		if count == 0 {
-			name = candidate
-			break
-		}
-	}
 	tlsConfig := map[string]interface{}{
 		"id":   0,
 		"name": name,

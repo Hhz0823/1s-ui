@@ -1684,6 +1684,8 @@ EOF
     location ^~ ${FRONTEND_PATH} {
         alias ${FRONTEND_ROOT}/;
         try_files \$uri \$uri/ ${FRONTEND_PATH}index.html;
+        # Browsers re-check the UI after a panel update instead of showing a cached one.
+        add_header Cache-Control "no-cache" always;
     }
 }
 # END 1S-UI MANAGED FRONTEND GATEWAY

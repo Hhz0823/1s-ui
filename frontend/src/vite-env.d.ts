@@ -1,5 +1,8 @@
 /// <reference types="vite/client" />
 
+// The version in package.json, fixed at build time.
+declare const __APP_VERSION__: string
+
 interface ImportMetaEnv {
   readonly VITE_BACKEND_URL?: string
   readonly VITE_BASE_PATH?: string
