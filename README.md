@@ -11,7 +11,7 @@
   [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8)](backend/go.mod)
   [![Vue](https://img.shields.io/badge/Vue-3-42b883)](frontend/package.json)
 
-  **[Linux v1.6.3](https://github.com/Hhz0823/1s-ui/releases/tag/v1.6.3)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
+  **[Linux v1.6.4](https://github.com/Hhz0823/1s-ui/releases/tag/v1.6.4)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
 </div>
 
 > 1S-UI 基于 [alireza0/s-ui](https://github.com/alireza0/s-ui) 二次开发，仅用于学习、研究与技术交流。请遵守当地法律法规。
@@ -155,7 +155,7 @@ s-ui update
 入站、证书、Xray 二进制和运行配置不会被删除。网页界面（`s-ui-frontend.tar.gz`）会随面板一起更新；
 网页界面与面板版本不一致时（例如旧版更新器只替换了程序），面板启动后会自动下载并安装与自身版本
 一致的界面，浏览器会重新检查界面文件，不再显示缓存的旧界面。在线更新不可用时，可在服务器上重新运行上面的安装命令
-升级，数据同样保留；命令末尾加版本号可安装指定版本，例如 `v1.6.3`。v1.6.3 及更早版本自带的
+升级，数据同样保留；命令末尾加版本号可安装指定版本，例如 `v1.6.4`。v1.6.3 及更早版本自带的
 `s-ui update` 会从旧的 master 分支下载过时的安装脚本，请改用安装命令。
 
 **服务器连不上 GitHub（例如 api.github.com 超时）时**，面板更新和 Xray-core 安装会自动换用其他通道：
@@ -360,6 +360,13 @@ flowchart LR
 - **列表页**：入站、用户、出站、节点、服务、TLS、管理员、路由和 DNS 统一为「操作按钮 + 搜索 + 表格」，行内文字操作（编辑 / 克隆 / 流量 / 删除），删除统一二次确认，并支持每页数量与「全部」。
 - **路由与 DNS 规则**：表格保留匹配顺序，可拖动行或用箭头调整顺序，显示匹配条件摘要（悬停查看明细）和「有未保存的更改」提示。
 - **主题**：新增宝塔绿（默认）、1Panel 蓝与 1Panel 暗色，原有主题仍可在右上角切换；「设置 → 界面」可切回玻璃、实色或清透风格。
+
+### v1.6.4 更新重点
+
+- **在线更新同步更新网页界面**：面板内更新会一起安装同版本的网页界面；界面与面板版本不一致时（例如用 v1.6.3 及更早的更新器升级后），面板启动后自动换成匹配的界面，浏览器不再显示缓存的旧界面。
+- **NaiveProxy 在 v2rayN 中恢复可用**：Chromium 拒绝有效期超过 200 天的证书，一键创建的 Naive 节点改用面板私有 CA 与 45 天服务器证书并自动续期；升级前创建的 Naive 节点需要重新导入一次，详见[一键创建 VLESS 与 NaiveProxy](#一键创建-vless-与-naiveproxy)。
+- **XHTTP 下行分离**：REALITY + XHTTP、REALITY + XHTTP + Vision 与 VLESS Encryption + XHTTP 可让下载经 CDN 域名回源，上传仍直连；创建前自动检查 CDN 是否能到达本机，CDN 防护返回 403 时给出原因。
+- `s-ui` 菜单改从 main 分支下载安装脚本。
 
 ### v1.6.3 更新重点
 
