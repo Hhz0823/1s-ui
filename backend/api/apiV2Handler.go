@@ -35,6 +35,8 @@ func (a *APIv2Handler) Register(g *gin.RouterGroup) {
 }
 
 func (a *APIv2Handler) initRouter(g *gin.RouterGroup) {
+	// Registered before the token middleware: the monitor key is its own scope.
+	registerMonitorRoutes(g)
 	g.Use(func(c *gin.Context) {
 		a.checkToken(c)
 	})

@@ -555,6 +555,7 @@
               placeholder="0 0 1 * *"></v-text-field>
           </v-col>
         </v-row>
+        <MonitorAppKey />
       </v-window-item>
 
       <v-window-item value="t1">
@@ -878,6 +879,7 @@ import HttpUtils from '@/plugins/httputil'
 import { FindDiff } from '@/plugins/utils'
 import SubJsonExtVue from '@/components/SubJsonExt.vue'
 import SubClashExtVue from '@/components/SubClashExt.vue'
+import MonitorAppKey from '@/components/MonitorAppKey.vue'
 import { push } from 'notivue'
 import bgAsset from '@/assets/bg.jpg'
 import { backendBaseUrl, resolveFrontendUrl, runtimeConfig } from '@/utils/backend'

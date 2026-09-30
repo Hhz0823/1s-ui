@@ -1,0 +1,10 @@
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+*.jks
+*.keystore
+
+# The root .gitignore drops Go binaries named "main"; keep the Android source set.
+!/app/src/main/
