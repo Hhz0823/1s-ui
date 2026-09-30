@@ -233,6 +233,10 @@ func TestDownloadLineOrdersSources(t *testing.T) {
 }
 
 func TestMirrorsServeReleaseCheckedBySHA256SUMS(t *testing.T) {
+	// The default line, whatever an earlier test left in the shared database:
+	// the "cn" line trusts a single built-in mirror.
+	setupQuickAddTest(t)
+	setDownloadLine(t, "auto")
 	fake := newFakeGitHub(t)
 	fake.githubDown = true
 	builtinGitHubMirrors = []string{fake.server.URL + "/mirror/", fake.server.URL + "/mirror2/"}
