@@ -416,7 +416,7 @@
     roleEnable: "Включить контроллер",
     roleDisable: "Переключить на клиент",
     roleResourceReady: "Ресурсов сервера достаточно",
-    roleResourceBlocked: "Для контроллера требуется минимум 2 ядра CPU и 2 GiB RAM. Режим клиента продолжит работать.",
+    roleResourceBlocked: "Для контроллера требуется минимум 1 ядро CPU и 400 MiB RAM. Режим клиента продолжит работать.",
     roleDisableConfirm: "{count} дочерних серверов отключатся, но записи узлов сохранятся. Продолжить?",
     roleUpdated: "Роль панели обновлена",
     xrayInstallTitle: "Ядро Xray-core",

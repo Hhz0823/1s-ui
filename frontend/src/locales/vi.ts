@@ -415,7 +415,7 @@
     roleEnable: "Bật bộ điều khiển",
     roleDisable: "Chuyển sang máy khách",
     roleResourceReady: "Máy chủ đáp ứng yêu cầu bộ điều khiển",
-    roleResourceBlocked: "Bộ điều khiển cần ít nhất 2 lõi CPU và 2 GiB RAM; máy này vẫn dùng bình thường ở chế độ máy khách.",
+    roleResourceBlocked: "Bộ điều khiển cần ít nhất 1 lõi CPU và 400 MiB RAM; máy này vẫn dùng bình thường ở chế độ máy khách.",
     roleDisableConfirm: "{count} máy chủ con sẽ ngoại tuyến, nhưng bản ghi node vẫn được giữ. Tiếp tục?",
     roleUpdated: "Đã cập nhật vai trò vận hành",
     xrayInstallTitle: "Nhân Xray-core",

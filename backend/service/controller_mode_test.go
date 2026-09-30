@@ -143,3 +143,41 @@ func TestDisablingControllerRevokesEnrollmentWithoutDeletingNodes(t *testing.T) 
 		t.Fatal("controller mode internals leaked through generic settings")
 	}
 }
+
+func TestLowSpecControllerRunsInLiteMode(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("SUI_DB_FOLDER", dir)
+	t.Setenv("SUI_DISABLE_XRAY", "true")
+	if err := database.InitDB(filepath.Join(dir, "controller-lite.db")); err != nil {
+		t.Fatal(err)
+	}
+	previous := controllerCapacity
+	controllerCapacity = func() (int, uint64) { return 1, 480 * 1024 * 1024 }
+	t.Cleanup(func() { controllerCapacity = previous })
+
+	settings := &SettingService{}
+	status, err := settings.SetControllerProfile(ControllerProfileFull)
+	if err != nil {
+		t.Fatalf("1c512m host could not become a lite controller: %v", err)
+	}
+	if !status.Enabled || !status.CanControl || !status.Lite || !status.SingboxOnly {
+		t.Fatalf("unexpected lite controller status: %#v", status)
+	}
+	if !liteControllerActive() {
+		t.Fatal("lite controller was not reported as active")
+	}
+
+	controllerCapacity = func() (int, uint64) { return 1, 256 * 1024 * 1024 }
+	if _, err := settings.SetControllerProfile(ControllerProfileMonitor); err == nil {
+		t.Fatal("host below the lite floor became a controller")
+	}
+
+	controllerCapacity = func() (int, uint64) { return 2, 2 * 1024 * 1024 * 1024 }
+	status, err = settings.GetControllerModeStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Lite {
+		t.Fatalf("2c2G controller reported lite mode: %#v", status)
+	}
+}

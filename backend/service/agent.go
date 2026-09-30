@@ -156,13 +156,8 @@ func (s *AgentService) create(name string, includePairing bool) (*AgentEnrollmen
 	if s.capacityProvider != nil {
 		cpuCount, memTotal = s.capacityProvider()
 	}
-	if !meetsClusterRequirements(cpuCount, memTotal) {
-		return nil, common.NewErrorf(
-			"server monitoring requires at least %d CPU cores and 2 GiB memory; current host: %d CPU cores / %.2f GiB",
-			MinClusterCPUCores,
-			cpuCount,
-			float64(memTotal)/(1024*1024*1024),
-		)
+	if err := controllerHostError(cpuCount, memTotal, singboxOnlyRuntime()); err != nil {
+		return nil, err
 	}
 	token, hash, err := newAgentToken()
 	if err != nil {

@@ -194,12 +194,6 @@ export default {
       loading: false,
       side: "s",
       coreTypes: CoreTypes,
-      coreItems: isOpenWrtLite
-        ? [{ title: 'sing-box', value: CoreTypes.SingBox }]
-        : [
-            { title: 'sing-box', value: CoreTypes.SingBox },
-            { title: 'Xray-core', value: CoreTypes.Xray },
-          ],
       inTypes: InTypes,
       inboundWithUsers: ['mixed', 'socks', 'http', 'shadowsocks', 'vmess', 'trojan', 'naive', 'hysteria', 'shadowtls', 'tuic', 'hysteria2', 'vless', 'anytls'],
       initUsers: {
@@ -373,6 +367,16 @@ export default {
     },
   },
   computed: {
+    coreItems() {
+      const items = [{ title: 'sing-box', value: CoreTypes.SingBox }]
+      // A lite controller runs sing-box only; keep Xray listed just to show
+      // the core of an existing Xray inbound.
+      const liteController = Boolean(Data().controllerMode?.lite)
+      if (!isOpenWrtLite && (!liteController || this.inbound.core_type == CoreTypes.Xray)) {
+        items.push({ title: 'Xray-core', value: CoreTypes.Xray })
+      }
+      return items
+    },
     // Downloads through a CDN, set by one-click creation (see xhttp_cdn.go).
     inboundCdn(): { domain: string, port: number } | null {
       const cdn = (<any>this.inbound).cdn

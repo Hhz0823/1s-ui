@@ -4,6 +4,7 @@ import Login from '@/views/Login.vue'
 import Setup from '@/views/Setup.vue'
 import Data from '@/store/modules/data'
 import { fetchBackendObject, runtimeConfig } from '@/utils/backend'
+import { isChunkLoadError, reloadForNewChunks } from '@/utils/chunkReload'
 
 const routes = [
   {
@@ -170,6 +171,10 @@ const loadDataInterval = () => {
   refreshData()
   intervalId = setInterval(refreshData, DATA_REFRESH_MS)
 }
+
+router.onError((error, to) => {
+  if (isChunkLoadError(error)) reloadForNewChunks(router.resolve(to).href)
+})
 
 document.addEventListener('visibilitychange', () => {
   if (intervalId && !document.hidden) refreshData()

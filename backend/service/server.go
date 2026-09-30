@@ -14,6 +14,7 @@ import (
 	"github.com/Hhz0823/1s-ui/database/model"
 	"github.com/Hhz0823/1s-ui/logger"
 	panelutil "github.com/Hhz0823/1s-ui/util"
+	"github.com/Hhz0823/1s-ui/util/common"
 
 	"github.com/sagernet/sing-box/common/tls"
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -232,6 +233,11 @@ func (s *ServerService) GetXrayInfo() map[string]interface{} {
 const (
 	MinClusterCPUCores = 2
 	MinClusterMemBytes = 2 * 1024 * 1024 * 1024 // 2 GiB
+	// Below the cluster minimum the controller still runs in lite mode, as
+	// long as sing-box is the only proxy core. A 512 MB VPS reports a little
+	// less than 512 MiB after the kernel reserves its share.
+	MinLiteControllerCPUCores = 1
+	MinLiteControllerMemBytes = 400 * 1024 * 1024
 	// Low-resource hosts may install both cores, but run only one at a time.
 	LowResourceCoreMemBytes  = 1536 * 1024 * 1024
 	hostRequirementsCacheTTL = 15 * time.Second
@@ -298,6 +304,39 @@ func meetsClusterRequirements(cpuCount int, memTotal uint64) bool {
 	return cpuCount >= MinClusterCPUCores && memTotal >= MinClusterMemBytes
 }
 
+func meetsLiteControllerRequirements(cpuCount int, memTotal uint64) bool {
+	return cpuCount >= MinLiteControllerCPUCores && memTotal >= MinLiteControllerMemBytes
+}
+
+// singboxOnlyRuntime reports whether Xray-core cannot run on this panel, so
+// sing-box is the only proxy core. Tests replace it.
+var singboxOnlyRuntime = isSingboxOnlyRuntime
+
+// controllerHostError explains why this host cannot run the controller, or
+// returns nil. Hosts below the cluster minimum qualify in lite mode when
+// sing-box is the only proxy core.
+func controllerHostError(cpuCount int, memTotal uint64, singboxOnly bool) error {
+	if meetsClusterRequirements(cpuCount, memTotal) {
+		return nil
+	}
+	if !meetsLiteControllerRequirements(cpuCount, memTotal) {
+		return common.NewErrorf(
+			"the controller needs at least %d CPU core and %d MiB memory; current host: %d CPU cores / %d MiB",
+			MinLiteControllerCPUCores,
+			MinLiteControllerMemBytes/(1024*1024),
+			cpuCount,
+			memTotal/(1024*1024),
+		)
+	}
+	if !singboxOnly {
+		return common.NewErrorf(
+			"below %d CPU cores / 2 GiB the controller runs in lite mode, which uses sing-box only; turn off Xray-core in panel settings first",
+			MinClusterCPUCores,
+		)
+	}
+	return nil
+}
+
 func buildHostRequirements(cpuCount int, memTotal uint64, agentCount int) map[string]interface{} {
 	okCPU := cpuCount >= MinClusterCPUCores
 	okMem := memTotal >= MinClusterMemBytes
@@ -305,19 +344,21 @@ func buildHostRequirements(cpuCount int, memTotal uint64, agentCount int) map[st
 	applies := agentCount > 0
 	ok := !applies || meetsCluster
 	return map[string]interface{}{
-		"mode":              map[bool]string{true: "cluster", false: "panel"}[applies],
-		"applies":           applies,
-		"agent_count":       agentCount,
-		"min_cpu_cores":     MinClusterCPUCores,
-		"min_mem_bytes":     uint64(MinClusterMemBytes),
-		"min_mem_gb":        2,
-		"cpu_cores":         cpuCount,
-		"mem_total_bytes":   memTotal,
-		"ok_cpu":            okCPU,
-		"ok_mem":            okMem,
-		"ok":                ok,
-		"can_enable_agents": meetsCluster,
-		"meets_cluster_rec": meetsCluster,
+		"mode":               map[bool]string{true: "cluster", false: "panel"}[applies],
+		"applies":            applies,
+		"agent_count":        agentCount,
+		"min_cpu_cores":      MinClusterCPUCores,
+		"min_mem_bytes":      uint64(MinClusterMemBytes),
+		"min_mem_gb":         2,
+		"cpu_cores":          cpuCount,
+		"mem_total_bytes":    memTotal,
+		"ok_cpu":             okCPU,
+		"ok_mem":             okMem,
+		"ok":                 ok,
+		"can_enable_agents":  meetsCluster || meetsLiteControllerRequirements(cpuCount, memTotal),
+		"meets_cluster_rec":  meetsCluster,
+		"lite_min_cpu_cores": MinLiteControllerCPUCores,
+		"lite_min_mem_bytes": uint64(MinLiteControllerMemBytes),
 	}
 }
 
@@ -364,11 +405,14 @@ func (s *ServerService) GetHostRequirements() map[string]interface{} {
 		controllerProfile = controllerStatus.Profile
 	}
 	value := buildHostRequirements(cpuCount, memTotal, agentCount)
+	singboxOnly := singboxOnlyRuntime()
 	value["controller_enabled"] = controllerEnabled
 	value["controller_profile"] = controllerProfile
 	value["mode"] = map[bool]string{true: "cluster", false: "panel"}[controllerEnabled]
 	value["applies"] = controllerEnabled
-	value["ok"] = !controllerEnabled || meetsClusterRequirements(cpuCount, memTotal)
+	value["singbox_only"] = singboxOnly
+	value["lite"] = controllerEnabled && !meetsClusterRequirements(cpuCount, memTotal)
+	value["ok"] = !controllerEnabled || controllerHostError(cpuCount, memTotal, singboxOnly) == nil
 	hostRequirementsCache.value = value
 	hostRequirementsCache.loadedAt = time.Now()
 	return cloneHostRequirements(value)

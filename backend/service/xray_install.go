@@ -131,6 +131,9 @@ func baseXrayInstallStatus(supported bool, capability string, cpuCount int, memo
 
 func (s *XrayInstallService) StartInstall() (XrayInstallStatus, error) {
 	status := s.Status()
+	if liteControllerActive() {
+		return status, errLiteControllerSingbox
+	}
 	if !status.Supported {
 		return status, fmt.Errorf("Xray-core installation unavailable: %s", status.Capability)
 	}
@@ -166,6 +169,9 @@ func (s *XrayInstallService) SetEnabled(enabled bool) (XrayInstallStatus, error)
 		return status, fmt.Errorf("Xray-core is not installed")
 	}
 	if enabled {
+		if liteControllerActive() {
+			return status, errLiteControllerSingbox
+		}
 		if err := persistXrayRuntimeState(true); err != nil {
 			return s.Status(), err
 		}
@@ -178,6 +184,40 @@ func (s *XrayInstallService) SetEnabled(enabled bool) (XrayInstallStatus, error)
 		return s.Status(), err
 	}
 	return s.Status(), nil
+}
+
+var errLiteControllerSingbox = fmt.Errorf("the lite controller uses sing-box only; Xray-core needs at least %d CPU cores and 2 GiB memory", MinClusterCPUCores)
+
+// isSingboxOnlyRuntime reports whether Xray-core cannot run here: it is
+// turned off, or it is not installed.
+func isSingboxOnlyRuntime() bool {
+	if config.IsXrayDisabled() {
+		return true
+	}
+	info, err := os.Stat(config.GetXrayPath())
+	return err != nil || !info.Mode().IsRegular()
+}
+
+// switchToSingboxOnly turns Xray-core off so a lite controller runs sing-box
+// only. It refuses while Xray-core still serves inbounds, because turning it
+// off would silently take those nodes down.
+func switchToSingboxOnly() error {
+	if config.IsXrayDisabled() {
+		return nil
+	}
+	hasInbounds, err := (&ConfigService{}).HasXrayInbounds()
+	if err != nil {
+		return err
+	}
+	if hasInbounds {
+		return fmt.Errorf("the lite controller uses sing-box only, but Xray-core still has inbounds; move them to sing-box or delete them first")
+	}
+	service := &XrayInstallService{}
+	if !service.Status().Installed {
+		return nil
+	}
+	_, err = service.SetEnabled(false)
+	return err
 }
 
 func (s *XrayInstallService) Uninstall() (XrayInstallStatus, error) {

@@ -415,7 +415,7 @@
     roleEnable: "فعال‌سازی کنترل‌گر",
     roleDisable: "تغییر به کلاینت",
     roleResourceReady: "منابع این میزبان کافی است",
-    roleResourceBlocked: "حالت کنترل‌گر حداقل به ۲ هسته و ۲ GiB رم نیاز دارد؛ حالت کلاینت همچنان قابل استفاده است.",
+    roleResourceBlocked: "حالت کنترل‌گر حداقل به ۱ هسته و 400 MiB رم نیاز دارد؛ حالت کلاینت همچنان قابل استفاده است.",
     roleDisableConfirm: "پس از تغییر، {count} سرور فرزند آفلاین می‌شود و رکوردها حفظ می‌شوند. ادامه؟",
     roleUpdated: "نقش اجرا به‌روزرسانی شد",
     xrayInstallTitle: "هسته Xray-core",

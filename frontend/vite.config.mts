@@ -78,7 +78,9 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 2000,
       rollupOptions: {
         output: {
-          codeSplitting: false,
+          // Each page loads its own chunk, so the first visit downloads far
+          // less. main.ts reloads a tab whose chunks a UI update replaced.
+          codeSplitting: true,
           entryFileNames: getUniqueFileName('assets/[name].js'),
           chunkFileNames: getUniqueFileName('assets/[name].js'),
           assetFileNames: (assetInfo) => {

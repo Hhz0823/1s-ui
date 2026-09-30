@@ -169,7 +169,7 @@
             v-if="quickAdd.protocol === 'vless'"
             v-model:core-type="quickAdd.core_type"
             :data="quickAdd.vless"
-            :xray-available="!isOpenWrtLite"
+            :xray-available="xrayAvailable"
             :port="Number(quickAdd.port)"
           />
         </v-row>
@@ -221,7 +221,7 @@
       <v-btn color="primary" prepend-icon="mdi-plus" @click="showModal(0)">{{ $t('actions.add') }}</v-btn>
       <v-btn color="primary" variant="outlined" prepend-icon="mdi-lightning-bolt" @click="openQuickAdd">{{ $t('pages.quickAddNode') }}</v-btn>
       <v-btn variant="outlined" prepend-icon="mdi-shuffle-variant" @click="relayModal.visible = true">{{ $t('pages.relay') }}</v-btn>
-      <v-btn v-if="!isOpenWrtLite" variant="outlined" prepend-icon="mdi-stethoscope" @click="openXrayCheck">{{ $t('xray.selfCheck') }}</v-btn>
+      <v-btn v-if="xrayAvailable" variant="outlined" prepend-icon="mdi-stethoscope" @click="openXrayCheck">{{ $t('xray.selfCheck') }}</v-btn>
     </div>
     <v-text-field
       v-model="inboundQuery"
@@ -422,9 +422,11 @@ const openXrayCheck = () => {
   runXrayCheck()
 }
 
+// A lite controller runs sing-box only, so Xray-only choices are hidden.
+const xrayAvailable = computed(() => !isOpenWrtLite && !Data().controllerMode?.lite)
 const coreOptions = computed(() => {
   const items = [{ title: 'sing-box', value: CoreTypes.SingBox }]
-  if (!isOpenWrtLite) items.push({ title: 'Xray-core', value: CoreTypes.Xray })
+  if (xrayAvailable.value) items.push({ title: 'Xray-core', value: CoreTypes.Xray })
   return items
 })
 
@@ -439,7 +441,7 @@ watch(() => quickAdd.value.protocol, (val) => {
 })
 
 watch(() => quickAdd.value.core_type, (val) => {
-  if (isOpenWrtLite && val !== CoreTypes.SingBox) {
+  if (!xrayAvailable.value && val !== CoreTypes.SingBox) {
     quickAdd.value.core_type = CoreTypes.SingBox
     return
   }

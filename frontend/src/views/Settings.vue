@@ -42,6 +42,26 @@
             </v-chip>
           </div>
           <v-alert
+            v-if="controllerMode.lite"
+            type="info"
+            variant="tonal"
+            density="compact"
+            class="mt-3"
+            icon="mdi-feather"
+          >
+            {{ $t('setting.roleLiteActive') }}
+          </v-alert>
+          <v-alert
+            v-else-if="controllerMode.profile === 'client' && controllerMode.can_enable && hostBelowCluster"
+            type="info"
+            variant="tonal"
+            density="compact"
+            class="mt-3"
+            icon="mdi-feather"
+          >
+            {{ $t('setting.roleLiteNotice') }}
+          </v-alert>
+          <v-alert
             :type="controllerMode.profile === 'client' ? 'success' : 'info'"
             variant="tonal"
             density="compact"
@@ -76,7 +96,7 @@
               >{{ option.title }}</v-btn>
             </v-btn-toggle>
             <span class="text-caption text-medium-emphasis">
-              {{ controllerMode.can_enable ? $t('setting.roleResourceReady') : '2 CPU / 2 GiB' }}
+              {{ controllerMode.can_enable ? $t(hostBelowCluster ? 'setting.roleResourceLite' : 'setting.roleResourceReady') : liteFloorLabel }}
             </span>
           </div>
         </section>
@@ -122,7 +142,16 @@
           </v-alert>
           <template v-else>
             <v-alert
-              v-if="xrayInstall.low_resource"
+              v-if="controllerMode.lite"
+              type="info"
+              variant="tonal"
+              density="compact"
+              class="mt-3"
+            >
+              {{ $t('setting.xrayLiteControllerHint') }}
+            </v-alert>
+            <v-alert
+              v-else-if="xrayInstall.low_resource"
               type="warning"
               variant="tonal"
               density="compact"
@@ -186,7 +215,7 @@
                 color="primary"
                 prepend-icon="mdi-download"
                 :loading="xrayInstallLoading || xrayInstallRunning"
-                :disabled="!xrayInstall.can_install || xrayInstallActionLoading || xrayInstall.running"
+                :disabled="!xrayInstall.can_install || xrayInstallActionLoading || xrayInstall.running || controllerMode.lite"
                 @click="requestXrayInstall"
               >
                 {{ xrayInstall.installed ? $t('setting.xrayReinstall') : $t('setting.xrayInstallNow') }}
@@ -197,7 +226,7 @@
                   :variant="xrayInstall.disabled ? 'elevated' : 'tonal'"
                   :prepend-icon="xrayInstall.disabled ? 'mdi-power-plug-outline' : 'mdi-power-plug-off-outline'"
                   :loading="xrayInstallAction === 'enabled'"
-                  :disabled="xrayInstallActionLoading || xrayInstallRunning"
+                  :disabled="xrayInstallActionLoading || xrayInstallRunning || (xrayInstall.disabled && controllerMode.lite)"
                   @click="setXrayEnabled(xrayInstall.disabled)"
                 >
                   {{ xrayInstall.disabled ? $t('setting.xrayEnable') : $t('setting.xrayDisable') }}
@@ -976,7 +1005,16 @@ const controllerProfileOptions = computed(() => [
   { value: 'full', title: i18n.global.t('setting.roleFull'), icon: 'mdi-server-network' },
   { value: 'monitor', title: i18n.global.t('setting.roleMonitor'), icon: 'mdi-monitor-eye' },
 ])
-const controllerProfileLabel = computed(() => i18n.global.t(`setting.role${controllerMode.value.profile === 'full' ? 'Full' : controllerMode.value.profile === 'monitor' ? 'Monitor' : 'Client'}`))
+const controllerProfileLabel = computed(() => {
+  const label = i18n.global.t(`setting.role${controllerMode.value.profile === 'full' ? 'Full' : controllerMode.value.profile === 'monitor' ? 'Monitor' : 'Client'}`)
+  return controllerMode.value.lite ? `${label} · ${i18n.global.t('setting.roleLite')}` : label
+})
+// Below the cluster minimum the controller runs in lite mode (sing-box only).
+const hostBelowCluster = computed(() =>
+  controllerMode.value.cpu_cores < controllerMode.value.min_cpu_cores ||
+  controllerMode.value.memory_bytes < controllerMode.value.min_memory_bytes)
+const liteFloorLabel = computed(() =>
+  `${controllerMode.value.lite_min_cpu_cores} CPU / ${Math.round(controllerMode.value.lite_min_memory_bytes / 1024 / 1024)} MiB`)
 const controllerProfileHint = computed(() => i18n.global.t(`setting.role${controllerMode.value.profile === 'full' ? 'Full' : controllerMode.value.profile === 'monitor' ? 'Monitor' : 'Client'}Hint`))
 
 const xrayInstallRunning = computed(() => ['downloading', 'installing'].includes(xrayInstall.value.install.state))
@@ -1272,6 +1310,8 @@ const setControllerMode = async (profile: string) => {
   if (msg.success && msg.obj) {
     dataStore.assignControllerMode(msg.obj)
     push.success({ message: i18n.global.t('setting.roleUpdated') })
+    // A lite controller may have just turned Xray-core off.
+    if (msg.obj.lite) await loadXrayInstall()
   }
   pendingControllerProfile.value = ''
   controllerModeLoading.value = false
@@ -1331,6 +1371,7 @@ const setXrayEnabled = async (enabled: boolean) => {
   if (msg.success) {
     assignXrayInstallStatus(msg.obj)
     push.success({ message: i18n.global.t(enabled ? 'setting.xrayEnabledSuccess' : 'setting.xrayDisabledSuccess') })
+    await dataStore.loadControllerMode(true)
   }
   xrayInstallAction.value = ''
 }
