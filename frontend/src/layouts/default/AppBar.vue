@@ -77,18 +77,17 @@
             </v-btn>
           </template>
           <v-card class="menu-card theme-card" elevation="8">
-            <div class="theme-grid">
-              <button
-                v-for="th in themes"
-                :key="th.value"
-                @click="changeTheme(th.value)"
-                class="theme-chip"
-                :class="{ 'theme-chip--active': isActiveTheme(th.value) }"
-              >
-                <v-icon :icon="th.icon" size="18" />
-                <span>{{ $t('theme.' + th.value) }}</span>
-              </button>
-            </div>
+            <theme-picker compact />
+            <v-btn
+              block
+              variant="text"
+              size="small"
+              prepend-icon="mdi-tune-variant"
+              class="theme-more"
+              to="/settings?tab=t1"
+            >
+              {{ $t('setting.themeMore') }}
+            </v-btn>
           </v-card>
         </v-menu>
       </div>
@@ -98,12 +97,12 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue'
-import { useLocale, useTheme } from 'vuetify'
+import { useLocale } from 'vuetify'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { languages } from '@/locales'
 import { menuTrail } from './menu'
-import { savedTheme, themeChoices } from '@/plugins/themes'
+import ThemePicker from '@/components/ThemePicker.vue'
 
 const props = defineProps(['isMobile', 'menuPosition', 'menuItems', 'drawerExpanded', 'uiStyle'])
 
@@ -113,7 +112,6 @@ const panelStyle = computed(() => props.uiStyle === 'panel')
 const crumbGroup = computed(() => route.path === '/' ? '' : (menuTrail(route.path).group?.label ?? ''))
 const { locale: i18nLocale } = useI18n()
 const vuetifyLocale = useLocale()
-const theme = useTheme()
 
 const changeLocale = (l: string) => {
   i18nLocale.value = l
@@ -123,13 +121,6 @@ const changeLocale = (l: string) => {
 }
 const isActiveLocale = (l: string) => i18nLocale.value === l
 
-const themes = themeChoices
-
-const changeTheme = (th: string) => {
-  theme.change(th)
-  localStorage.setItem('theme', th)
-}
-const isActiveTheme = (th: string) => savedTheme() == th
 </script>
 
 <style scoped>
@@ -199,44 +190,14 @@ const isActiveTheme = (th: string) => savedTheme() == th
 }
 
 .theme-card {
-  min-width: 240px;
+  width: min(420px, calc(100vw - 24px));
+  max-height: min(560px, calc(100vh - 80px));
+  overflow-y: auto !important;
+  padding: 10px;
 }
 
-.theme-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  padding: 8px;
-}
-
-.theme-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  background: transparent;
-  background-clip: padding-box;
-  cursor: pointer;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: rgb(var(--v-theme-on-surface));
-  transition: all 0.2s ease;
-  font-family: inherit;
-  isolation: isolate;
-  overflow: hidden;
-  clip-path: inset(0 round 10px);
-}
-
-.theme-chip:hover {
-  background: rgba(var(--v-theme-primary), 0.08);
-}
-
-.theme-chip--active {
-  background: rgba(var(--v-theme-primary), 0.12);
-  border-color: rgba(var(--v-theme-primary), 0.3);
-  color: rgb(var(--v-theme-primary));
+.theme-more {
+  margin-top: 10px;
 }
 
 .app-bar-title--crumbs {

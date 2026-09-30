@@ -19,8 +19,12 @@
 <script lang="ts" setup>
 import Message from '@/components/message.vue'
 import { inject, ref, Ref } from 'vue'
+import { useTheme } from 'vuetify'
+import { setupAppearance } from '@/plugins/themes'
 
 const loading:Ref = inject('loading')?? ref(false)
+
+setupAppearance(useTheme())
 
 // Change page title
 document.title = "1S-UI " + document.location.hostname

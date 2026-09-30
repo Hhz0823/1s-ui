@@ -558,6 +558,7 @@
       </v-window-item>
 
       <v-window-item value="t1">
+        <theme-settings />
         <div class="text-subtitle-2 font-weight-bold mb-3" style="letter-spacing: 0.02em;">{{ $t('setting.uiCustomization') }}</div>
         <v-row>
           <v-col cols="12" sm="6" md="4">
@@ -870,8 +871,9 @@
 
 <script lang="ts" setup>
 import { i18n } from '@/locales'
-import { Ref, computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { Ref, computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import ThemeSettings from '@/components/ThemeSettings.vue'
 import HttpUtils from '@/plugins/httputil'
 import { FindDiff } from '@/plugins/utils'
 import SubJsonExtVue from '@/components/SubJsonExt.vue'
@@ -993,7 +995,12 @@ const emptyReverseProxyStatus = (): ReverseProxyStatus => ({
   message: '',
 })
 
-const tab = ref("t0")
+const route = useRoute()
+const tabs = ['t0', 't1', 't2', 't3', 't4', 't5']
+const queryTab = () => (tabs.includes(String(route.query.tab)) ? String(route.query.tab) : '')
+// ?tab=t1 opens a tab directly, e.g. from the theme menu in the header.
+const tab = ref(queryTab() || "t0")
+watch(() => route.query.tab, () => { if (queryTab()) tab.value = queryTab() })
 
 const versionInfo = ref<VersionInfo>(emptyVersionInfo())
 const versionLoading = ref(false)
@@ -1781,7 +1788,7 @@ const applyCongestion = async () => {
   }
 }
 
-.ui-choice-field,
+:deep(.ui-choice-field),
 .ui-range-field {
   min-height: 64px;
   border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
@@ -1791,7 +1798,7 @@ const applyCongestion = async () => {
   padding: 8px;
 }
 
-.ui-choice-label,
+:deep(.ui-choice-label),
 .ui-range-header {
   color: rgba(var(--v-theme-on-surface), 0.68);
   font-size: 12px;
@@ -1799,14 +1806,14 @@ const applyCongestion = async () => {
   margin-bottom: 7px;
 }
 
-.ui-choice-group {
+:deep(.ui-choice-group) {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
   gap: 4px;
 }
 
-.ui-choice-button {
+:deep(.ui-choice-button) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1830,11 +1837,11 @@ const applyCongestion = async () => {
   clip-path: inset(0 round 8px);
 }
 
-.ui-choice-button:hover {
+:deep(.ui-choice-button:hover) {
   background: rgba(var(--v-theme-primary), 0.08);
 }
 
-.ui-choice-button.is-active {
+:deep(.ui-choice-button.is-active) {
   background: rgba(var(--v-theme-primary), 0.92);
   color: rgb(var(--v-theme-on-primary));
   box-shadow: 0 6px 16px rgba(var(--v-theme-primary), 0.22);
@@ -1919,12 +1926,12 @@ const applyCongestion = async () => {
 }
 
 @media (max-width: 560px) {
-  .ui-choice-group {
+  :deep(.ui-choice-group) {
     grid-auto-flow: row;
     grid-auto-columns: unset;
   }
 
-  .ui-choice-button {
+  :deep(.ui-choice-button) {
     justify-content: center;
     white-space: normal;
   }
