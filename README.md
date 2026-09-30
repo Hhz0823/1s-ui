@@ -581,9 +581,14 @@ go build -o ../sui-agent ./cmd/sui-agent
 
 正式 Release 使用 GitHub Actions 构建带 CGO、musl 和 Naive 支持的 Linux 多架构包；普通本地 `go build` 不等同于正式 Release 构建。
 
+## 安卓监控 App
+
+在面板「设置 → 前端与后端 → 手机监控 App」生成只读监控密钥，用 App 扫码即可绑定，实时查看所有服务器并接收离线、资源过高提醒。APK 随版本发布附在 Release 上，详见 [android/README.md](android/README.md)。
+
 ## 目录结构
 
 ```text
+android/      安卓监控 App（Kotlin + Jetpack Compose，说明见 android/README.md）
 backend/      独立 Go 模块（main.go、go.mod 与全部 Go 包）
 docs/         文档与页面截图
 frontend/     独立 Vue 3 + Vuetify 静态应用

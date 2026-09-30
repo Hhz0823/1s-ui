@@ -79,6 +79,7 @@ var defaultValueMap = map[string]string{
 	"config":             defaultConfig,
 	"version":            config.GetVersion(),
 	agentEnrollmentKey:   "",
+	monitorKeyHash:       "",
 	controllerModeKey:    controllerModeAuto,
 }
 
@@ -123,6 +124,7 @@ func (s *SettingService) GetAllSetting() (*map[string]string, error) {
 	delete(allSetting, "version")
 	delete(allSetting, "globalResetLast")
 	delete(allSetting, agentEnrollmentKey)
+	delete(allSetting, monitorKeyHash)
 	delete(allSetting, controllerModeKey)
 	delete(allSetting, sdwanConfigKey)
 	for key, value := range s.GetDeploymentStatus() {
@@ -501,7 +503,7 @@ func (s *SettingService) Save(tx *gorm.DB, data json.RawMessage) error {
 	for key, obj := range settings {
 		if strings.HasPrefix(key, "deployment") || strings.HasPrefix(key, "frontendApply") ||
 			key == "apiListen" || key == "frontendEntryManagedBy" || key == "frontendGatewayConfigPath" || key == "frontendRuntimeConfigPath" ||
-			key == controllerModeKey || key == agentEnrollmentKey || key == sdwanConfigKey {
+			key == controllerModeKey || key == agentEnrollmentKey || key == monitorKeyHash || key == sdwanConfigKey {
 			continue
 		}
 		// Secure file existence check
