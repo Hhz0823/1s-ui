@@ -327,6 +327,16 @@
           </v-alert>
           <v-row class="mt-3">
             <v-col cols="12" lg="10">
+              <v-select
+                v-model="settings.downloadLine"
+                :items="downloadLineOptions"
+                :label="$t('setting.downloadLine')"
+                :hint="$t('setting.downloadLineHint')"
+                persistent-hint
+                prepend-inner-icon="mdi-map-marker-path"
+              ></v-select>
+            </v-col>
+            <v-col cols="12" lg="10">
               <v-text-field
                 v-model="settings.githubMirror"
                 :label="$t('setting.githubMirror')"
@@ -1192,7 +1202,14 @@ const settings = ref({
   congestionAlgo: "",
   qdisc: "",
   githubMirror: "",
+  downloadLine: "auto",
 })
+
+const downloadLineOptions = computed(() => [
+  { title: i18n.global.t('setting.downloadLineAuto'), value: 'auto' },
+  { title: i18n.global.t('setting.downloadLineCN'), value: 'cn' },
+  { title: i18n.global.t('setting.downloadLineGitHub'), value: 'github' },
+])
 
 const reverseProxyLoading = ref(false)
 const reverseProxyStatus = ref<ReverseProxyStatus>(emptyReverseProxyStatus())

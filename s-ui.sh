@@ -62,8 +62,31 @@ before_show_menu() {
     show_menu
 }
 
+# gh_prefix prints the GitHub mirror prefix to download through: none when
+# GitHub answers, a mainland China mirror when it does not. SUI_MIRROR
+# (auto | github | cn | prefix URL) picks the line by hand.
+gh_prefix() {
+    case "${SUI_MIRROR:-auto}" in
+    github) echo "" ;;
+    cn) echo "https://ghfast.top/" ;;
+    http://*/ | https://*/) echo "$SUI_MIRROR" ;;
+    http://* | https://*) echo "${SUI_MIRROR}/" ;;
+    *)
+        if curl -sI -o /dev/null --connect-timeout 5 --max-time 8 "https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh" 2>/dev/null; then
+            echo ""
+        else
+            echo "https://ghfast.top/"
+        fi
+        ;;
+    esac
+}
+
+install_script_url() {
+    echo "$(gh_prefix)https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh"
+}
+
 install() {
-    bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
+    bash <(curl -Ls "$(install_script_url)")
     if [[ $? == 0 ]]; then
         if [[ $# == 0 ]]; then
             start
@@ -82,7 +105,7 @@ update() {
         fi
         return 0
     fi
-    bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
+    bash <(curl -Ls "$(install_script_url)")
     if [[ $? == 0 ]]; then
         LOGI "更新完成，面板已自动重启"
         exit 0
@@ -100,12 +123,8 @@ custom_version() {
 
     [[ "${panel_version}" != v* ]] && panel_version="v${panel_version}"
 
-    download_link="https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh"
-
-    install_command="bash <(curl -Ls $download_link) $panel_version"
-
     echo "正在下载并安装面板版本 $panel_version..."
-    eval $install_command
+    bash <(curl -Ls "$(install_script_url)") "$panel_version"
 }
 
 uninstall() {
@@ -297,10 +316,10 @@ show_log() {
 }
 
 update_shell() {
-    wget -O /usr/bin/s-ui -N --no-check-certificate https://github.com/Hhz0823/1s-ui/raw/main/s-ui.sh
+    wget -O /usr/bin/s-ui -N --no-check-certificate "$(gh_prefix)https://raw.githubusercontent.com/Hhz0823/1s-ui/main/s-ui.sh"
     if [[ $? != 0 ]]; then
         echo ""
-        LOGE "下载脚本失败，请检查当前机器是否可以连接 Github"
+        LOGE "下载脚本失败：GitHub 和加速线路都不可用，可设置 SUI_MIRROR=加速地址 后重试"
         before_show_menu
     else
         chmod +x /usr/bin/s-ui

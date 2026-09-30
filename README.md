@@ -102,6 +102,14 @@ flowchart LR
 bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
 ```
 
+中国大陆服务器（GitHub 慢或连不上）改用加速线路，脚本和安装包都经 ghfast.top 等镜像下载，安装包按发布的 SHA256SUMS 校验：
+
+```bash
+bash <(curl -Ls https://ghfast.top/https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) --mirror cn
+```
+
+默认的 `--mirror auto` 会在 GitHub 连不上或下载太慢时自动换到加速线路；`--mirror github` 只用 GitHub，`--mirror https://你的加速地址/` 使用自建镜像。面板里的在线更新在 **设置 → 下载线路** 中选择，同样默认自动切换。
+
 这是面向新用户保留的唯一 Linux 安装指令。角色切换、Xray-core 可选安装、反向代理和主控绑定均在 Web 面板完成；脚本仍兼容旧版自动化参数，但不再把它们作为安装入口展示。
 
 ### 30 秒纳管一台服务器

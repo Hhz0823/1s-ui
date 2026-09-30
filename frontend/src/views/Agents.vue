@@ -25,6 +25,9 @@
                 <v-textarea v-if="enroll.managedCommand" :model-value="enroll.managedCommand" :label="$t('agent.managedCommand')" readonly dir="ltr" rows="3" auto-grow hide-details class="mb-3">
                   <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enroll.managedCommand)" /></template>
                 </v-textarea>
+                <v-textarea v-if="enroll.cnManagedCommand" :model-value="enroll.cnManagedCommand" :label="$t('agent.cnManagedCommand')" readonly dir="ltr" rows="3" auto-grow hide-details class="mb-3">
+                  <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enroll.cnManagedCommand)" /></template>
+                </v-textarea>
               </v-expansion-panel-text>
             </v-expansion-panel>
           </v-expansion-panels>
@@ -249,7 +252,7 @@ const serverRequirementText = computed(() => i18n.global.t('agent.hostRequiremen
   memory: currentHostMemoryGiB.value,
 }))
 
-const enroll = reactive({ visible: false, apiLoading: false, pairURL: '', pairExpiresAt: 0, command: '', managedCommand: '' })
+const enroll = reactive({ visible: false, apiLoading: false, pairURL: '', pairExpiresAt: 0, command: '', managedCommand: '', cnManagedCommand: '' })
 const connect = reactive({ visible: false, loading: false, url: '', insecure: false })
 const edit = reactive({ visible: false, loading: false, id: 0, name: '', publicHost: '' })
 const removeDialog = reactive<{ visible: boolean, loading: boolean, node?: AgentNode }>({ visible: false, loading: false })
@@ -319,7 +322,7 @@ const handleVisibilityChange = () => { if (!document.hidden) void loadNodes() }
 const openEnrollment = () => {
   if (!controllerMode.value.enabled) return push.error({ message: i18n.global.t('agent.controllerDisabledHint') })
   if (!serverMonitoringAvailable.value) return push.error({ message: serverRequirementText.value })
-  Object.assign(enroll, { visible: true, apiLoading: false, pairURL: '', pairExpiresAt: 0, command: '', managedCommand: '' })
+  Object.assign(enroll, { visible: true, apiLoading: false, pairURL: '', pairExpiresAt: 0, command: '', managedCommand: '', cnManagedCommand: '' })
   void createEnrollmentAPI()
 }
 const closeEnrollment = () => { enroll.visible = false; if (enroll.pairURL) void loadNodes() }
@@ -331,6 +334,7 @@ const createEnrollmentAPI = async () => {
     enroll.pairExpiresAt = Number(result.pair_expires_at || 0)
     enroll.command = result.command || ''
     enroll.managedCommand = result.managed_command || ''
+    enroll.cnManagedCommand = result.cn_managed_command || ''
   } catch (error: any) { push.error({ message: error?.message || i18n.global.t('agent.createFailed') }) }
   finally { enroll.apiLoading = false }
 }
@@ -344,6 +348,7 @@ const rotateNode = async (node: AgentNode) => {
       pairExpiresAt: Number(result.pair_expires_at || 0),
       command: result.command,
       managedCommand: result.managed_command || '',
+      cnManagedCommand: result.cn_managed_command || '',
     })
   } catch (error: any) { push.error({ message: error?.message || i18n.global.t('agent.rotateFailed') }) }
 }

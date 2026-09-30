@@ -76,6 +76,7 @@ var defaultValueMap = map[string]string{
 	"congestionAlgo":     "",
 	"qdisc":              "",
 	"githubMirror":       "",
+	"downloadLine":       downloadLineAuto,
 	"config":             defaultConfig,
 	"version":            config.GetVersion(),
 	agentEnrollmentKey:   "",
@@ -535,6 +536,12 @@ func (s *SettingService) Save(tx *gorm.DB, data json.RawMessage) error {
 				return err
 			}
 		}
+		if key == "downloadLine" {
+			obj, err = normalizeDownloadLine(obj)
+			if err != nil {
+				return err
+			}
+		}
 		if key == "webPort" {
 			port, parseErr := strconv.Atoi(obj)
 			if parseErr != nil || port < 1 || port > 65535 {
@@ -584,6 +591,35 @@ func normalizeGitHubMirror(value string) (string, error) {
 		value += "/"
 	}
 	return value, nil
+}
+
+// Download lines for panel updates and Xray-core installs:
+//   - auto: GitHub first; a mirror takes over when GitHub fails or is too slow.
+//   - github: GitHub and the administrator's mirror only.
+//   - cn: the mirrors first (for servers in mainland China), GitHub last.
+const (
+	downloadLineAuto   = "auto"
+	downloadLineGitHub = "github"
+	downloadLineCN     = "cn"
+)
+
+// GetDownloadLine is the download line chosen under Settings.
+func (s *SettingService) GetDownloadLine() (string, error) {
+	value, err := s.getString("downloadLine")
+	if err != nil {
+		return downloadLineAuto, err
+	}
+	return normalizeDownloadLine(value)
+}
+
+func normalizeDownloadLine(value string) (string, error) {
+	switch value = strings.ToLower(strings.TrimSpace(value)); value {
+	case "":
+		return downloadLineAuto, nil
+	case downloadLineAuto, downloadLineGitHub, downloadLineCN:
+		return value, nil
+	}
+	return downloadLineAuto, common.NewError("download line must be auto, github or cn")
 }
 
 func (s *SettingService) GetSubJsonExt() (string, error) {

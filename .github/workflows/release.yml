@@ -218,6 +218,11 @@ jobs:
           name: s-ui-frontend
           path: release-assets
 
+      # 面板在 api.github.com 不可达时，经加速镜像下载也能按它校验
+      - name: 生成 SHA256SUMS
+        working-directory: release-assets
+        run: sha256sum -- *.tar.gz > SHA256SUMS && cat SHA256SUMS
+
       - name: 发布到当前仓库 Release
         uses: softprops/action-gh-release@v3
         with:

@@ -637,6 +637,7 @@ func (a *ApiService) agentEnrollmentResponse(c *gin.Context, enrollment *service
 		"node": enrollment.Node, "token": enrollment.Token,
 		"panel_url": panelURL, "connect_url": pairURL, "pair_url": pairURL, "pair_expires_at": enrollment.PairExpiresAt,
 		"command": command, "managed_command": managedCommand,
+		"cn_command": chinaCommand(command), "cn_managed_command": chinaCommand(managedCommand),
 		"legacy_command": legacyCommand, "legacy_managed_command": legacyManagedCommand,
 	}
 }
@@ -648,7 +649,38 @@ func agentConnectionResponse(connectURL string) map[string]interface{} {
 	return map[string]interface{}{
 		"connect_url": connectURL,
 		"command":     command, "managed_command": managedCommand,
+		"cn_command": chinaCommand(command), "cn_managed_command": chinaCommand(managedCommand),
 	}
+}
+
+// defaultChinaMirror is the GitHub mirror the mainland China install commands
+// use when none is set under Settings.
+const defaultChinaMirror = "https://ghfast.top/"
+
+// chinaCommand is an install command for servers in mainland China: the
+// script comes through a GitHub mirror and downloads through it too.
+func chinaCommand(command string) string {
+	mirror := ""
+	if database.GetDB() != nil {
+		mirror, _ = (&service.SettingService{}).GetGitHubMirror()
+	}
+	line := "cn"
+	if mirror == "" {
+		mirror = defaultChinaMirror
+	} else {
+		line = shellQuote(mirror)
+	}
+	const raw = "https://raw.githubusercontent.com/"
+	index := strings.Index(command, raw)
+	if index < 0 {
+		return command
+	}
+	scriptEnd := strings.Index(command[index:], ")")
+	if scriptEnd < 0 {
+		return command
+	}
+	scriptEnd += index
+	return command[:index] + mirror + command[index:scriptEnd] + ") --mirror " + line + command[scriptEnd+1:]
 }
 
 func managedPanelInstallCommand(_ string) string {

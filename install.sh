@@ -91,6 +91,16 @@ usage() {
 唯一推荐安装指令:
   bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
 
+中国大陆服务器（GitHub 慢或连不上时）:
+  bash <(curl -Ls https://ghfast.top/https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) --mirror cn
+
+下载线路:
+  --mirror auto         默认：GitHub 连不上或太慢时自动改用中国大陆加速线路
+  --mirror cn           优先中国大陆加速线路（ghfast.top 等镜像），GitHub 兜底
+  --mirror github       只用 GitHub 直连
+  --mirror URL          自建加速前缀，例如 https://ghfast.top/
+                        也可用环境变量 SUI_MIRROR 指定
+
 安装结果:
   完整 Web 面板 + sing-box + 休眠 Agent。首次进入 Web 后，向导会设置
   管理员、运行角色与可选主服务器连接；Agent 绑定主服务器后才启动。
@@ -188,6 +198,14 @@ parse_args() {
             ;;
         --agent-insecure)
             AGENT_INSECURE=1
+            shift
+            ;;
+        --mirror)
+            DOWNLOAD_LINE="${2:-}"
+            shift 2
+            ;;
+        --mirror=*)
+            DOWNLOAD_LINE="${1#--mirror=}"
             shift
             ;;
         --start-core)
@@ -718,14 +736,122 @@ install_base() {
 # the panel installs the same one in that case.
 XRAY_FALLBACK_VERSION="v26.3.27"
 
+# Download lines. A GitHub mirror serves a github.com or
+# raw.githubusercontent.com URL put after its prefix. GH_SOURCES lists the
+# sources in the order they are tried; "" is GitHub itself.
+GH_BUILTIN_MIRRORS=("https://ghfast.top/" "https://gh-proxy.com/" "https://ghproxy.net/")
+DOWNLOAD_LINE="${SUI_MIRROR:-auto}"   # auto | github | cn | mirror prefix URL
+GH_SOURCES=()
+
+# github_reachable succeeds when github.com answers within a few seconds.
+github_reachable() {
+    curl -sI -o /dev/null --connect-timeout 5 --max-time 8 "https://github.com/Hhz0823/1s-ui/releases/latest" 2>/dev/null
+}
+
+resolve_download_sources() {
+    [[ ${#GH_SOURCES[@]} -gt 0 ]] && return 0
+    local line="$DOWNLOAD_LINE" mirror
+    case "$line" in
+    github)
+        GH_SOURCES=("")
+        ;;
+    cn)
+        echo -e "${green}使用中国大陆加速线路下载${plain}" >&2
+        GH_SOURCES=("${GH_BUILTIN_MIRRORS[@]}" "")
+        ;;
+    http://* | https://*)
+        [[ "$line" == */ ]] || line="${line}/"
+        echo -e "${green}使用加速线路 ${line} 下载${plain}" >&2
+        GH_SOURCES=("$line" "")
+        for mirror in "${GH_BUILTIN_MIRRORS[@]}"; do
+            [[ "$mirror" != "$line" ]] && GH_SOURCES+=("$mirror")
+        done
+        ;;
+    *)
+        if [[ "$line" != "auto" && -n "$line" ]]; then
+            echo -e "${yellow}未知下载线路 ${line}，按 auto 处理${plain}" >&2
+        fi
+        if github_reachable; then
+            GH_SOURCES=("" "${GH_BUILTIN_MIRRORS[@]}")
+        else
+            echo -e "${yellow}无法直连 GitHub，自动改用中国大陆加速线路${plain}" >&2
+            GH_SOURCES=("${GH_BUILTIN_MIRRORS[@]}" "")
+        fi
+        ;;
+    esac
+}
+
+source_name() {
+    if [[ -z "$1" ]]; then
+        echo "GitHub"
+    else
+        echo "$1" | sed -E 's#^https?://([^/]+).*#\1#'
+    fi
+}
+
+# gh_download URL OUT saves a github.com (or raw.githubusercontent.com) file,
+# trying each source in turn. A source that is not the last one is dropped
+# when it stays under 64KB/s for 20 seconds.
+gh_download() {
+    local url="$1" out="$2" src index=0 total
+    resolve_download_sources
+    total=${#GH_SOURCES[@]}
+    for src in "${GH_SOURCES[@]}"; do
+        index=$((index + 1))
+        rm -f "$out"
+        echo -e "下载（$(source_name "$src")）：${url}"
+        if command -v curl >/dev/null 2>&1; then
+            local args=(-fL --connect-timeout 15 -o "$out")
+            if [[ $index -lt $total ]]; then
+                args+=(--speed-limit 65536 --speed-time 20)
+            else
+                args+=(--retry 3 --retry-delay 2)
+            fi
+            curl "${args[@]}" "${src}${url}" && return 0
+        else
+            wget -q --timeout=20 -O "$out" "${src}${url}" && return 0
+        fi
+        [[ $index -lt $total ]] && echo -e "${yellow}$(source_name "$src") 下载失败或太慢，换下一条线路${plain}"
+    done
+    rm -f "$out"
+    return 1
+}
+
+# gh_verify_release_sha256 FILE NAME VERSION checks FILE against the
+# SHA256SUMS of the panel release. Releases published before it existed pass.
+gh_verify_release_sha256() {
+    local file="$1" name="$2" version="$3" sums expected actual
+    command -v sha256sum >/dev/null 2>&1 || return 0
+    sums="/tmp/s-ui-SHA256SUMS"
+    if ! gh_download "https://github.com/Hhz0823/1s-ui/releases/download/${version}/SHA256SUMS" "$sums" >/dev/null 2>&1; then
+        rm -f "$sums"
+        return 0
+    fi
+    expected=$(awk -v n="$name" '$2 == n || $2 == "*" n { print $1; exit }' "$sums")
+    rm -f "$sums"
+    [[ -n "$expected" ]] || return 0
+    actual=$(sha256sum "$file" | awk '{ print $1 }')
+    if [[ "${actual,,}" != "${expected,,}" ]]; then
+        echo -e "${red}${name} 校验失败：SHA-256 与发布的 SHA256SUMS 不一致${plain}"
+        return 1
+    fi
+    echo -e "${green}${name} SHA-256 校验通过${plain}"
+}
+
 # github_latest_tag prints the latest stable tag of a GitHub repository: from
-# the API, else from the /releases/latest redirect on github.com, which still
-# answers where api.github.com is blocked or rate limited.
+# the API, else from the /releases/latest redirect on github.com or a mirror,
+# which still answer where api.github.com is blocked or rate limited.
 github_latest_tag() {
-    local repo="$1" tag=""
+    local repo="$1" tag="" src
     tag=$(curl -Ls --connect-timeout 10 --max-time 20 "https://api.github.com/repos/${repo}/releases/latest" 2>/dev/null | grep '"tag_name":' | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
     if [[ ! "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+ ]]; then
-        tag=$(curl -sI --connect-timeout 10 --max-time 20 "https://github.com/${repo}/releases/latest" 2>/dev/null | tr -d '\r' | grep -i '^location:' | head -1 | sed -nE 's#.*/releases/tag/([^/?#[:space:]]+).*#\1#p')
+        resolve_download_sources
+        for src in "${GH_SOURCES[@]}"; do
+            # Mirrors pass the redirect on or follow it to the release page;
+            # either names the tag.
+            tag=$(curl -sL -D - --connect-timeout 10 --max-time 20 "${src}https://github.com/${repo}/releases/latest" 2>/dev/null | tr -d '\r' | grep -oE "/${repo}/releases/tag/[^/?#\"'<> ]+" | head -1 | sed -E 's#.*/releases/tag/##')
+            [[ "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+ ]] && break
+        done
     fi
     [[ "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+ ]] && echo "$tag"
 }
@@ -1165,8 +1291,7 @@ install_xray() {
 
     local zip_path="/tmp/${asset}"
     local url="https://github.com/XTLS/Xray-core/releases/download/${xray_version}/${asset}"
-    wget -N --no-check-certificate -O "$zip_path" "$url"
-    if [[ $? -ne 0 ]]; then
+    if ! gh_download "$url" "$zip_path"; then
         echo -e "${yellow}下载 Xray-core 失败，可稍后手动放置到 /usr/local/s-ui/bin/xray${plain}"
         rm -rf "$tmp_dir" "$zip_path"
         return 1
@@ -1512,18 +1637,16 @@ download_release() {
     local url="https://github.com/Hhz0823/1s-ui/releases/download/${version}/s-ui-linux-${arch_name}.tar.gz"
     local out="/tmp/s-ui-linux-${arch_name}.tar.gz"
     DOWNLOAD_TARBALL=""
-    rm -f "$out"
-    echo -e "下载：${url}"
-    if command -v curl >/dev/null 2>&1; then
-        curl -fL --retry 3 --retry-delay 2 --connect-timeout 20 -o "$out" "$url" || return 1
-    else
-        wget -q --no-check-certificate -O "$out" "$url" || return 1
-    fi
+    gh_download "$url" "$out" || return 1
     local sz
     sz=$(stat -c%s "$out" 2>/dev/null || stat -f%z "$out" 2>/dev/null || echo 0)
     if [[ "${sz:-0}" -lt 5000000 ]]; then
         echo -e "${red}下载文件过小（${sz} bytes），可能 404 或截断${plain}"
         head -c 200 "$out" 2>/dev/null || true
+        rm -f "$out"
+        return 1
+    fi
+    if ! gh_verify_release_sha256 "$out" "s-ui-linux-${arch_name}.tar.gz" "$version"; then
         rm -f "$out"
         return 1
     fi
@@ -1535,13 +1658,8 @@ download_frontend_release() {
     local url="https://github.com/Hhz0823/1s-ui/releases/download/${version}/s-ui-frontend.tar.gz"
     local out="/tmp/s-ui-frontend.tar.gz"
     FRONTEND_TARBALL=""
-    rm -f "$out"
-    echo -e "下载独立前端：${url}"
-    if command -v curl >/dev/null 2>&1; then
-        curl -fL --retry 3 --retry-delay 2 --connect-timeout 20 -o "$out" "$url" || return 1
-    else
-        wget -q --no-check-certificate -O "$out" "$url" || return 1
-    fi
+    echo -e "下载独立前端"
+    gh_download "$url" "$out" || return 1
     local sz
     sz=$(stat -c%s "$out" 2>/dev/null || stat -f%z "$out" 2>/dev/null || echo 0)
     if [[ "${sz:-0}" -lt 10000 ]] || ! tar tzf "$out" >/dev/null 2>&1; then
@@ -1551,6 +1669,10 @@ download_frontend_release() {
     fi
     if tar tzf "$out" | awk '/(^|\/)\.\.($|\/)|^\// { bad=1 } END { exit bad ? 0 : 1 }'; then
         echo -e "${red}独立前端压缩包包含不安全路径${plain}"
+        rm -f "$out"
+        return 1
+    fi
+    if ! gh_verify_release_sha256 "$out" "s-ui-frontend.tar.gz" "$version"; then
         rm -f "$out"
         return 1
     fi
@@ -1819,7 +1941,7 @@ install_s-ui() {
             last_version=$(curl -Ls "https://api.github.com/repos/Hhz0823/1s-ui/releases?per_page=5" | grep '"tag_name":' | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
         fi
         if [[ ! -n "$last_version" ]]; then
-            echo -e "${red}获取 s-ui 版本失败：api.github.com 和 github.com 都无法访问，请稍后重试，或在命令末尾加上版本号（例如 v1.6.3）${plain}"
+            echo -e "${red}获取 s-ui 版本失败：GitHub 和加速线路都无法访问，请稍后重试，或在命令末尾加上版本号（例如 v1.6.3）${plain}"
             exit 1
         fi
         echo -e "已获取 s-ui 版本：${last_version}，开始安装..."
@@ -1830,7 +1952,7 @@ install_s-ui() {
     fi
 
     if ! download_release "$last_version"; then
-        echo -e "${red}下载 s-ui ${last_version} 失败，请确认可访问 Github${plain}"
+        echo -e "${red}下载 s-ui ${last_version} 失败：GitHub 和加速线路都不可用，可加 --mirror 指定可用的加速地址后重试${plain}"
         exit 1
     fi
     local tarball="$DOWNLOAD_TARBALL"
