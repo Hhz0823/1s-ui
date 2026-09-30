@@ -12,6 +12,48 @@ export type AgentMetricSample = {
   process_count?: number
   net_sent_rate?: number
   net_recv_rate?: number
+  load1?: number
+  tcp_conns?: number
+  udp_conns?: number
+}
+
+// One point of stored history from api/agents/:id/metrics.
+export type AgentMetricPoint = {
+  time: number
+  cpu: number
+  mem: number
+  swap: number
+  disk: number
+  load1: number
+  processes: number
+  tcp: number
+  udp: number
+  net_sent_rate: number
+  net_recv_rate: number
+  net_sent: number
+  net_recv: number
+  ping_ms: number
+  ping_loss: number
+}
+
+export type AgentLatencyPoint = { time: number, ms: number, ok: boolean }
+
+export type TrafficLimitType = 'sum' | 'max' | 'min' | 'up' | 'down'
+
+// Display metadata the admin sets on the monitor page.
+export type AgentNodeMeta = {
+  group: string
+  tags: string
+  region: string
+  remark: string
+  price: number
+  currency: string
+  billing_cycle: number
+  expire_at: number
+  sort_weight: number
+  traffic_limit: number
+  traffic_limit_type: TrafficLimitType
+  traffic_reset_day: number
 }
 
 export type AgentCommand = {
@@ -23,7 +65,7 @@ export type AgentCommand = {
   elapsed_ms?: number
 }
 
-export type AgentNode = {
+export type AgentNode = Partial<AgentNodeMeta> & {
   id: number
   name: string
   created_at?: number
@@ -45,6 +87,8 @@ export type AgentNode = {
     updated_at?: number
   }
   commands?: AgentCommand[]
+  traffic?: { sent: number, recv: number, period_start: number, next_reset: number }
+  latency_history?: AgentLatencyPoint[]
   report: {
     hostname?: string
     os?: string
@@ -52,6 +96,12 @@ export type AgentNode = {
     uptime?: number
     cpu_percent?: number
     cpu_cores?: number
+    cpu_model?: string
+    platform?: string
+    kernel?: string
+    virtualization?: string
+    tcp_conns?: number
+    udp_conns?: number
     memory?: AgentUsage
     swap?: AgentUsage
     disk?: AgentUsage
