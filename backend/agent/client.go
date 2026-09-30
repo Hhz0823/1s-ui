@@ -492,6 +492,7 @@ func collectReport(localSocket, publicURL string) Report {
 		report.Load = LoadAverage{Load1: value.Load1, Load5: value.Load5, Load15: value.Load15}
 	}
 	report.ProcessCount, report.Cores = collectProcessStatus()
+	applyHostFacts(&report)
 	report.IPv4, report.IPv6 = localAddresses()
 	report.Panel = probeLocalPanel(localSocket)
 	report.Panel.PublicURL = strings.TrimSpace(publicURL)

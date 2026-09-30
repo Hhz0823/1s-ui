@@ -64,7 +64,7 @@ func TestMonitorProfileRejectsControlAtServiceLayer(t *testing.T) {
 	if err := database.GetDB().Create(&node).Error; err != nil {
 		t.Fatal(err)
 	}
-	if _, err := agents.Update(node.Id, "changed", ""); err == nil || !strings.Contains(err.Error(), "does not allow") {
+	if _, err := agents.Update(node.Id, AgentUpdate{Name: "changed"}); err == nil || !strings.Contains(err.Error(), "does not allow") {
 		t.Fatalf("monitor profile allowed local node update: %v", err)
 	}
 	var saved model.AgentNode
