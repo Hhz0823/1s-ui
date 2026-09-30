@@ -97,10 +97,10 @@ func sha256Digest(content []byte) string {
 
 func TestGitHubLatestTagFromRedirectAndMirrorPage(t *testing.T) {
 	fake := newFakeGitHub(t)
-	fake.latest = "v1.7.0"
+	fake.latest = "v99.0.0"
 	for _, source := range []githubSource{{trusted: true}, {prefix: fake.server.URL + "/mirror/"}} {
 		tag, err := githubLatestTag(newGitHubHTTPClient(), source, panelRepo)
-		if err != nil || tag != "v1.7.0" {
+		if err != nil || tag != "v99.0.0" {
 			t.Fatalf("%q: tag = %q, err = %v", source.prefix, tag, err)
 		}
 	}
@@ -108,7 +108,7 @@ func TestGitHubLatestTagFromRedirectAndMirrorPage(t *testing.T) {
 
 func TestPanelVersionCheckWorksWithoutGitHubAPI(t *testing.T) {
 	fake := newFakeGitHub(t)
-	fake.latest = "v1.7.0"
+	fake.latest = "v99.0.0"
 	oldAPI := panelReleaseAPIURL
 	panelReleaseAPIURL = closedURL(t)
 	t.Cleanup(func() { panelReleaseAPIURL = oldAPI })
@@ -119,7 +119,7 @@ func TestPanelVersionCheckWorksWithoutGitHubAPI(t *testing.T) {
 		if err != nil {
 			t.Fatalf("github down %v: %v", githubDown, err)
 		}
-		if info.Latest != "1.7.0" || !info.UpdateAvailable {
+		if info.Latest != "99.0.0" || !info.UpdateAvailable {
 			t.Fatalf("github down %v: %#v", githubDown, info)
 		}
 	}
@@ -132,7 +132,7 @@ func TestPanelVersionCheckWorksWithoutGitHubAPI(t *testing.T) {
 func TestGitHubDownloadsFromMirrorsOnlyWhenVerifiable(t *testing.T) {
 	fake := newFakeGitHub(t)
 	fake.githubDown = true
-	path := "/" + panelRepo + "/releases/download/v1.7.0/s-ui-linux-amd64.tar.gz"
+	path := "/" + panelRepo + "/releases/download/v99.0.0/s-ui-linux-amd64.tar.gz"
 	archive := []byte("release archive")
 	fake.files[path] = archive
 	assetURL := githubWebBase + path
@@ -240,7 +240,7 @@ func TestMirrorsServeReleaseCheckedBySHA256SUMS(t *testing.T) {
 	fake := newFakeGitHub(t)
 	fake.githubDown = true
 	builtinGitHubMirrors = []string{fake.server.URL + "/mirror/", fake.server.URL + "/mirror2/"}
-	dir := "/" + panelRepo + "/releases/download/v1.7.0/"
+	dir := "/" + panelRepo + "/releases/download/v99.0.0/"
 	archive := []byte("release archive")
 	fake.files[dir+"s-ui-linux-amd64.tar.gz"] = archive
 	sum := strings.TrimPrefix(sha256Digest(archive), "sha256:")
@@ -268,7 +268,7 @@ func TestSlowDownloadMovesToNextSource(t *testing.T) {
 	oldGrace := slowDownloadGrace
 	slowDownloadGrace = 200 * time.Millisecond
 	t.Cleanup(func() { slowDownloadGrace = oldGrace })
-	path := "/" + panelRepo + "/releases/download/v1.7.0/s-ui-linux-amd64.tar.gz"
+	path := "/" + panelRepo + "/releases/download/v99.0.0/s-ui-linux-amd64.tar.gz"
 	archive := []byte("release archive")
 	fake.files[path] = archive
 	started := time.Now()
