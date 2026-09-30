@@ -48,6 +48,18 @@ func TestManagedPanelInstallCommandUsesUnifiedInstaller(t *testing.T) {
 	}
 }
 
+func TestChinaCommandUsesMirror(t *testing.T) {
+	command := "bash <(curl -fsSL https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-agent.sh) --connect 'https://p/agent/v1/pair#x'"
+	want := "bash <(curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-agent.sh) --mirror cn --connect 'https://p/agent/v1/pair#x'"
+	if got := chinaCommand(command); got != want {
+		t.Fatalf("chinaCommand = %q", got)
+	}
+	managed := chinaCommand(managedPanelInstallCommand(""))
+	if managed != "bash <(curl -Ls https://ghfast.top/https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) --mirror cn" {
+		t.Fatalf("managed China command = %q", managed)
+	}
+}
+
 func TestFirstRunSetupAPI(t *testing.T) {
 	logger.InitLogger(logging.ERROR)
 	if err := database.InitDB(filepath.Join(t.TempDir(), "setup-api.db")); err != nil {
