@@ -116,6 +116,15 @@ func (a *ApiService) GetPortTraffic(c *gin.Context) {
 	jsonObj(c, result, err)
 }
 
+func (a *ApiService) ResetPortTraffic(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		jsonMsg(c, "resetTraffic", common.NewError("invalid inbound id"))
+		return
+	}
+	jsonMsg(c, "resetTraffic", a.InboundService.ResetTrafficUsage(uint(id)))
+}
+
 func (a *ApiService) GetAgentPortTraffic(c *gin.Context) {
 	id, err := parseAgentNodeID(c)
 	if err != nil {

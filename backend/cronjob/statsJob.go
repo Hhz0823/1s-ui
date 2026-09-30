@@ -7,6 +7,7 @@ import (
 
 type StatsJob struct {
 	service.StatsService
+	service.InboundService
 	enableTraffic bool
 	bucketSeconds int64
 }
@@ -23,5 +24,8 @@ func (s *StatsJob) Run() {
 	if err != nil {
 		logger.Warning("Get stats failed: ", err)
 		return
+	}
+	if err = s.InboundService.EnforceTrafficLimits(); err != nil {
+		logger.Warning("Enforce inbound traffic limits failed: ", err)
 	}
 }

@@ -2,7 +2,9 @@ package core
 
 import (
 	"context"
+	"errors"
 	"net"
+	"net/netip"
 	"sync"
 	stdAtomic "sync/atomic"
 	"time"
@@ -27,10 +29,26 @@ type Counter struct {
 	totalWrite *SAtomic.Int64
 }
 
+// InboundBandwidthLimit holds every per-inbound limit the tracker enforces.
 type InboundBandwidthLimit struct {
 	Upload   int64
 	Download int64
+	// QuotaEnabled turns on the traffic cap; QuotaRemaining is the number of
+	// bytes (upload + download) the inbound may still pass.
+	QuotaEnabled   bool
+	QuotaRemaining int64
+	// MaxIPs caps the distinct source IPs with open connections.
+	MaxIPs int
 }
+
+func (l InboundBandwidthLimit) empty() bool {
+	return l.Upload <= 0 && l.Download <= 0 && !l.QuotaEnabled && l.MaxIPs <= 0
+}
+
+var (
+	ErrInboundTrafficExhausted = errors.New("inbound monthly traffic limit reached")
+	ErrInboundIPLimit          = errors.New("inbound client IP limit reached")
+)
 
 type InboundTrafficSnapshot struct {
 	UploadBPS       int64
@@ -53,13 +71,82 @@ type inboundLimiter struct {
 	download      stdAtomic.Pointer[rate.Limiter]
 	uploadLimit   stdAtomic.Int64
 	downloadLimit stdAtomic.Int64
+
+	quotaEnabled stdAtomic.Bool
+	quota        stdAtomic.Int64
+
+	maxIPs   stdAtomic.Int64
+	ipAccess sync.Mutex
+	ips      map[netip.Addr]int
 }
 
-func (l *inboundLimiter) set(upload, download int64) {
-	l.uploadLimit.Store(upload)
-	l.downloadLimit.Store(download)
-	l.upload.Store(newLimiter(upload))
-	l.download.Store(newLimiter(download))
+func (l *inboundLimiter) set(limit InboundBandwidthLimit) {
+	// Keep the running token buckets when a periodic sync repeats the same rate.
+	if l.uploadLimit.Swap(limit.Upload) != limit.Upload || (l.upload.Load() == nil) != (limit.Upload <= 0) {
+		l.upload.Store(newLimiter(limit.Upload))
+	}
+	if l.downloadLimit.Swap(limit.Download) != limit.Download || (l.download.Load() == nil) != (limit.Download <= 0) {
+		l.download.Store(newLimiter(limit.Download))
+	}
+	l.quota.Store(limit.QuotaRemaining)
+	l.quotaEnabled.Store(limit.QuotaEnabled)
+	l.maxIPs.Store(int64(limit.MaxIPs))
+}
+
+func (l *inboundLimiter) exhausted() bool {
+	return l.quotaEnabled.Load() && l.quota.Load() <= 0
+}
+
+// consume charges n bytes against the traffic cap.
+func (l *inboundLimiter) consume(n int) error {
+	if n <= 0 || !l.quotaEnabled.Load() {
+		return nil
+	}
+	if l.quota.Add(-int64(n)) < 0 {
+		return ErrInboundTrafficExhausted
+	}
+	return nil
+}
+
+// acquireIP registers a connection from addr. It returns false when addr is a
+// new IP and the inbound already has MaxIPs distinct IPs connected.
+func (l *inboundLimiter) acquireIP(addr netip.Addr) bool {
+	if !addr.IsValid() {
+		return true
+	}
+	addr = addr.Unmap()
+	l.ipAccess.Lock()
+	defer l.ipAccess.Unlock()
+	if l.ips == nil {
+		l.ips = make(map[netip.Addr]int)
+	}
+	if l.ips[addr] == 0 {
+		if max := l.maxIPs.Load(); max > 0 && int64(len(l.ips)) >= max {
+			return false
+		}
+	}
+	l.ips[addr]++
+	return true
+}
+
+func (l *inboundLimiter) releaseIP(addr netip.Addr) {
+	if !addr.IsValid() {
+		return
+	}
+	addr = addr.Unmap()
+	l.ipAccess.Lock()
+	defer l.ipAccess.Unlock()
+	if l.ips[addr] <= 1 {
+		delete(l.ips, addr)
+		return
+	}
+	l.ips[addr]--
+}
+
+func (l *inboundLimiter) activeIPs() int {
+	l.ipAccess.Lock()
+	defer l.ipAccess.Unlock()
+	return len(l.ips)
 }
 
 func newLimiter(bytesPerSecond int64) *rate.Limiter {
@@ -133,18 +220,18 @@ func (c *StatsTracker) Reset() {
 	c.snapshotAccess.Unlock()
 }
 
-func (c *StatsTracker) SetInboundLimit(tag string, upload, download int64) {
+func (c *StatsTracker) SetInboundLimit(tag string, limit InboundBandwidthLimit) {
 	if tag == "" {
 		return
 	}
-	if upload <= 0 && download <= 0 {
+	if limit.empty() {
 		c.RemoveInboundLimit(tag)
 		return
 	}
 	c.access.Lock()
 	limiter := c.loadOrCreateLimiter(tag)
 	c.access.Unlock()
-	limiter.set(upload, download)
+	limiter.set(limit)
 }
 
 func (c *StatsTracker) RemoveInboundLimit(tag string) {
@@ -153,7 +240,7 @@ func (c *StatsTracker) RemoveInboundLimit(tag string) {
 	delete(c.limiters, tag)
 	c.access.Unlock()
 	if limiter != nil {
-		limiter.set(0, 0)
+		limiter.set(InboundBandwidthLimit{})
 	}
 }
 
@@ -163,21 +250,38 @@ func (c *StatsTracker) SyncInboundLimits(limits map[string]InboundBandwidthLimit
 	for tag, limiter := range c.limiters {
 		states[tag] = limiter
 		limit, exists := limits[tag]
-		if !exists || (limit.Upload <= 0 && limit.Download <= 0) {
+		if !exists || limit.empty() {
 			delete(c.limiters, tag)
 		}
 	}
 	for tag, limit := range limits {
-		if limit.Upload <= 0 && limit.Download <= 0 {
+		if limit.empty() {
 			continue
 		}
 		states[tag] = c.loadOrCreateLimiter(tag)
 	}
 	c.access.Unlock()
 	for tag, limiter := range states {
-		limit := limits[tag]
-		limiter.set(limit.Upload, limit.Download)
+		limiter.set(limits[tag])
 	}
+}
+
+// InboundActiveIPs reports the distinct client IPs connected to each inbound
+// that has an IP limit.
+func (c *StatsTracker) InboundActiveIPs() map[string]int {
+	c.access.RLock()
+	limiters := make(map[string]*inboundLimiter, len(c.limiters))
+	for tag, limiter := range c.limiters {
+		limiters[tag] = limiter
+	}
+	c.access.RUnlock()
+	result := make(map[string]int, len(limiters))
+	for tag, limiter := range limiters {
+		if limiter.maxIPs.Load() > 0 {
+			result[tag] = limiter.activeIPs()
+		}
+	}
+	return result
 }
 
 func (c *StatsTracker) loadOrCreateLimiter(tag string) *inboundLimiter {
@@ -230,44 +334,101 @@ func (c *StatsTracker) loadOrCreateCounter(obj *map[string]Counter, name string,
 }
 
 func (c *StatsTracker) RoutedConnection(ctx context.Context, conn net.Conn, metadata adapter.InboundContext, matchedRule adapter.Rule, matchOutbound adapter.Outbound) net.Conn {
-	return c.wrapConnection(ctx, conn, metadata.Inbound, matchOutbound.Tag(), metadata.User)
+	return c.wrapConnection(ctx, conn, metadata.Inbound, matchOutbound.Tag(), metadata.User, metadata.Source.Addr)
 }
 
-func (c *StatsTracker) wrapConnection(ctx context.Context, conn net.Conn, inbound, outbound, user string) net.Conn {
+// admit applies the traffic cap and IP limit to a new connection. It returns
+// the error to fail the connection with, or nil once source is registered.
+func admit(limiter *inboundLimiter, source netip.Addr) error {
+	if limiter.exhausted() {
+		return ErrInboundTrafficExhausted
+	}
+	if limiter.maxIPs.Load() > 0 && !limiter.acquireIP(source) {
+		return ErrInboundIPLimit
+	}
+	return nil
+}
+
+func (c *StatsTracker) wrapConnection(ctx context.Context, conn net.Conn, inbound, outbound, user string, source netip.Addr) net.Conn {
 	readCounter, writeCounter, limiter := c.tracking(inbound, outbound, user)
+	if limiter != nil {
+		if err := admit(limiter, source); err != nil {
+			_ = conn.Close()
+			return &rejectedConn{Conn: conn, err: err}
+		}
+	}
 	counted := bufio.NewInt64CounterConn(conn, readCounter, writeCounter)
 	if limiter == nil {
 		return counted
 	}
 	limitCtx, cancel := context.WithCancel(ctx)
-	return &limitedConn{ExtendedConn: counted, limiter: limiter, ctx: limitCtx, cancel: cancel}
+	return &limitedConn{ExtendedConn: counted, limiter: limiter, ctx: limitCtx, cancel: cancel, source: sourceIfTracked(limiter, source)}
 }
 
 func (c *StatsTracker) RoutedPacketConnection(ctx context.Context, conn network.PacketConn, metadata adapter.InboundContext, matchedRule adapter.Rule, matchOutbound adapter.Outbound) network.PacketConn {
-	return c.wrapPacketConnection(ctx, conn, metadata.Inbound, matchOutbound.Tag(), metadata.User)
+	return c.wrapPacketConnection(ctx, conn, metadata.Inbound, matchOutbound.Tag(), metadata.User, metadata.Source.Addr)
 }
 
-func (c *StatsTracker) wrapPacketConnection(ctx context.Context, conn network.PacketConn, inbound, outbound, user string) network.PacketConn {
+func (c *StatsTracker) wrapPacketConnection(ctx context.Context, conn network.PacketConn, inbound, outbound, user string, source netip.Addr) network.PacketConn {
 	readCounter, writeCounter, limiter := c.tracking(inbound, outbound, user)
+	if limiter != nil {
+		if err := admit(limiter, source); err != nil {
+			_ = conn.Close()
+			return &rejectedPacketConn{PacketConn: conn, err: err}
+		}
+	}
 	counted := bufio.NewInt64CounterPacketConn(conn, readCounter, nil, writeCounter, nil)
 	if limiter == nil {
 		return counted
 	}
 	limitCtx, cancel := context.WithCancel(ctx)
-	return &limitedPacketConn{PacketConn: counted, limiter: limiter, ctx: limitCtx, cancel: cancel}
+	return &limitedPacketConn{PacketConn: counted, limiter: limiter, ctx: limitCtx, cancel: cancel, source: sourceIfTracked(limiter, source)}
 }
+
+// sourceIfTracked returns the address admit registered, so Close releases
+// exactly what was acquired even if the IP limit changes meanwhile.
+func sourceIfTracked(limiter *inboundLimiter, source netip.Addr) netip.Addr {
+	if limiter.maxIPs.Load() > 0 {
+		return source
+	}
+	return netip.Addr{}
+}
+
+type rejectedConn struct {
+	net.Conn
+	err error
+}
+
+func (c *rejectedConn) Read([]byte) (int, error)  { return 0, c.err }
+func (c *rejectedConn) Write([]byte) (int, error) { return 0, c.err }
+func (c *rejectedConn) Upstream() any             { return c.Conn }
+
+type rejectedPacketConn struct {
+	network.PacketConn
+	err error
+}
+
+func (c *rejectedPacketConn) ReadPacket(*buf.Buffer) (M.Socksaddr, error) {
+	return M.Socksaddr{}, c.err
+}
+func (c *rejectedPacketConn) WritePacket(*buf.Buffer, M.Socksaddr) error { return c.err }
+func (c *rejectedPacketConn) Upstream() any                              { return c.PacketConn }
 
 type limitedConn struct {
 	network.ExtendedConn
-	limiter *inboundLimiter
-	ctx     context.Context
-	cancel  context.CancelFunc
+	limiter   *inboundLimiter
+	ctx       context.Context
+	cancel    context.CancelFunc
+	source    netip.Addr
+	closeOnce sync.Once
 }
 
 func (c *limitedConn) Read(buffer []byte) (int, error) {
 	n, err := c.ExtendedConn.Read(buffer)
 	if n > 0 {
-		if limitErr := waitForLimit(c.ctx, &c.limiter.upload, n); limitErr != nil && err == nil {
+		if limitErr := c.limiter.consume(n); limitErr != nil && err == nil {
+			err = limitErr
+		} else if limitErr := waitForLimit(c.ctx, &c.limiter.upload, n); limitErr != nil && err == nil {
 			err = limitErr
 		}
 	}
@@ -275,6 +436,9 @@ func (c *limitedConn) Read(buffer []byte) (int, error) {
 }
 
 func (c *limitedConn) Write(buffer []byte) (int, error) {
+	if err := c.limiter.consume(len(buffer)); err != nil {
+		return 0, err
+	}
 	if err := waitForLimit(c.ctx, &c.limiter.download, len(buffer)); err != nil {
 		return 0, err
 	}
@@ -285,10 +449,16 @@ func (c *limitedConn) ReadBuffer(buffer *buf.Buffer) error {
 	if err := c.ExtendedConn.ReadBuffer(buffer); err != nil {
 		return err
 	}
+	if err := c.limiter.consume(buffer.Len()); err != nil {
+		return err
+	}
 	return waitForLimit(c.ctx, &c.limiter.upload, buffer.Len())
 }
 
 func (c *limitedConn) WriteBuffer(buffer *buf.Buffer) error {
+	if err := c.limiter.consume(buffer.Len()); err != nil {
+		return err
+	}
 	if err := waitForLimit(c.ctx, &c.limiter.download, buffer.Len()); err != nil {
 		return err
 	}
@@ -297,6 +467,7 @@ func (c *limitedConn) WriteBuffer(buffer *buf.Buffer) error {
 
 func (c *limitedConn) Close() error {
 	c.cancel()
+	c.closeOnce.Do(func() { c.limiter.releaseIP(c.source) })
 	return c.ExtendedConn.Close()
 }
 
@@ -308,20 +479,28 @@ var _ network.ExtendedConn = (*limitedConn)(nil)
 
 type limitedPacketConn struct {
 	network.PacketConn
-	limiter *inboundLimiter
-	ctx     context.Context
-	cancel  context.CancelFunc
+	limiter   *inboundLimiter
+	ctx       context.Context
+	cancel    context.CancelFunc
+	source    netip.Addr
+	closeOnce sync.Once
 }
 
 func (c *limitedPacketConn) ReadPacket(buffer *buf.Buffer) (M.Socksaddr, error) {
 	destination, err := c.PacketConn.ReadPacket(buffer)
 	if err == nil && buffer.Len() > 0 {
-		err = waitForLimit(c.ctx, &c.limiter.upload, buffer.Len())
+		err = c.limiter.consume(buffer.Len())
+		if err == nil {
+			err = waitForLimit(c.ctx, &c.limiter.upload, buffer.Len())
+		}
 	}
 	return destination, err
 }
 
 func (c *limitedPacketConn) WritePacket(buffer *buf.Buffer, destination M.Socksaddr) error {
+	if err := c.limiter.consume(buffer.Len()); err != nil {
+		return err
+	}
 	if err := waitForLimit(c.ctx, &c.limiter.download, buffer.Len()); err != nil {
 		return err
 	}
@@ -330,6 +509,7 @@ func (c *limitedPacketConn) WritePacket(buffer *buf.Buffer, destination M.Socksa
 
 func (c *limitedPacketConn) Close() error {
 	c.cancel()
+	c.closeOnce.Do(func() { c.limiter.releaseIP(c.source) })
 	return c.PacketConn.Close()
 }
 

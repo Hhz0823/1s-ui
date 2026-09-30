@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Hhz0823/1s-ui/core"
 	"github.com/Hhz0823/1s-ui/database"
@@ -62,6 +63,9 @@ func (s *InboundService) GetAll() (*[]map[string]interface{}, error) {
 			"core_type":      inbound.RuntimeCore(),
 			"upload_limit":   inbound.UploadLimit,
 			"download_limit": inbound.DownloadLimit,
+			"traffic_limit":  inbound.TrafficLimit,
+			"traffic_used":   inbound.TrafficUsed,
+			"ip_limit":       inbound.IPLimit,
 			"tls_id":         inbound.TlsId,
 		}
 		if inbound.Options != nil {
@@ -132,8 +136,8 @@ func (s *InboundService) Save(tx *gorm.DB, act string, data json.RawMessage, ini
 				return err
 			}
 		}
-		if inbound.RuntimeCore() == model.CoreTypeXray && (inbound.UploadLimit > 0 || inbound.DownloadLimit > 0) {
-			return common.NewError("Xray inbound bandwidth limiting is not supported; set upload_limit and download_limit to 0")
+		if inbound.RuntimeCore() == model.CoreTypeXray && inbound.HasSingBoxOnlyLimits() {
+			return common.NewError("Xray inbound speed, traffic and IP limits are not supported; set upload_limit, download_limit, traffic_limit and ip_limit to 0")
 		}
 		if inbound.TlsId > 0 {
 			err = tx.Model(model.Tls{}).Where("id = ?", inbound.TlsId).Find(&inbound.Tls).Error
@@ -145,18 +149,24 @@ func (s *InboundService) Save(tx *gorm.DB, act string, data json.RawMessage, ini
 		oldCoreType := model.CoreTypeSingBox
 		if act == "edit" {
 			var oldInbound model.Inbound
-			err = tx.Model(model.Inbound{}).Select("tag", "core_type").Where("id = ?", inbound.Id).Find(&oldInbound).Error
+			err = tx.Model(model.Inbound{}).Select("tag", "core_type", "traffic_used", "traffic_period_start").Where("id = ?", inbound.Id).Find(&oldInbound).Error
 			if err != nil {
 				return err
 			}
 			oldTag = oldInbound.Tag
 			oldCoreType = oldInbound.RuntimeCore()
+			// Usage is counted by the stats job; the editor never sets it.
+			inbound.TrafficUsed = oldInbound.TrafficUsed
+			inbound.TrafficPeriodStart = oldInbound.TrafficPeriodStart
+		} else {
+			inbound.TrafficUsed = 0
+			inbound.TrafficPeriodStart = trafficPeriodStart(time.Now().In(trafficLocation()), inbound.TrafficResetDay).Unix()
 		}
 		if corePtr != nil {
 			if oldTag != "" && oldTag != inbound.Tag {
 				corePtr.RemoveInboundLimit(oldTag)
 			}
-			corePtr.SetInboundLimit(inbound.Tag, inbound.UploadLimit, inbound.DownloadLimit)
+			corePtr.SetInboundLimit(inbound.Tag, inboundCoreLimit(inbound))
 		}
 
 		if corePtr != nil && corePtr.IsRunning() {
@@ -197,9 +207,17 @@ func (s *InboundService) Save(tx *gorm.DB, act string, data json.RawMessage, ini
 			return err
 		}
 
-		err = tx.Save(&inbound).Error
+		// Keep traffic counted by the stats job while this edit was open.
+		err = tx.Omit("traffic_used", "traffic_period_start").Save(&inbound).Error
 		if err != nil {
 			return err
+		}
+		if act == "new" {
+			err = tx.Model(&model.Inbound{}).Where("id = ?", inbound.Id).
+				Update("traffic_period_start", inbound.TrafficPeriodStart).Error
+			if err != nil {
+				return err
+			}
 		}
 		switch act {
 		case "new":
@@ -300,7 +318,7 @@ func (s *InboundService) GetAllConfig(db *gorm.DB) ([]json.RawMessage, error) {
 func (s *InboundService) BandwidthLimits(db *gorm.DB) (map[string]core.InboundBandwidthLimit, error) {
 	var inbounds []model.Inbound
 	err := db.Model(&model.Inbound{}).
-		Select("tag", "upload_limit", "download_limit").
+		Select("tag", "upload_limit", "download_limit", "traffic_limit", "traffic_used", "ip_limit").
 		Where("core_type = ? OR core_type = '' OR core_type IS NULL", model.CoreTypeSingBox).
 		Find(&inbounds).Error
 	if err != nil {
@@ -308,7 +326,7 @@ func (s *InboundService) BandwidthLimits(db *gorm.DB) (map[string]core.InboundBa
 	}
 	limits := make(map[string]core.InboundBandwidthLimit, len(inbounds))
 	for _, inbound := range inbounds {
-		limits[inbound.Tag] = core.InboundBandwidthLimit{Upload: inbound.UploadLimit, Download: inbound.DownloadLimit}
+		limits[inbound.Tag] = inboundCoreLimit(inbound)
 	}
 	return limits, nil
 }
@@ -470,7 +488,7 @@ func (s *InboundService) RestartInbounds(tx *gorm.DB, ids []uint) error {
 		}
 		// Close all existing connections
 		corePtr.GetInstance().ConnTracker().CloseConnByInbound(inbound.Tag)
-		corePtr.SetInboundLimit(inbound.Tag, inbound.UploadLimit, inbound.DownloadLimit)
+		corePtr.SetInboundLimit(inbound.Tag, inboundCoreLimit(*inbound))
 
 		inboundConfig, err := inbound.MarshalJSON()
 		if err != nil {

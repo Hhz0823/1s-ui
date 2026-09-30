@@ -25,6 +25,7 @@
           <th>{{ $t('agent.status') }}</th>
           <th>{{ $t('portTraffic.realtime') }}</th>
           <th>{{ $t('portTraffic.total') }}</th>
+          <th>{{ $t('portTraffic.monthly') }}</th>
           <th>{{ $t('portTraffic.limit') }}</th>
         </tr>
       </thead>
@@ -36,7 +37,16 @@
           <td><v-chip size="small" :color="!item.supported ? 'warning' : item.online ? 'success' : 'default'" variant="tonal">{{ !item.supported ? $t('portTraffic.unsupported') : item.online ? $t('online') : $t('agent.offline') }}</v-chip></td>
           <td dir="ltr">↑ {{ rate(item.upload_bps) }}<br>↓ {{ rate(item.download_bps) }}</td>
           <td dir="ltr">↑ {{ bytes(item.upload_bytes) }}<br>↓ {{ bytes(item.download_bytes) }}</td>
-          <td>{{ limits(item) }}</td>
+          <td class="traffic-quota">
+            <div class="traffic-quota__line">
+              <span dir="ltr">{{ quota(item) }}</span>
+              <v-chip v-if="item.exhausted" size="x-small" color="error" variant="tonal">{{ $t('portTraffic.exhausted') }}</v-chip>
+              <v-btn v-if="canReset(item)" icon="mdi-restore" size="x-small" variant="text" :loading="resetting == item.id" :title="$t('portTraffic.resetUsage')" @click="resetUsage(item)" />
+            </div>
+            <v-progress-linear v-if="item.traffic_limit > 0" :model-value="quotaPercent(item)" :color="quotaColor(item)" height="4" rounded />
+            <small v-if="item.traffic_limit > 0">{{ $t('portTraffic.nextReset') }} {{ resetDate(item) }}</small>
+          </td>
+          <td>{{ limits(item) }}<small v-if="item.supported && item.ip_limit > 0">{{ ipText(item) }}</small></td>
         </tr>
       </tbody>
     </v-table>
@@ -51,7 +61,17 @@
         <dl>
           <div><dt>{{ $t('portTraffic.realtime') }}</dt><dd dir="ltr">↑ {{ rate(item.upload_bps) }} · ↓ {{ rate(item.download_bps) }}</dd></div>
           <div><dt>{{ $t('portTraffic.total') }}</dt><dd dir="ltr">↑ {{ bytes(item.upload_bytes) }} · ↓ {{ bytes(item.download_bytes) }}</dd></div>
-          <div><dt>{{ $t('portTraffic.limit') }}</dt><dd>{{ limits(item) }}</dd></div>
+          <div>
+            <dt>{{ $t('portTraffic.monthly') }}</dt>
+            <dd>
+              <span dir="ltr">{{ quota(item) }}</span>
+              <v-chip v-if="item.exhausted" size="x-small" color="error" variant="tonal" class="ms-1">{{ $t('portTraffic.exhausted') }}</v-chip>
+              <v-btn v-if="canReset(item)" icon="mdi-restore" size="x-small" variant="text" :loading="resetting == item.id" :title="$t('portTraffic.resetUsage')" @click="resetUsage(item)" />
+              <v-progress-linear v-if="item.traffic_limit > 0" :model-value="quotaPercent(item)" :color="quotaColor(item)" height="4" rounded class="mt-1" />
+              <small v-if="item.traffic_limit > 0" class="d-block">{{ $t('portTraffic.nextReset') }} {{ resetDate(item) }}</small>
+            </dd>
+          </div>
+          <div><dt>{{ $t('portTraffic.limit') }}</dt><dd>{{ limits(item) }}<small v-if="item.supported && item.ip_limit > 0" class="d-block">{{ ipText(item) }}</small></dd></div>
         </dl>
       </article>
     </div>
@@ -63,6 +83,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useDisplay } from 'vuetify'
 import { i18n } from '@/locales'
 import { fetchBackendObject } from '@/utils/backend'
+import HttpUtils from '@/plugins/httputil'
 
 type TrafficItem = {
   id: number
@@ -79,6 +100,13 @@ type TrafficItem = {
   download_bytes: number
   upload_limit: number
   download_limit: number
+  traffic_limit: number
+  traffic_used: number
+  traffic_reset_day: number
+  next_reset: number
+  exhausted: boolean
+  ip_limit: number
+  active_ips: number
 }
 
 const props = defineProps<{ agentId?: number; embedded?: boolean }>()
@@ -88,6 +116,7 @@ const sampled = ref(0)
 const loading = ref(true)
 const refreshing = ref(false)
 const errorMessage = ref('')
+const resetting = ref(0)
 let timer: number | undefined
 
 const endpoint = computed(() => props.agentId ? `api/agents/${props.agentId}/port-traffic` : 'api/port-traffic')
@@ -129,6 +158,33 @@ const limits = (item: TrafficItem) => item.supported
   ? `↑ ${limit(item.upload_limit)} · ↓ ${limit(item.download_limit)}`
   : i18n.global.t('portTraffic.unsupported')
 
+const quota = (item: TrafficItem) => item.traffic_limit > 0
+  ? `${bytes(item.traffic_used)} / ${bytes(item.traffic_limit)}`
+  : bytes(item.traffic_used)
+const quotaPercent = (item: TrafficItem) => item.traffic_limit > 0
+  ? Math.min(100, (item.traffic_used / item.traffic_limit) * 100)
+  : 0
+const quotaColor = (item: TrafficItem) => {
+  const percent = quotaPercent(item)
+  return percent >= 100 ? 'error' : percent >= 80 ? 'warning' : 'primary'
+}
+const resetDate = (item: TrafficItem) => item.next_reset
+  ? new Date(item.next_reset * 1000).toLocaleDateString()
+  : ''
+const ipText = (item: TrafficItem) => `${i18n.global.t('portTraffic.activeIps')} ${item.active_ips || 0} / ${item.ip_limit}`
+// Resetting goes to this panel's own inbounds only.
+const canReset = (item: TrafficItem) => !props.agentId && item.supported && item.traffic_used > 0
+const resetUsage = async (item: TrafficItem) => {
+  if (resetting.value) return
+  resetting.value = item.id
+  try {
+    const msg = await HttpUtils.post(`api/port-traffic/${item.id}/reset`, {})
+    if (msg.success) await load()
+  } finally {
+    resetting.value = 0
+  }
+}
+
 const handleVisibility = () => { if (!document.hidden) void load() }
 
 onMounted(() => {
@@ -155,6 +211,8 @@ onBeforeUnmount(() => {
 .traffic-table td { padding-block: 10px !important; }
 .traffic-table td strong, .traffic-table td small { display: block; }
 .traffic-table td small { margin-top: 2px; color: rgba(var(--v-theme-on-surface), .58); }
+.traffic-quota { min-width: 150px; }
+.traffic-quota__line { display: flex; align-items: center; gap: 4px; }
 .traffic-cards { display: grid; gap: 10px; }
 .traffic-card { padding: 14px; border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); border-radius: 8px; background: rgb(var(--v-theme-surface)); }
 .traffic-card > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }

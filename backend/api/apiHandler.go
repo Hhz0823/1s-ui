@@ -72,6 +72,7 @@ func (a *APIHandler) initRouter(g *gin.RouterGroup) {
 	g.GET("/controller-mode", a.ApiService.GetControllerMode)
 	g.POST("/controller-mode", a.ApiService.SetControllerMode)
 	g.GET("/port-traffic", a.ApiService.GetPortTraffic)
+	g.POST("/port-traffic/:id/reset", a.ApiService.ResetPortTraffic)
 	g.GET("/xray-install", a.ApiService.GetXrayInstall)
 	g.POST("/xray-install", a.ApiService.InstallXray)
 	g.POST("/xray-enabled", a.ApiService.SetXrayEnabled)
