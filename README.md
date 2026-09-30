@@ -11,7 +11,7 @@
   [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8)](backend/go.mod)
   [![Vue](https://img.shields.io/badge/Vue-3-42b883)](frontend/package.json)
 
-  **[Linux v1.6.4](https://github.com/Hhz0823/1s-ui/releases/tag/v1.6.4)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
+  **[Linux v1.7.0](https://github.com/Hhz0823/1s-ui/releases/tag/v1.7.0)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
 </div>
 
 > 1S-UI 基于 [alireza0/s-ui](https://github.com/alireza0/s-ui) 二次开发，仅用于学习、研究与技术交流。请遵守当地法律法规。
@@ -61,6 +61,7 @@
 | --- | --- | --- | --- |
 | **完整主控制端** | 集中管理多台 VPS | 服务器列表、实时与历史指标、端口流量、远程入站 CRUD、批量建节点、IPv6 / SOCKS5 中转、命令和 PTY | 至少 2 核 2GiB |
 | **仅监控主控** | 只看服务器状态 | 在线状态、CPU、内存、磁盘、负载、进程、网络、RTT、P95、丢包和端口流量 | 至少 2 核 2GiB；后端拒绝远程控制 |
+| **精简主控制端** | 低配 VPS 当主控 | 与完整主控制端相同的群控能力；本机入站、出站、路由和订阅照常可用 | 1 核 512MB 起（低于 2 核 2GiB 时自动启用）；只用 sing-box，Xray-core 保持关闭 |
 | **受管客户端** | 被主控纳管，同时保留本机面板 | 完整 Web UI、sing-box 默认内核、可选 Xray、本机节点与主动出站 Agent | 目标 1 核 512MiB |
 
 ```mermaid
@@ -96,11 +97,19 @@ flowchart LR
 安装脚本不再要求选择类型。默认安装独立前端产物、Go API 后端、sing-box 和 Agent 文件；nginx 托管静态前端并把 API/WS 反代到 `127.0.0.1:2097`，Agent 未绑定主服务器时保持禁用，不占用后台进程。历史订阅服务继续使用 `2096`，与内部 API 端口隔离。
 首次打开面板会进入新手向导，由你在浏览器中选择运行角色、创建管理员账号，并可直接填写主服务器公网面板地址完成客户端绑定。右上角可跳过说明页并直达必要设置；管理员账号不可跳过。SSH 安装过程不再询问凭据，也不存在默认 Web 密码。
 
-安装后默认运行在 **客户端模式**：Web 面板、sing-box 和本机节点功能完整可用，但 Agent 注册、心跳与远程控制入口保持关闭。需要集中管理其它服务器时，可在 **设置 → 服务端面板 → 运行角色** 选择 **完整主控制端** 或 **仅监控**；两种服务端角色都会再次校验 2 核 CPU 与 2 GiB 内存。仅监控模式只开放 Agent 注册、心跳、指标和端口流量，后端会拒绝终端、命令、远程入站和中转操作。旧版已经管理 Agent 的面板会自动继承完整主控制端状态，不会因升级断开。
+安装后默认运行在 **客户端模式**：Web 面板、sing-box 和本机节点功能完整可用，但 Agent 注册、心跳与远程控制入口保持关闭。需要集中管理其它服务器时，可在 **设置 → 服务端面板 → 运行角色** 选择 **完整主控制端** 或 **仅监控**；两种服务端角色需要 2 核 CPU 与 2 GiB 内存；低于这一配置（1 核 512MB 起）时以 **精简主控制端** 运行，群控功能不变，但只使用 sing-box 内核。仅监控模式只开放 Agent 注册、心跳、指标和端口流量，后端会拒绝终端、命令、远程入站和中转操作。旧版已经管理 Agent 的面板会自动继承完整主控制端状态，不会因升级断开。
 
 ```bash
 bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
 ```
+
+中国大陆服务器（GitHub 慢或连不上）改用加速线路，脚本和安装包都经 ghfast.top 等镜像下载，安装包按发布的 SHA256SUMS 校验：
+
+```bash
+bash <(curl -Ls https://ghfast.top/https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) --mirror cn
+```
+
+默认的 `--mirror auto` 会在 GitHub 连不上或下载太慢时自动换到加速线路；`--mirror github` 只用 GitHub，`--mirror https://你的加速地址/` 使用自建镜像。面板里的在线更新在 **设置 → 下载线路** 中选择，同样默认自动切换。
 
 这是面向新用户保留的唯一 Linux 安装指令。角色切换、Xray-core 可选安装、反向代理和主控绑定均在 Web 面板完成；脚本仍兼容旧版自动化参数，但不再把它们作为安装入口展示。
 
@@ -120,6 +129,23 @@ bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
 - HTTP/IP 面板也可使用复制按钮；浏览器不提供安全剪贴板 API 时会自动使用兼容复制方式。
 
 > 执行前必须先在主面板点击 **添加子服务器**。连接窗口有效 5 分钟且只能成功使用一次，不会永久开放匿名 Agent 注册。
+
+### 飞牛 NAS（fnOS）等只装服务端的设备
+
+飞牛 NAS 不需要安装完整面板，只安装 `sui-agent` 并用 **面板地址 + 接入密钥** 绑定主控：
+
+1. 主面板打开 **服务器监控 → 添加子服务器**，展开 **飞牛 NAS / 面板地址 + 密钥接入**，点击 **生成接入密钥**。密钥只显示一次，可重复用于多台设备。
+2. 在飞牛 NAS 的 **设置 → SSH** 开启 SSH，用管理员账号登录，粘贴面板给出的命令（按提示输入管理员密码）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-agent.sh -o /tmp/1s-ui-agent.sh \
+  && sudo bash /tmp/1s-ui-agent.sh --panel 'https://主控面板地址/app/' --key '接入密钥' [--name '飞牛NAS']
+```
+
+- 必须同时提供面板地址和密钥，主控校验密钥通过后才签发这台设备自己的 Agent Token；密钥错误、已重新生成或已停用时不会绑定。
+- 重新运行命令会用新的绑定替换旧绑定。重新生成或停用密钥只影响之后的新接入，已接入的设备不受影响。
+- 同样适用于其它带 systemd 的 Linux 设备；root 用户也可直接用面板里的 root 安装命令。
+- 中国大陆的设备使用面板给出的 **中国大陆** 版命令：安装脚本和 Agent 都经加速镜像下载（`--mirror cn`）。
 
 ### 安装后的访问地址
 
@@ -155,7 +181,7 @@ s-ui update
 入站、证书、Xray 二进制和运行配置不会被删除。网页界面（`s-ui-frontend.tar.gz`）会随面板一起更新；
 网页界面与面板版本不一致时（例如旧版更新器只替换了程序），面板启动后会自动下载并安装与自身版本
 一致的界面，浏览器会重新检查界面文件，不再显示缓存的旧界面。在线更新不可用时，可在服务器上重新运行上面的安装命令
-升级，数据同样保留；命令末尾加版本号可安装指定版本，例如 `v1.6.4`。v1.6.3 及更早版本自带的
+升级，数据同样保留；命令末尾加版本号可安装指定版本，例如 `v1.7.0`。v1.6.3 及更早版本自带的
 `s-ui update` 会从旧的 master 分支下载过时的安装脚本，请改用安装命令。
 
 **服务器连不上 GitHub（例如 api.github.com 超时）时**，面板更新和 Xray-core 安装会自动换用其他通道：
@@ -199,9 +225,9 @@ s-ui update
 
 | 模块 | 能力 |
 | --- | --- |
-| 服务器群控 | 多服务器列表、在线状态、CPU/内存/磁盘/负载/进程/网络、RTT、P95、丢包、历史曲线和一次性登录客户端后台 |
+| 服务器群控 | Komari 风格监控：网格 / 表格视图、分组、在线状态、CPU/内存/磁盘/负载/进程/网络、TCP/UDP 连接数、RTT、P95、丢包、最长 30 天历史曲线、价格 / 到期 / 月流量，以及一次性登录客户端后台 |
 | 远程管理 | 修改服务器名称、远程入站 CRUD、启停、1–100 快速节点、IPv6 / 上游 SOCKS5 中转、批量命令和 PTY |
-| 端口流量 | 按监听端口显示实时上下行、累计流量、活动状态和配置限速；本机与受管服务器共用同一视图 |
+| 端口流量 | 按监听端口显示实时上下行、累计流量、活动状态和配置限速；sing-box 入站可设每月流量上限、重置日和客户端 IP 数上限；本机与受管服务器共用同一视图 |
 | 用户流量排行 | 按 1/6/24 小时、7/30 天或自定义时间统计每个用户的上下行流量、平均带宽、采样峰值和活跃排名；可切换综合、折线趋势和排行视图 |
 | 本机面板 | 入站、出站、端点、服务、DNS、路由、用户、管理员、订阅、日志、备份与流量统计 |
 | 双内核 | 入站级 `sing-box` / `xray` 选择，独立配置生成和运行状态 |
@@ -212,7 +238,9 @@ s-ui update
 | 一键中转 | IPv6 出口池或上游 SOCKS5，自动创建入站、出站、用户和路由 |
 | SD-WAN 智能组网 | 多台受管服务器合并为一个入口：每台服务器同时部署 VLESS Reality（TCP）与 Hysteria2（QUIC）上行，按实时延迟选择最快线路，故障约 5 秒内自动切换；内置网络检测与一键调优 |
 | 出站导入 | 支持 SOCKS5/SOCKS4、HTTP(S)、Hysteria2 端口跳跃与 `user:pass` 认证、VMess、VLESS、Trojan、Shadowsocks、TUIC、AnyTLS、Naive 链接 |
-| 界面 | 默认宝塔 / 1Panel 风格面板（分组侧栏、面包屑、工具栏 + 表格列表、宝塔绿 / 1Panel 蓝 / 1Panel 暗色主题）；可选玻璃、实色、清透、自定义背景、菜单布局和紧凑密度 |
+| 界面 | 默认宝塔 / 1Panel 风格面板（分组侧栏、面包屑、工具栏 + 表格列表）；28 个主题预览选择、跟随系统的浅色 / 深色主题、强调色、圆角风格；可选玻璃、实色、清透、自定义背景、菜单布局和紧凑密度 |
+| 手机监控 | 安卓 App 用只读监控密钥绑定面板，实时查看所有服务器并接收离线、资源过高提醒 |
+| 下载线路 | 安装、在线更新和子服务器安装支持中国大陆加速镜像，GitHub 不可用或太慢时自动切换 |
 | 反向代理 | 在服务端面板查看和管理 Caddy / Nginx 状态、域名与配置应用 |
 
 #### sing-box 入站
@@ -361,12 +389,20 @@ flowchart LR
 - **路由与 DNS 规则**：表格保留匹配顺序，可拖动行或用箭头调整顺序，显示匹配条件摘要（悬停查看明细）和「有未保存的更改」提示。
 - **主题**：新增宝塔绿（默认）、1Panel 蓝与 1Panel 暗色，原有主题仍可在右上角切换；「设置 → 界面」可切回玻璃、实色或清透风格。
 
-### v1.6.4 更新重点
+### v1.7.0 更新重点
 
-- **在线更新同步更新网页界面**：面板内更新会一起安装同版本的网页界面；界面与面板版本不一致时（例如用 v1.6.3 及更早的更新器升级后），面板启动后自动换成匹配的界面，浏览器不再显示缓存的旧界面。
-- **NaiveProxy 在 v2rayN 中恢复可用**：Chromium 拒绝有效期超过 200 天的证书，一键创建的 Naive 节点改用面板私有 CA 与 45 天服务器证书并自动续期；升级前创建的 Naive 节点需要重新导入一次，详见[一键创建 VLESS 与 NaiveProxy](#一键创建-vless-与-naiveproxy)。
+v1.6.4 未单独发布，其修复一并包含在 v1.7.0 中。
+
+- **Komari 风格服务器监控**：「服务器监控」移到「总览」分组；列表支持网格 / 表格、分组标签、可切换的统计栏，卡片显示国旗、系统、CPU / 内存 / 磁盘、流量、网速、在线时长和价格 / 到期 / 标签；详情页提供实时、1 小时到 30 天的历史曲线（1 天内按分钟、之后按 15 分钟保存 31 天）。在 Komari 之外还有月流量上限与重置日、sing-box / Xray 运行状态、TCP / UDP 连接数、丢包与 P95、端口流量、需要关注的服务器计数，以及远程控制和批量命令。
+- **精简主控制端**：1 核 512MB 起的低配 VPS 也能当主控，群控功能完整，本机代理和路由照常可用，只用 sing-box 内核；2 核 2GiB 及以上不受影响。面板首屏脚本从 2.3 MB 降到约 0.6 MB，静态文件 gzip 压缩并长期缓存（已安装的面板重新运行一次安装命令即可启用新的网关配置）。
+- **端口流量限制**：入站可设置每月流量上限（上传 + 下载）、重置日和客户端 IP 数上限，达到上限后停止转发，到重置日或手动重置后恢复；端口流量页显示本月用量、下次重置日期和在线 IP 数。仅对 sing-box 入站生效，与已有的限速一致。
+- **中国大陆加速下载**：安装脚本、`s-ui` 菜单、面板在线更新和子服务器安装命令都有加速线路（ghfast.top、gh-proxy.com、ghproxy.net），GitHub 连不上或太慢时自动切换，也可用 `--mirror cn` 或 **设置 → 下载线路** 手动选择；发布附带 SHA256SUMS 用于校验。
+- **飞牛 NAS 安装服务端**：主面板生成接入密钥，飞牛 NAS 用 **面板地址 + 密钥** 一条命令绑定主控，并提供中国大陆加速版命令，详见[飞牛 NAS](#飞牛-nasfnos等只装服务端的设备)。
+- **更多主题与样式**：主题增至 28 个（新增宝塔暗色、GitHub Light、Solarized、Catppuccin、Tokyo Night、Gruvbox、Rose Pine 等），以预览卡片选择；可设置跟随系统时的浅色 / 深色主题、强调色和圆角风格。
+- **安卓监控 App**：面板生成只读监控密钥，App 扫码绑定后实时查看所有服务器，可在离线、恢复和资源过高时通知，APK 随 Release 发布，详见[安卓监控 App](#安卓监控-app)。
+- **在线更新同步更新网页界面**：面板内更新会一起安装同版本的网页界面；界面与面板版本不一致时（例如用 v1.6.3 及更早的更新器升级后），面板启动后自动换成匹配的界面。
+- **NaiveProxy 在 v2rayN 中恢复可用**：Chromium 拒绝有效期超过 200 天的证书，一键创建的 Naive 节点改用面板私有 CA 与 45 天服务器证书并自动续期；从 v1.6.3 及更早版本升级后，已有的 Naive 节点需要在客户端重新导入一次，详见[一键创建 VLESS 与 NaiveProxy](#一键创建-vless-与-naiveproxy)。
 - **XHTTP 下行分离**：REALITY + XHTTP、REALITY + XHTTP + Vision 与 VLESS Encryption + XHTTP 可让下载经 CDN 域名回源，上传仍直连；创建前自动检查 CDN 是否能到达本机，CDN 防护返回 403 时给出原因。
-- `s-ui` 菜单改从 main 分支下载安装脚本。
 
 ### v1.6.3 更新重点
 
@@ -444,6 +480,7 @@ flowchart LR
 
 ### Highlights
 
+- v1.7.0: Komari-style server monitor (grid/table views, groups, 1h to 30-day history, price/expiry/monthly traffic badges, TCP/UDP counts), a lite controller for 1 vCPU / 512MB hosts (sing-box only), per-port monthly traffic caps with a reset day and client IP limits, a mainland China download line for install, update and agent install, fnOS NAS agent install with the panel address and an enrollment key, 28 themes with accent color and corner options, and an Android monitor app bound with a read-only key.
 - Central fleet view with online state, live/history CPU, memory, disk, load, process, network, RTT, P95, loss, and per-port traffic.
 - Per-user traffic and bandwidth ranking for preset or custom periods, including upload/download totals, average rate, sampled peak, search, and sorting.
 - Remote server naming, inbound CRUD and start/stop, 1–100 node quick creation, IPv6/upstream SOCKS5 relays, batch commands, and PTY terminal.
@@ -468,9 +505,10 @@ flowchart LR
 | --- | --- | --- |
 | Managed child | 1 vCPU / 512MB | Full Web UI + sing-box + outbound Agent; Xray is not downloaded by default |
 | Full controller | 2 vCPU / 2GB | Fleet monitoring, remote control, optional Xray, and reverse proxy |
+| Lite controller | 1 vCPU / 512MB | Same fleet features as the full controller; sing-box is the only core |
 | Monitoring controller | 2 vCPU / 2GB | Fleet metrics and port traffic without remote-control capabilities |
 
-The 2 vCPU / 2GB hard requirement applies to a panel acting as the Agent control plane. Managed child panels retain a full Web UI and start sing-box by default. A low-resource host may install both cores from Web settings, but below 1.5GiB only one runs at a time: starting Xray stops sing-box, and stopping or disabling Xray restores sing-box automatically.
+A controller below 2 vCPU / 2GB runs as a lite controller: every fleet feature stays, and sing-box is the only core. Managed child panels retain a full Web UI and start sing-box by default. A low-resource host may install both cores from Web settings, but below 1.5GiB only one runs at a time: starting Xray stops sing-box, and stopping or disabling Xray restores sing-box automatically.
 
 Use the single Linux command in [Quick Deploy](#快速部署) on both controllers and managed children. The first browser visit opens a guided setup for the administrator, role, and optional controller address; there is no default Web password. A controller can open an online child's local panel with a 60-second, single-use login grant over the existing Agent WebSocket. Panel `2095` `/app/`, subscription `2096` `/sub/`, database `/usr/local/s-ui/db`.
 
@@ -581,9 +619,14 @@ go build -o ../sui-agent ./cmd/sui-agent
 
 正式 Release 使用 GitHub Actions 构建带 CGO、musl 和 Naive 支持的 Linux 多架构包；普通本地 `go build` 不等同于正式 Release 构建。
 
+## 安卓监控 App
+
+在面板「设置 → 前端与后端 → 手机监控 App」生成只读监控密钥，用 App 扫码即可绑定，实时查看所有服务器并接收离线、资源过高提醒。APK 随版本发布附在 Release 上，详见 [android/README.md](android/README.md)。
+
 ## 目录结构
 
 ```text
+android/      安卓监控 App（Kotlin + Jetpack Compose，说明见 android/README.md）
 backend/      独立 Go 模块（main.go、go.mod 与全部 Go 包）
 docs/         文档与页面截图
 frontend/     独立 Vue 3 + Vuetify 静态应用

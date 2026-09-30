@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"net/netip"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ func TestStatsTrackerTCPDirectionsAndExtendedConn(t *testing.T) {
 	tracker := NewStatsTracker()
 	local, peer := net.Pipe()
 	defer peer.Close()
-	wrapped := tracker.wrapConnection(context.Background(), local, "tcp-in", "", "")
+	wrapped := tracker.wrapConnection(context.Background(), local, "tcp-in", "", "", netip.Addr{})
 	defer wrapped.Close()
 	extended, ok := wrapped.(network.ExtendedConn)
 	if !ok {
@@ -81,7 +82,7 @@ func TestStatsTrackerUDPDirections(t *testing.T) {
 	defer peer.Close()
 
 	tracker := NewStatsTracker()
-	wrapped := tracker.wrapPacketConnection(context.Background(), bufio.NewPacketConn(local), "udp-in", "", "")
+	wrapped := tracker.wrapPacketConnection(context.Background(), bufio.NewPacketConn(local), "udp-in", "", "", netip.Addr{})
 	defer wrapped.Close()
 	if err := wrapped.WritePacket(buf.As([]byte("down")), M.SocksaddrFromNet(peer.LocalAddr()).Unwrap()); err != nil {
 		t.Fatal(err)
@@ -107,19 +108,19 @@ func TestStatsTrackerUDPDirections(t *testing.T) {
 
 func TestStatsTrackerSharesUpdatedLimiterAcrossConnections(t *testing.T) {
 	tracker := NewStatsTracker()
-	tracker.SetInboundLimit("shared", 1000, 2000)
+	tracker.SetInboundLimit("shared", InboundBandwidthLimit{Upload: 1000, Download: 2000})
 	left1, right1 := net.Pipe()
 	defer left1.Close()
 	defer right1.Close()
 	left2, right2 := net.Pipe()
 	defer left2.Close()
 	defer right2.Close()
-	first := tracker.wrapConnection(context.Background(), left1, "shared", "", "").(*limitedConn)
-	second := tracker.wrapConnection(context.Background(), left2, "shared", "", "").(*limitedConn)
+	first := tracker.wrapConnection(context.Background(), left1, "shared", "", "", netip.Addr{}).(*limitedConn)
+	second := tracker.wrapConnection(context.Background(), left2, "shared", "", "", netip.Addr{}).(*limitedConn)
 	if first.limiter != second.limiter {
 		t.Fatal("connections on one inbound received separate limiters")
 	}
-	tracker.SetInboundLimit("shared", 1234, 5678)
+	tracker.SetInboundLimit("shared", InboundBandwidthLimit{Upload: 1234, Download: 5678})
 	if first.limiter.uploadLimit.Load() != 1234 || second.limiter.downloadLimit.Load() != 5678 {
 		t.Fatal("existing connections did not observe the updated shared limit")
 	}
@@ -133,7 +134,7 @@ func TestStatsTrackerKeepsUnlimitedConnectionsOnCounterFastPath(t *testing.T) {
 	tracker := NewStatsTracker()
 	local, peer := net.Pipe()
 	defer peer.Close()
-	wrapper := tracker.wrapConnection(context.Background(), local, "unlimited", "", "")
+	wrapper := tracker.wrapConnection(context.Background(), local, "unlimited", "", "", netip.Addr{})
 	defer wrapper.Close()
 	if _, limited := wrapper.(*limitedConn); limited {
 		t.Fatal("unlimited inbound received a limiter wrapper")
@@ -142,12 +143,12 @@ func TestStatsTrackerKeepsUnlimitedConnectionsOnCounterFastPath(t *testing.T) {
 
 func TestStatsTrackerAppliesSharedTCPDownloadLimit(t *testing.T) {
 	tracker := NewStatsTracker()
-	tracker.SetInboundLimit("limited", 0, 64*1024)
+	tracker.SetInboundLimit("limited", InboundBandwidthLimit{Upload: 0, Download: 64 * 1024})
 	local, peer := net.Pipe()
 	defer peer.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	wrapped := tracker.wrapConnection(ctx, local, "limited", "", "")
+	wrapped := tracker.wrapConnection(ctx, local, "limited", "", "", netip.Addr{})
 	defer wrapped.Close()
 	readDone := make(chan error, 1)
 	go func() {

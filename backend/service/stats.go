@@ -111,11 +111,13 @@ func (s *StatsService) SaveStats(enableTraffic bool, bucketSeconds int64) (err e
 
 	type traffic struct{ up, down int64 }
 	userTraffic := map[string]*traffic{}
+	inboundTraffic := map[string]int64{}
 	seenInbound := map[string]bool{}
 	seenOutbound := map[string]bool{}
 	for _, stat := range *stats {
 		switch stat.Resource {
 		case "inbound":
+			inboundTraffic[stat.Tag] += stat.Traffic
 			if !seenInbound[stat.Tag] {
 				seenInbound[stat.Tag] = true
 				nextOnlines.Inbound = append(nextOnlines.Inbound, stat.Tag)
@@ -150,6 +152,18 @@ func (s *StatsService) SaveStats(enableTraffic bool, bucketSeconds int64) (err e
 			update["down"] = gorm.Expr("down + ?", t.down)
 		}
 		err = tx.Model(model.Client{}).Where("name = ?", name).Updates(update).Error
+		if err != nil {
+			return err
+		}
+	}
+
+	// Monthly usage for per-port traffic caps, counted even without history.
+	for tag, total := range inboundTraffic {
+		if total <= 0 {
+			continue
+		}
+		err = tx.Model(model.Inbound{}).Where("tag = ?", tag).
+			Update("traffic_used", gorm.Expr("traffic_used + ?", total)).Error
 		if err != nil {
 			return err
 		}

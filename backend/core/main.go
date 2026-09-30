@@ -58,13 +58,13 @@ func (c *Core) SetInboundLimits(limits map[string]InboundBandwidthLimit) {
 	}
 }
 
-func (c *Core) SetInboundLimit(tag string, upload, download int64) {
+func (c *Core) SetInboundLimit(tag string, limit InboundBandwidthLimit) {
 	c.limitsAccess.Lock()
-	c.inboundLimits[tag] = InboundBandwidthLimit{Upload: upload, Download: download}
+	c.inboundLimits[tag] = limit
 	instance := c.instance
 	c.limitsAccess.Unlock()
 	if instance != nil && instance.StatsTracker() != nil {
-		instance.StatsTracker().SetInboundLimit(tag, upload, download)
+		instance.StatsTracker().SetInboundLimit(tag, limit)
 	}
 }
 

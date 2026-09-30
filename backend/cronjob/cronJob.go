@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/Hhz0823/1s-ui/logger"
+	"github.com/Hhz0823/1s-ui/service"
 
 	"github.com/robfig/cron/v3"
 )
@@ -48,6 +49,18 @@ func (c *CronJob) Start(loc *time.Location, trafficAge int, statsBucketSeconds i
 		c.cron.AddJob("@every 5s", NewCheckCoreJob())
 		// Fail SD-WAN traffic over as soon as the active exit breaks
 		c.cron.AddJob("@every 5s", cron.NewChain(cron.SkipIfStillRunning(cron.DiscardLogger)).Then(NewSdwanHealJob()))
+		// Store server monitor history and merge old rows
+		metrics := &service.AgentService{}
+		c.cron.AddJob("@every 1m", cron.NewChain(cron.SkipIfStillRunning(cron.DiscardLogger)).Then(cron.FuncJob(func() {
+			if err := metrics.FlushAgentMetrics(); err != nil {
+				logger.Warning("store server metrics: ", err)
+			}
+		})))
+		c.cron.AddJob("@hourly", cron.NewChain(cron.SkipIfStillRunning(cron.DiscardLogger)).Then(cron.FuncJob(func() {
+			if err := metrics.CompactAgentMetrics(); err != nil {
+				logger.Warning("compact server metrics: ", err)
+			}
+		})))
 		// database WAL checkpoint
 		c.cron.AddJob("@every 10m", NewWALCheckpointJob())
 		// Renew generated certificates; the first run waits for the core.

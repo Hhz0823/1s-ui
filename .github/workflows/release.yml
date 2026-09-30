@@ -9,7 +9,7 @@ on:
       tag:
         description: "发布标签"
         required: true
-        default: "v1.6.4"
+        default: "v1.7.0"
         type: string
 
 permissions:
@@ -172,9 +172,17 @@ jobs:
           path: ./s-ui-linux-${{ matrix.platform }}.tar.gz
           retention-days: 1
 
+  build-android:
+    uses: ./.github/workflows/android.yml
+    secrets: inherit
+    with:
+      tag: ${{ github.event.inputs.tag || github.ref_name }}
+
   publish-linux:
     name: 发布 Linux 产物
-    needs: [build-linux, build-frontend]
+    needs: [build-linux, build-frontend, build-android]
+    # The Android app is optional: a failed APK build must not hold back the panel release.
+    if: ${{ !cancelled() && needs.build-linux.result == 'success' && needs.build-frontend.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: 规范化发布标签
@@ -217,6 +225,19 @@ jobs:
         with:
           name: s-ui-frontend
           path: release-assets
+
+      - name: 下载安卓监控 App
+        if: ${{ needs.build-android.result == 'success' }}
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: s-ui-android
+          path: release-assets
+
+      # 面板在 api.github.com 不可达时，经加速镜像下载也能按它校验
+      - name: 生成 SHA256SUMS
+        working-directory: release-assets
+        run: sha256sum -- *.tar.gz > SHA256SUMS && cat SHA256SUMS
 
       - name: 发布到当前仓库 Release
         uses: softprops/action-gh-release@v3

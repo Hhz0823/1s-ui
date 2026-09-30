@@ -25,10 +25,50 @@
                 <v-textarea v-if="enroll.managedCommand" :model-value="enroll.managedCommand" :label="$t('agent.managedCommand')" readonly dir="ltr" rows="3" auto-grow hide-details class="mb-3">
                   <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enroll.managedCommand)" /></template>
                 </v-textarea>
+                <v-textarea v-if="enroll.cnManagedCommand" :model-value="enroll.cnManagedCommand" :label="$t('agent.cnManagedCommand')" readonly dir="ltr" rows="3" auto-grow hide-details class="mb-3">
+                  <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enroll.cnManagedCommand)" /></template>
+                </v-textarea>
               </v-expansion-panel-text>
             </v-expansion-panel>
           </v-expansion-panels>
         </template>
+        <v-expansion-panels variant="accordion" class="enroll-commands mt-3">
+          <v-expansion-panel>
+            <v-expansion-panel-title>
+              <v-icon icon="mdi-nas" size="small" class="mr-2" />{{ $t('agent.keyBind') }}
+            </v-expansion-panel-title>
+            <v-expansion-panel-text>
+              <p class="text-body-2 mb-3">{{ $t('agent.keyBindHint') }}</p>
+              <v-text-field :model-value="enrollKey.panel_url" :label="$t('agent.keyPanelUrl')" readonly dir="ltr" density="compact" class="mb-2" hide-details>
+                <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enrollKey.panel_url)" /></template>
+              </v-text-field>
+              <template v-if="enrollKey.key">
+                <v-alert type="warning" variant="tonal" density="compact" class="my-2">{{ $t('agent.keyShownOnce') }}</v-alert>
+                <v-text-field :model-value="enrollKey.key" :label="$t('agent.keyValue')" readonly dir="ltr" density="compact" class="mb-2" hide-details>
+                  <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enrollKey.key)" /></template>
+                </v-text-field>
+                <v-textarea :model-value="enrollKey.nas_command" :label="$t('agent.keyNasCommand')" :hint="$t('agent.keyNasCommandHint')" persistent-hint readonly dir="ltr" rows="3" auto-grow class="mb-3">
+                  <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enrollKey.nas_command)" /></template>
+                </v-textarea>
+                <v-textarea :model-value="enrollKey.command" :label="$t('agent.keyRootCommand')" readonly dir="ltr" rows="2" auto-grow hide-details class="mb-3">
+                  <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enrollKey.command)" /></template>
+                </v-textarea>
+                <v-textarea v-if="enrollKey.cn_nas_command" :model-value="enrollKey.cn_nas_command" :label="$t('agent.keyCnNasCommand')" readonly dir="ltr" rows="3" auto-grow hide-details class="mb-3">
+                  <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enrollKey.cn_nas_command)" /></template>
+                </v-textarea>
+              </template>
+              <v-alert v-else-if="enrollKey.configured" type="info" variant="tonal" density="compact" class="my-2">{{ $t('agent.keyActive') }}</v-alert>
+              <div class="d-flex flex-wrap ga-2 mt-2">
+                <v-btn color="primary" variant="tonal" prepend-icon="mdi-key-plus" :loading="enrollKey.loading" @click="createEnrollmentKey">
+                  {{ enrollKey.configured ? $t('agent.keyRegenerate') : $t('agent.keyGenerate') }}
+                </v-btn>
+                <v-btn v-if="enrollKey.configured" color="warning" variant="tonal" prepend-icon="mdi-key-remove" :loading="enrollKey.loading" @click="revokeEnrollmentKey">
+                  {{ $t('agent.keyRevoke') }}
+                </v-btn>
+              </div>
+            </v-expansion-panel-text>
+          </v-expansion-panel>
+        </v-expansion-panels>
       </v-card-text>
       <v-card-actions class="justify-center">
         <v-btn variant="outlined" @click="closeEnrollment">{{ $t('actions.close') }}</v-btn>
@@ -57,13 +97,33 @@
     </v-card>
   </v-dialog>
 
-  <v-dialog v-model="edit.visible" width="min(520px, calc(100vw - 24px))">
+  <v-dialog v-model="edit.visible" width="min(640px, calc(100vw - 24px))" scrollable>
     <v-card>
       <v-card-title class="text-center">{{ $t('agent.editNode') }}</v-card-title>
       <v-divider />
       <v-card-text>
-        <v-text-field v-model="edit.name" :label="$t('agent.name')" maxlength="80" hide-details class="mb-3" />
-        <v-text-field v-model="edit.publicHost" :label="$t('agent.publicHost')" :hint="$t('agent.publicHostHint')" persistent-hint dir="ltr" />
+        <div class="edit-grid">
+          <v-text-field v-model="edit.name" :label="$t('agent.name')" maxlength="80" hide-details class="span-2" />
+          <v-text-field v-model="edit.publicHost" :label="$t('agent.publicHost')" :hint="$t('agent.publicHostHint')" persistent-hint dir="ltr" class="span-2" />
+          <v-combobox v-model="edit.meta.group" :items="groups" :label="$t('monitor.group')" maxlength="40" hide-details />
+          <v-text-field v-model="edit.meta.region" :label="$t('monitor.region')" :hint="$t('monitor.regionHint')" persistent-hint maxlength="2" dir="ltr">
+            <template #prepend-inner><span class="flag-preview">{{ flagEmoji(edit.meta.region) }}</span></template>
+          </v-text-field>
+          <v-text-field v-model="edit.meta.tags" :label="$t('monitor.tags')" :hint="$t('monitor.tagsHint')" persistent-hint maxlength="255" class="span-2" />
+          <v-text-field v-model.number="edit.meta.price" type="number" min="-1" step="0.01" :label="$t('monitor.price')" :hint="$t('monitor.priceHint')" persistent-hint />
+          <div class="edit-pair">
+            <v-text-field v-model="edit.meta.currency" :label="$t('monitor.currency')" maxlength="8" hide-details class="currency-field" />
+            <v-select v-model="edit.meta.billing_cycle" :items="cycleOptions" item-title="title" item-value="value" :label="$t('monitor.billingCycle')" hide-details />
+          </div>
+          <v-text-field v-model="edit.expireDate" type="date" :label="$t('monitor.expireAt')" :hint="$t('monitor.expireHint')" persistent-hint clearable />
+          <v-text-field v-model.number="edit.meta.sort_weight" type="number" :label="$t('monitor.sortWeight')" :hint="$t('monitor.sortWeightHint')" persistent-hint />
+          <v-text-field v-model.number="edit.trafficLimitGiB" type="number" min="0" :label="$t('monitor.trafficLimit')" suffix="GiB" :hint="$t('monitor.trafficLimitHint')" persistent-hint />
+          <div class="edit-pair">
+            <v-select v-model="edit.meta.traffic_limit_type" :items="limitTypeOptions" item-title="title" item-value="value" :label="$t('monitor.limitType')" hide-details />
+            <v-text-field v-model.number="edit.meta.traffic_reset_day" type="number" min="1" max="28" :label="$t('monitor.resetDay')" hide-details class="reset-field" />
+          </div>
+          <v-text-field v-model="edit.meta.remark" :label="$t('monitor.remark')" maxlength="255" hide-details class="span-2" />
+        </div>
       </v-card-text>
       <v-card-actions class="justify-center">
         <v-btn variant="outlined" @click="edit.visible = false">{{ $t('actions.close') }}</v-btn>
@@ -127,42 +187,66 @@
       </div>
     </header>
 
-    <v-alert v-if="!controllerMode.enabled" type="info" variant="tonal" density="comfortable" class="mb-4" border="start" icon="mdi-server-outline">
+    <v-alert v-if="!controllerMode.enabled" type="info" variant="tonal" density="comfortable" border="start" icon="mdi-server-outline">
       {{ $t('agent.controllerDisabledHint') }}
     </v-alert>
-    <v-alert v-else-if="hostRequirements && !serverMonitoringAvailable" type="error" variant="tonal" density="comfortable" class="mb-4" border="start" icon="mdi-server-off">
+    <v-alert v-else-if="hostRequirements && !serverMonitoringAvailable" type="error" variant="tonal" density="comfortable" border="start" icon="mdi-server-off">
       {{ serverRequirementText }}
     </v-alert>
 
-    <div class="summary-grid">
-      <section class="summary-item">
-        <span>{{ $t('agent.totalServers') }}</span>
-        <strong>{{ nodes.length }}</strong>
-        <i class="summary-dot dot-primary" />
-      </section>
-      <section class="summary-item">
-        <span>{{ $t('agent.onlineServers') }}</span>
-        <strong>{{ onlineCount }}</strong>
-        <i class="summary-dot dot-online" />
-      </section>
-      <section class="summary-item">
-        <span>{{ $t('agent.offlineServers') }}</span>
-        <strong>{{ offlineCount }}</strong>
-        <i class="summary-dot dot-offline" />
-      </section>
-      <section class="summary-item summary-network">
-        <span>{{ $t('agent.networkTotal') }}</span>
-        <strong dir="ltr">↑ {{ rate(totalRate.sent) }} · ↓ {{ rate(totalRate.recv) }}</strong>
-        <small dir="ltr">↑ {{ bytes(totalNetwork.sent) }} · ↓ {{ bytes(totalNetwork.recv) }}</small>
-      </section>
+    <section class="stat-card">
+      <v-menu :close-on-content-click="false" location="bottom end">
+        <template #activator="{ props }">
+          <v-btn v-bind="props" icon="mdi-cog-outline" size="x-small" variant="text" class="stat-settings" :title="$t('monitor.statusSettings')" />
+        </template>
+        <v-card min-width="260" class="pa-3">
+          <div class="text-subtitle-2 mb-2">{{ $t('monitor.statusSettings') }}</div>
+          <v-switch v-for="item in statDefs" :key="item.key" v-model="statVisible[item.key]" :label="item.title" density="compact" hide-details color="primary" inset @update:model-value="saveStatVisible" />
+        </v-card>
+      </v-menu>
+      <div class="stat-grid">
+        <div v-for="item in shownStats" :key="item.key" class="stat-item">
+          <span>{{ item.title }}</span>
+          <strong dir="ltr">{{ item.value }}</strong>
+        </div>
+      </div>
+    </section>
+
+    <div class="control-bar">
+      <v-text-field
+        ref="searchField"
+        v-model="query"
+        prepend-inner-icon="mdi-magnify"
+        :placeholder="$t('monitor.searchPlaceholder')"
+        density="compact"
+        hide-details
+        clearable
+        class="search-field"
+        @keydown.esc="query = ''"
+      />
+      <div class="control-right">
+        <v-select v-model="sortKey" :items="sortOptions" item-title="title" item-value="value" density="compact" hide-details class="sort-field" />
+        <v-btn :icon="sortDesc ? 'mdi-sort-descending' : 'mdi-sort-ascending'" variant="tonal" size="small" :title="$t('agent.sortDirection')" @click="sortDesc = !sortDesc" />
+        <span class="control-label">{{ $t('monitor.viewMode') }}</span>
+        <v-btn icon="mdi-view-grid-outline" size="small" :variant="viewMode === 'grid' ? 'flat' : 'tonal'" :color="viewMode === 'grid' ? 'primary' : undefined" :title="$t('monitor.viewGrid')" @click="setViewMode('grid')" />
+        <v-btn icon="mdi-table" size="small" :variant="viewMode === 'table' ? 'flat' : 'tonal'" :color="viewMode === 'table' ? 'primary' : undefined" :title="$t('monitor.viewTable')" @click="setViewMode('table')" />
+      </div>
     </div>
 
-    <div class="monitor-controls">
-      <v-text-field v-model="query" prepend-inner-icon="mdi-magnify" :placeholder="$t('agent.searchServers')" density="compact" hide-details clearable class="search-field" />
-      <v-select v-model="sortKey" :items="sortOptions" item-title="title" item-value="value" density="compact" hide-details class="sort-field" />
-      <v-btn :icon="sortDesc ? 'mdi-sort-descending' : 'mdi-sort-ascending'" variant="tonal" :title="$t('agent.sortDirection')" @click="sortDesc = !sortDesc" />
-      <v-btn v-if="canControl" variant="tonal" prepend-icon="mdi-checkbox-multiple-marked" @click="selectAllControllable">{{ $t('agent.selectOnline') }}</v-btn>
-      <v-btn v-if="canControl && selected.length" variant="text" @click="selected = []">{{ $t('agent.clearSelection') }}</v-btn>
+    <div v-if="groups.length" class="group-bar">
+      <span class="control-label">{{ $t('monitor.group') }}</span>
+      <v-btn-toggle v-model="selectedGroup" mandatory density="compact" variant="outlined" divided color="primary" class="group-toggle" @update:model-value="saveGroup">
+        <v-btn value="all" size="small">{{ $t('monitor.all') }}</v-btn>
+        <v-btn v-for="group in groups" :key="group" :value="group" size="small">{{ group }}</v-btn>
+      </v-btn-toggle>
+    </div>
+
+    <div class="list-summary">
+      <span>{{ summaryText }}</span>
+      <template v-if="canControl">
+        <v-btn size="small" variant="text" prepend-icon="mdi-checkbox-multiple-marked" @click="selectAllControllable">{{ $t('agent.selectOnline') }}</v-btn>
+        <v-btn v-if="selected.length" size="small" variant="text" @click="selected = []">{{ $t('agent.clearSelection') }}</v-btn>
+      </template>
     </div>
 
     <div v-if="canControl && selected.length" class="batch-bar">
@@ -175,43 +259,149 @@
       <v-btn size="small" color="primary" variant="tonal" :loading="batch.loading" :disabled="!batch.shell.trim()" @click="batchCmd('exec', { command: batch.shell.trim() })">{{ $t('agent.cmdExec') }}</v-btn>
     </div>
 
-    <v-progress-linear v-if="loading && !nodes.length" indeterminate class="mb-3" />
-    <v-alert v-if="!loading && filteredNodes.length === 0" type="info" variant="tonal">{{ nodes.length ? $t('agent.noMatch') : $t('agent.noNodes') }}</v-alert>
-    <div v-else class="server-grid">
-      <article v-for="node in filteredNodes" :key="node.id" class="server-row" :class="{ 'server-row--offline': !node.online }" @click="openDetail(node)">
-        <div class="server-select" @click.stop>
-          <v-checkbox-btn v-if="canControl" :model-value="selected.includes(node.id)" :disabled="!node.controllable" @update:model-value="toggleSelect(node.id, $event)" />
-        </div>
-        <div class="server-identity">
-          <i class="status-dot" :class="node.online ? 'dot-online' : 'dot-offline'" />
-          <div>
-            <strong>{{ node.name }}</strong>
-            <small dir="ltr">{{ node.report.hostname || node.remote_ip || '-' }}</small>
+    <v-progress-linear v-if="loading && !nodes.length" indeterminate />
+    <div v-if="!loading && filteredNodes.length === 0" class="empty-state">
+      <div>{{ nodes.length ? $t('agent.noMatch') : $t('agent.noNodes') }}</div>
+      <small v-if="nodes.length">{{ $t('monitor.tryDifferent') }}</small>
+    </div>
+
+    <div v-else-if="viewMode === 'grid'" class="node-grid">
+      <article v-for="node in filteredNodes" :key="node.id" class="node-card" :class="{ 'node-card--offline': !node.online }" @click="openDetail(node)">
+        <header class="node-card__head">
+          <div class="node-card__identity">
+            <span v-if="flagEmoji(node.region)" class="node-flag">{{ flagEmoji(node.region) }}</span>
+            <div class="node-card__title">
+              <strong>{{ node.name }}</strong>
+              <small class="mobile-only">{{ node.online ? uptimeText(node.report.uptime, t) : '-' }}</small>
+              <PriceTags :node="node" class="desktop-only" />
+            </div>
           </div>
-        </div>
-        <div class="server-metrics">
-          <div class="mini-metric"><span>CPU</span><strong>{{ percent(node.report.cpu_percent) }}</strong><i :style="barStyle(node.report.cpu_percent)" /></div>
-          <div class="mini-metric"><span>MEM</span><strong>{{ percent(usagePercent(node.report.memory)) }}</strong><i :style="barStyle(usagePercent(node.report.memory))" /></div>
-          <div class="mini-metric"><span>STG</span><strong>{{ percent(usagePercent(node.report.disk)) }}</strong><i :style="barStyle(usagePercent(node.report.disk))" /></div>
-          <div class="mini-metric"><span>Ping</span><strong dir="ltr">{{ latencyLabel(node) }}</strong></div>
-          <div class="mini-metric"><span>Upload</span><strong dir="ltr">{{ rate(node.report.net_rate?.sent) }}</strong></div>
-          <div class="mini-metric"><span>Download</span><strong dir="ltr">{{ rate(node.report.net_rate?.recv) }}</strong></div>
-        </div>
-        <div class="server-menu" @click.stop>
-          <v-menu location="bottom end">
-            <template #activator="{ props }"><v-btn v-bind="props" icon="mdi-dots-vertical" size="small" variant="text" :title="$t('actions.action')" /></template>
-            <v-list density="compact">
-              <v-list-item prepend-icon="mdi-information-outline" :title="$t('agent.detail')" @click="openDetail(node)" />
-              <template v-if="canControl">
-                <v-list-item prepend-icon="mdi-tune-vertical" :title="$t('agent.manageInbounds')" :disabled="!node.managed" @click="manageInbounds(node)" />
-                <v-list-item prepend-icon="mdi-pencil-outline" :title="$t('agent.editNode')" @click="openEdit(node)" />
-                <v-list-item prepend-icon="mdi-key-change" :title="$t('agent.rotate')" @click="rotateNode(node)" />
-                <v-list-item prepend-icon="mdi-delete-outline" :title="$t('actions.del')" base-color="error" @click="askDelete(node)" />
-              </template>
-            </v-list>
-          </v-menu>
+          <div class="node-card__status" @click.stop>
+            <v-checkbox-btn v-if="canControl && node.controllable" density="compact" :model-value="selected.includes(node.id)" @update:model-value="toggleSelect(node.id, $event)" />
+            <span class="status-badge" :class="node.online ? 'status-badge--on' : 'status-badge--off'">{{ node.online ? $t('online') : $t('agent.offline') }}</span>
+            <v-menu location="bottom end">
+              <template #activator="{ props }"><v-btn v-bind="props" icon="mdi-dots-vertical" size="x-small" variant="text" :title="$t('actions.action')" /></template>
+              <v-list density="compact">
+                <v-list-item prepend-icon="mdi-information-outline" :title="$t('agent.detail')" @click="openDetail(node)" />
+                <template v-if="canControl">
+                  <v-list-item prepend-icon="mdi-tune-vertical" :title="$t('agent.manageInbounds')" :disabled="!node.managed" @click="manageInbounds(node)" />
+                  <v-list-item prepend-icon="mdi-pencil-outline" :title="$t('agent.editNode')" @click="openEdit(node)" />
+                  <v-list-item prepend-icon="mdi-key-change" :title="$t('agent.rotate')" @click="rotateNode(node)" />
+                  <v-list-item prepend-icon="mdi-delete-outline" :title="$t('actions.del')" base-color="error" @click="askDelete(node)" />
+                </template>
+              </v-list>
+            </v-menu>
+          </div>
+        </header>
+        <v-divider />
+        <div class="node-card__body">
+          <div class="info-row desktop-only">
+            <span>{{ $t('monitor.os') }}</span>
+            <strong><v-icon :icon="osIcon(node)" size="18" class="me-1" />{{ osName(node) || '-' }}<template v-if="node.report.arch"> / {{ node.report.arch }}</template></strong>
+          </div>
+          <div class="usage-stack">
+            <UsageBar label="CPU" :value="node.online ? node.report.cpu_percent : undefined" :detail="node.report.cpu_cores ? $t('monitor.coresN', { n: node.report.cpu_cores }) : ''" />
+            <UsageBar :label="$t('monitor.ram')" :value="node.online ? usagePercent(node.report.memory) : undefined" :detail="usageText(node.report.memory)" />
+            <UsageBar :label="$t('agent.disk')" :value="node.online ? usagePercent(node.report.disk) : undefined" :detail="usageText(node.report.disk)" />
+          </div>
+          <template v-if="node.traffic_limit">
+            <UsageBar :label="$t('monitor.periodTraffic')" :value="trafficPercent(node)" />
+            <div class="info-row info-row--sub">
+              <span dir="ltr">↑ {{ bytes(node.traffic?.sent) }} ↓ {{ bytes(node.traffic?.recv) }}</span>
+              <span dir="ltr">{{ limitTypeLabel(node.traffic_limit_type) }}({{ bytes(node.traffic_limit) }})</span>
+            </div>
+          </template>
+          <div v-else class="info-row">
+            <span>{{ $t('monitor.totalTraffic') }}</span>
+            <strong dir="ltr">↑ {{ bytes(node.report.network?.sent) }} ↓ {{ bytes(node.report.network?.recv) }}</strong>
+          </div>
+          <div class="info-row">
+            <span>{{ $t('monitor.networkSpeed') }}</span>
+            <strong dir="ltr">↑ {{ node.online ? rate(node.report.net_rate?.sent) : '-' }} ↓ {{ node.online ? rate(node.report.net_rate?.recv) : '-' }}</strong>
+          </div>
+          <div class="info-row">
+            <span>{{ $t('agent.uptime') }}</span>
+            <strong :class="{ 'text-medium-emphasis': !node.online }">{{ node.online ? uptimeText(node.report.uptime, t) : '-' }}</strong>
+          </div>
+          <div class="info-row">
+            <span>{{ $t('monitor.loadConns') }}</span>
+            <strong dir="ltr">{{ node.online ? loadText(node) : '-' }}</strong>
+          </div>
+          <div class="info-row">
+            <span>{{ $t('monitor.pingProxy') }}</span>
+            <strong class="core-badges">
+              <span dir="ltr" :class="latencyClass(node)">{{ latencyLabel(node) }}</span>
+              <span class="core-badge" :class="{ 'core-badge--on': node.online && node.report.cores?.singbox_running }">sing-box</span>
+              <span class="core-badge" :class="{ 'core-badge--on': node.online && node.report.cores?.xray_running }">Xray</span>
+            </strong>
+          </div>
+          <PriceTags :node="node" class="mobile-only" />
         </div>
       </article>
+    </div>
+
+    <div v-else class="node-table-wrap">
+      <table class="node-table">
+        <thead>
+          <tr>
+            <th class="col-expand" />
+            <th v-for="column in tableColumns" :key="column.key" :class="column.class" @click="sortBy(column.key)">
+              <span>{{ column.title }}</span>
+              <v-icon v-if="sortKey === column.key" :icon="sortDesc ? 'mdi-chevron-down' : 'mdi-chevron-up'" size="14" />
+            </th>
+            <th v-if="canControl" class="col-menu" />
+          </tr>
+        </thead>
+        <tbody>
+          <template v-for="node in filteredNodes" :key="node.id">
+            <tr class="node-row" :class="{ 'node-row--open': expanded.includes(node.id), 'node-row--offline': !node.online }" @click="toggleExpand(node.id)">
+              <td class="col-expand"><v-icon :icon="expanded.includes(node.id) ? 'mdi-chevron-down' : 'mdi-chevron-right'" size="18" /></td>
+              <td class="col-name">
+                <div class="table-name">
+                  <span v-if="flagEmoji(node.region)" class="node-flag">{{ flagEmoji(node.region) }}</span>
+                  <div>
+                    <strong>{{ node.name }}</strong>
+                    <small>{{ node.online ? uptimeText(node.report.uptime, t) : '-' }}</small>
+                  </div>
+                </div>
+              </td>
+              <td><v-icon :icon="osIcon(node)" size="18" :title="osName(node)" /></td>
+              <td><span class="status-badge" :class="node.online ? 'status-badge--on' : 'status-badge--off'">{{ node.online ? $t('online') : $t('agent.offline') }}</span></td>
+              <td class="col-bar"><UsageBar compact :value="node.online ? node.report.cpu_percent : undefined" /></td>
+              <td class="col-bar"><UsageBar compact :value="node.online ? usagePercent(node.report.memory) : undefined" /></td>
+              <td class="col-bar"><UsageBar compact :value="node.online ? usagePercent(node.report.disk) : undefined" /></td>
+              <td class="col-tags"><PriceTags :node="node" :show-ip="false" /></td>
+              <td dir="ltr">↑{{ node.online ? rate(node.report.net_rate?.sent) : '-' }}</td>
+              <td dir="ltr">↓{{ node.online ? rate(node.report.net_rate?.recv) : '-' }}</td>
+              <td dir="ltr">↑{{ bytes(node.report.network?.sent) }}</td>
+              <td dir="ltr">↓{{ bytes(node.report.network?.recv) }}</td>
+              <td dir="ltr">{{ bytes(trafficUsed(node)) }}<template v-if="node.traffic_limit"> / {{ bytes(node.traffic_limit) }}</template></td>
+              <td dir="ltr" :class="latencyClass(node)">{{ latencyLabel(node) }}</td>
+              <td v-if="canControl" class="col-menu" @click.stop>
+                <v-menu location="bottom end">
+                  <template #activator="{ props }"><v-btn v-bind="props" icon="mdi-dots-vertical" size="x-small" variant="text" /></template>
+                  <v-list density="compact">
+                    <v-list-item prepend-icon="mdi-tune-vertical" :title="$t('agent.manageInbounds')" :disabled="!node.managed" @click="manageInbounds(node)" />
+                    <v-list-item prepend-icon="mdi-pencil-outline" :title="$t('agent.editNode')" @click="openEdit(node)" />
+                    <v-list-item prepend-icon="mdi-key-change" :title="$t('agent.rotate')" @click="rotateNode(node)" />
+                    <v-list-item prepend-icon="mdi-delete-outline" :title="$t('actions.del')" base-color="error" @click="askDelete(node)" />
+                  </v-list>
+                </v-menu>
+              </td>
+            </tr>
+            <tr v-if="expanded.includes(node.id)" class="node-expand">
+              <td :colspan="tableColumns.length + (canControl ? 2 : 1)">
+                <div class="expand-grid">
+                  <div v-for="item in nodeFacts(node)" :key="item.label"><span>{{ item.label }}</span><strong dir="ltr">{{ item.value }}</strong></div>
+                </div>
+                <div class="expand-actions">
+                  <v-btn size="small" variant="tonal" color="primary" prepend-icon="mdi-chart-line" @click="openDetail(node)">{{ $t('agent.detail') }}</v-btn>
+                </div>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
     </div>
   </section>
 </template>
@@ -219,13 +409,20 @@
 <script lang="ts" setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { push } from 'notivue'
 import { i18n } from '@/locales'
 import Data from '@/store/modules/data'
-import type { AgentNode, AgentUsage } from '@/types/agents'
+import type { AgentNode, AgentNodeMeta, TrafficLimitType } from '@/types/agents'
 import { copyText } from '@/utils/clipboard'
 import { fetchBackendObject as api, resolveFrontendUrl } from '@/utils/backend'
+import UsageBar from '@/components/monitor/UsageBar.vue'
+import PriceTags from '@/components/monitor/PriceTags.vue'
+import {
+  billingCycles, bytes, cycleKey, flagEmoji, osIcon, osName, rate, trafficPercent, trafficUsed, uptimeText, usagePercent, usageText,
+} from '@/utils/monitor'
 
+const { t } = useI18n()
 const router = useRouter()
 const dataStore = Data()
 const nodes = ref<AgentNode[]>([])
@@ -234,6 +431,9 @@ const query = ref('')
 const sortKey = ref('default')
 const sortDesc = ref(false)
 const selected = ref<number[]>([])
+const expanded = ref<number[]>([])
+const searchField = ref<any>(null)
+const now = ref(new Date())
 const hostRequirements = computed(() => dataStore.hostRequirements)
 const controllerModeLoading = ref(false)
 const controllerMode = computed(() => dataStore.controllerMode)
@@ -249,16 +449,70 @@ const serverRequirementText = computed(() => i18n.global.t('agent.hostRequiremen
   memory: currentHostMemoryGiB.value,
 }))
 
-const enroll = reactive({ visible: false, apiLoading: false, pairURL: '', pairExpiresAt: 0, command: '', managedCommand: '' })
+// View preferences are per browser.
+const readPref = (key: string, fallback: string) => {
+  try { return localStorage.getItem(key) || fallback } catch { return fallback }
+}
+const writePref = (key: string, value: string) => {
+  try { localStorage.setItem(key, value) } catch { /* private mode */ }
+}
+const viewMode = ref<'grid' | 'table'>(readPref('monitorViewMode', 'grid') === 'table' ? 'table' : 'grid')
+const selectedGroup = ref(readPref('monitorGroup', 'all'))
+const setViewMode = (mode: 'grid' | 'table') => { viewMode.value = mode; writePref('monitorViewMode', mode) }
+const saveGroup = () => writePref('monitorGroup', selectedGroup.value)
+
+const defaultMeta = (): AgentNodeMeta => ({
+  group: '', tags: '', region: '', remark: '', price: 0, currency: '', billing_cycle: 30, expire_at: 0,
+  sort_weight: 0, traffic_limit: 0, traffic_limit_type: 'sum', traffic_reset_day: 1,
+})
+const enroll = reactive({ visible: false, apiLoading: false, pairURL: '', pairExpiresAt: 0, command: '', managedCommand: '', cnManagedCommand: '' })
+const enrollKey = reactive({ loading: false, configured: false, panel_url: '', key: '', command: '', nas_command: '', cn_command: '', cn_nas_command: '' })
 const connect = reactive({ visible: false, loading: false, url: '', insecure: false })
-const edit = reactive({ visible: false, loading: false, id: 0, name: '', publicHost: '' })
+const edit = reactive({ visible: false, loading: false, id: 0, name: '', publicHost: '', meta: defaultMeta(), expireDate: '', trafficLimitGiB: 0 })
 const removeDialog = reactive<{ visible: boolean, loading: boolean, node?: AgentNode }>({ visible: false, loading: false })
 const batch = reactive<{ loading: boolean, shell: string, results: any[], resultVisible: boolean }>({ loading: false, shell: '', results: [], resultVisible: false })
 let refreshTimer: number | undefined
+let clockTimer: number | undefined
 
 const pairExpiryText = computed(() => enroll.pairExpiresAt
   ? i18n.global.t('agent.pairExpires', { time: new Date(enroll.pairExpiresAt * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })
   : '')
+
+const groups = computed(() => [...new Set(nodes.value.map(node => node.group || '').filter(Boolean))].sort((a, b) => a.localeCompare(b)))
+const onlineNodes = computed(() => nodes.value.filter(node => node.online))
+const sum = (list: AgentNode[], pick: (node: AgentNode) => number | undefined) => list.reduce((total, node) => total + Number(pick(node) || 0), 0)
+
+// Summary stats: the first five match the Komari layout, the rest are ours.
+const statDefs = computed(() => {
+  const online = onlineNodes.value
+  const regions = new Set(online.map(node => node.region).filter(Boolean)).size
+  const cores = online.filter(node => node.report.cores?.singbox_running || node.report.cores?.xray_running).length
+  const alerts = nodes.value.filter(node => needsAttention(node)).length
+  return [
+    { key: 'time', title: t('monitor.currentTime'), value: now.value.toLocaleTimeString() },
+    { key: 'online', title: t('monitor.currentOnline'), value: `${online.length} / ${nodes.value.length}` },
+    { key: 'regions', title: t('monitor.regionOverview'), value: String(regions) },
+    { key: 'traffic', title: t('monitor.trafficOverview'), value: `↑ ${bytes(sum(online, node => node.report.network?.sent))} / ↓ ${bytes(sum(online, node => node.report.network?.recv))}` },
+    { key: 'speed', title: t('monitor.networkSpeed'), value: `↑ ${rate(sum(online, node => node.report.net_rate?.sent))} / ↓ ${rate(sum(online, node => node.report.net_rate?.recv))}` },
+    { key: 'period', title: t('monitor.periodTraffic'), value: `↑ ${bytes(sum(nodes.value, node => node.traffic?.sent))} / ↓ ${bytes(sum(nodes.value, node => node.traffic?.recv))}` },
+    { key: 'cores', title: t('monitor.proxyCores'), value: `${cores} / ${online.length}` },
+    { key: 'alerts', title: t('monitor.attention'), value: String(alerts) },
+  ]
+})
+const statVisible = reactive<Record<string, boolean>>((() => {
+  try { return JSON.parse(localStorage.getItem('monitorStatVisible') || '{}') } catch { return {} }
+})())
+const saveStatVisible = () => writePref('monitorStatVisible', JSON.stringify(statVisible))
+const shownStats = computed(() => statDefs.value.filter(item => statVisible[item.key] !== false))
+
+// needsAttention flags offline servers, high usage, nearly used traffic and
+// servers that expire within a week.
+const needsAttention = (node: AgentNode) => {
+  if (!node.online) return true
+  if (Number(node.report.cpu_percent || 0) >= 90 || Number(usagePercent(node.report.memory) || 0) >= 90 || Number(usagePercent(node.report.disk) || 0) >= 90) return true
+  if (Number(trafficPercent(node) || 0) >= 90) return true
+  return Boolean(node.expire_at && node.expire_at * 1000 - Date.now() < 7 * 86400000)
+}
 
 const sortOptions = computed(() => [
   { title: i18n.global.t('agent.sortDefault'), value: 'default' },
@@ -267,42 +521,82 @@ const sortOptions = computed(() => [
   { title: i18n.global.t('agent.memory'), value: 'memory' },
   { title: i18n.global.t('agent.disk'), value: 'disk' },
   { title: i18n.global.t('agent.latency'), value: 'latency' },
-  { title: 'Upload', value: 'upload' },
-  { title: 'Download', value: 'download' },
+  { title: t('monitor.upSpeed'), value: 'upload' },
+  { title: t('monitor.downSpeed'), value: 'download' },
+  { title: t('monitor.periodTraffic'), value: 'period' },
+  { title: t('monitor.expireAt'), value: 'expire' },
 ])
-const onlineCount = computed(() => nodes.value.filter(node => node.online).length)
-const offlineCount = computed(() => nodes.value.length - onlineCount.value)
-const totalRate = computed(() => nodes.value.reduce((total, node) => ({
-  sent: total.sent + Number(node.report.net_rate?.sent || 0),
-  recv: total.recv + Number(node.report.net_rate?.recv || 0),
-}), { sent: 0, recv: 0 }))
-const totalNetwork = computed(() => nodes.value.reduce((total, node) => ({
-  sent: total.sent + Number(node.report.network?.sent || 0),
-  recv: total.recv + Number(node.report.network?.recv || 0),
-}), { sent: 0, recv: 0 }))
+const tableColumns = computed(() => [
+  { key: 'name', title: t('agent.name'), class: 'col-name' },
+  { key: 'os', title: t('monitor.os'), class: '' },
+  { key: 'status', title: t('agent.status'), class: '' },
+  { key: 'cpu', title: 'CPU', class: 'col-bar' },
+  { key: 'memory', title: t('monitor.ram'), class: 'col-bar' },
+  { key: 'disk', title: t('agent.disk'), class: 'col-bar' },
+  { key: 'price', title: t('monitor.price'), class: 'col-tags' },
+  { key: 'upload', title: t('monitor.upSpeed'), class: '' },
+  { key: 'download', title: t('monitor.downSpeed'), class: '' },
+  { key: 'totalUp', title: t('monitor.totalUp'), class: '' },
+  { key: 'totalDown', title: t('monitor.totalDown'), class: '' },
+  { key: 'period', title: t('monitor.periodTraffic'), class: '' },
+  { key: 'latency', title: 'Ping', class: '' },
+])
+// Table headers cycle default, ascending, descending.
+const sortBy = (key: string) => {
+  if (sortKey.value !== key) { sortKey.value = key; sortDesc.value = false; return }
+  if (!sortDesc.value) { sortDesc.value = true; return }
+  sortKey.value = 'default'
+  sortDesc.value = false
+}
+
 const filteredNodes = computed(() => {
-  const needle = query.value.trim().toLowerCase()
-  const result = nodes.value.filter(node => !needle || [node.name, node.report.hostname, node.remote_ip, node.public_host, node.report.os, node.report.arch]
-    .some(value => String(value || '').toLowerCase().includes(needle)))
+  const needle = query.value?.trim().toLowerCase() || ''
+  const status = ['online', '在线', '在線'].includes(needle) ? true : ['offline', '离线', '離線'].includes(needle) ? false : undefined
+  const result = nodes.value.filter(node => {
+    if (selectedGroup.value !== 'all' && (node.group || '') !== selectedGroup.value) return false
+    if (!needle) return true
+    if (status !== undefined) return node.online === status
+    return [node.name, node.report.hostname, node.remote_ip, node.public_host, node.report.os, node.report.platform, node.report.arch,
+      node.region, flagEmoji(node.region), node.group, node.tags, node.remark, node.price ? String(node.price) : '']
+      .some(value => String(value || '').toLowerCase().includes(needle))
+  })
   const value = (node: AgentNode): number | string => {
     switch (sortKey.value) {
       case 'name': return node.name.toLowerCase()
+      case 'os': return osName(node).toLowerCase()
+      case 'status': return node.online ? 1 : 0
       case 'cpu': return Number(node.report.cpu_percent || 0)
       case 'memory': return Number(usagePercent(node.report.memory) || 0)
       case 'disk': return Number(usagePercent(node.report.disk) || 0)
       case 'latency': return Number(node.latency?.last_ms ?? Number.MAX_SAFE_INTEGER)
       case 'upload': return Number(node.report.net_rate?.sent || 0)
       case 'download': return Number(node.report.net_rate?.recv || 0)
-      default: return node.id
+      case 'totalUp': return Number(node.report.network?.sent || 0)
+      case 'totalDown': return Number(node.report.network?.recv || 0)
+      case 'period': return trafficUsed(node)
+      case 'price': return Number(node.price || 0)
+      case 'expire': return node.expire_at || Number.MAX_SAFE_INTEGER
+      default: return Number(node.sort_weight || 0) * 1e9 + node.id
     }
   }
   return result.slice().sort((a, b) => {
+    // Offline servers go last in the default order.
+    if (sortKey.value === 'default' && a.online !== b.online) return a.online ? -1 : 1
     const av = value(a)
     const bv = value(b)
     const order = typeof av === 'string' && typeof bv === 'string' ? av.localeCompare(bv) : Number(av) - Number(bv)
     return sortDesc.value ? -order : order
   })
 })
+const summaryText = computed(() => {
+  if (query.value?.trim()) return t('monitor.searchResults', { n: filteredNodes.value.length })
+  const list = selectedGroup.value === 'all' ? nodes.value : filteredNodes.value
+  return t('monitor.totalNodes', { total: list.length, online: list.filter(node => node.online).length })
+})
+
+const cycleOptions = computed(() => billingCycles.map(days => ({ value: days, title: t(`monitor.cycle.${cycleKey(days)}`) })))
+const limitTypeOptions = computed(() => (['sum', 'max', 'min', 'up', 'down'] as TrafficLimitType[]).map(value => ({ value, title: t(`monitor.limit.${value}`) })))
+const limitTypeLabel = (value?: string) => t(`monitor.limit.${value || 'sum'}`)
 
 const loadNodes = async () => {
   if (loading.value) return
@@ -310,17 +604,59 @@ const loadNodes = async () => {
   try {
     nodes.value = await api('api/agents') || []
     selected.value = canControl.value ? selected.value.filter(id => nodes.value.some(node => node.id === id && node.controllable)) : []
+    if (selectedGroup.value !== 'all' && !groups.value.includes(selectedGroup.value)) selectedGroup.value = 'all'
   } catch (error: any) {
     push.error({ message: error?.message || i18n.global.t('agent.loadFailed') })
   } finally { loading.value = false }
 }
 const handleVisibilityChange = () => { if (!document.hidden) void loadNodes() }
+// "/" focuses the search box, like the Komari home page.
+const handleKey = (event: KeyboardEvent) => {
+  const target = event.target as HTMLElement | null
+  if (event.key !== '/' || target?.closest('input, textarea, [contenteditable="true"]')) return
+  event.preventDefault()
+  searchField.value?.focus?.()
+}
 
 const openEnrollment = () => {
   if (!controllerMode.value.enabled) return push.error({ message: i18n.global.t('agent.controllerDisabledHint') })
   if (!serverMonitoringAvailable.value) return push.error({ message: serverRequirementText.value })
-  Object.assign(enroll, { visible: true, apiLoading: false, pairURL: '', pairExpiresAt: 0, command: '', managedCommand: '' })
+  Object.assign(enroll, { visible: true, apiLoading: false, pairURL: '', pairExpiresAt: 0, command: '', managedCommand: '', cnManagedCommand: '' })
   void createEnrollmentAPI()
+  void loadEnrollmentKey()
+}
+const loadEnrollmentKey = async () => {
+  Object.assign(enrollKey, { key: '', command: '', nas_command: '', cn_command: '', cn_nas_command: '' })
+  try {
+    const result = await api('api/agents/enrollment-key')
+    Object.assign(enrollKey, { configured: !!result?.configured, panel_url: result?.panel_url || '' })
+  } catch { /* the one-time address above still works */ }
+}
+const createEnrollmentKey = async () => {
+  if (enrollKey.configured && !window.confirm(i18n.global.t('agent.keyRegenerateConfirm'))) return
+  enrollKey.loading = true
+  try {
+    const result = await api('api/agents/enrollment-key', { method: 'POST', body: '{}' })
+    Object.assign(enrollKey, {
+      configured: true,
+      panel_url: result.panel_url || enrollKey.panel_url,
+      key: result.key || '',
+      command: result.command || '',
+      nas_command: result.nas_command || '',
+      cn_command: result.cn_command || '',
+      cn_nas_command: result.cn_nas_command || '',
+    })
+  } catch (error: any) { push.error({ message: error?.message || i18n.global.t('agent.createFailed') }) }
+  finally { enrollKey.loading = false }
+}
+const revokeEnrollmentKey = async () => {
+  if (!window.confirm(i18n.global.t('agent.keyRevokeConfirm'))) return
+  enrollKey.loading = true
+  try {
+    await api('api/agents/enrollment-key/revoke', { method: 'POST', body: '{}' })
+    Object.assign(enrollKey, { configured: false, key: '', command: '', nas_command: '', cn_command: '', cn_nas_command: '' })
+  } catch (error: any) { push.error({ message: error?.message || i18n.global.t('agent.createFailed') }) }
+  finally { enrollKey.loading = false }
 }
 const closeEnrollment = () => { enroll.visible = false; if (enroll.pairURL) void loadNodes() }
 const createEnrollmentAPI = async () => {
@@ -331,6 +667,7 @@ const createEnrollmentAPI = async () => {
     enroll.pairExpiresAt = Number(result.pair_expires_at || 0)
     enroll.command = result.command || ''
     enroll.managedCommand = result.managed_command || ''
+    enroll.cnManagedCommand = result.cn_managed_command || ''
   } catch (error: any) { push.error({ message: error?.message || i18n.global.t('agent.createFailed') }) }
   finally { enroll.apiLoading = false }
 }
@@ -344,6 +681,7 @@ const rotateNode = async (node: AgentNode) => {
       pairExpiresAt: Number(result.pair_expires_at || 0),
       command: result.command,
       managedCommand: result.managed_command || '',
+      cnManagedCommand: result.cn_managed_command || '',
     })
   } catch (error: any) { push.error({ message: error?.message || i18n.global.t('agent.rotateFailed') }) }
 }
@@ -397,11 +735,35 @@ const disconnectController = async () => {
     push.error({ message: error?.message || i18n.global.t('agent.connectFailed') })
   } finally { connect.loading = false }
 }
-const openEdit = (node: AgentNode) => Object.assign(edit, { visible: true, loading: false, id: node.id, name: node.name, publicHost: node.public_host || '' })
+const toDateInput = (unix?: number) => {
+  if (!unix) return ''
+  const date = new Date(unix * 1000)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+const openEdit = (node: AgentNode) => {
+  const meta = { ...defaultMeta() }
+  for (const key of Object.keys(meta) as (keyof AgentNodeMeta)[]) {
+    if (node[key] != null) (meta as any)[key] = node[key]
+  }
+  if (!meta.billing_cycle) meta.billing_cycle = 30
+  Object.assign(edit, {
+    visible: true, loading: false, id: node.id, name: node.name, publicHost: node.public_host || '', meta,
+    expireDate: toDateInput(node.expire_at), trafficLimitGiB: node.traffic_limit ? +(node.traffic_limit / 1024 ** 3).toFixed(2) : 0,
+  })
+}
 const saveNode = async () => {
   edit.loading = true
   try {
-    await api(`api/agents/${edit.id}`, { method: 'PATCH', body: JSON.stringify({ name: edit.name.trim(), public_host: edit.publicHost.trim() }) })
+    const meta: AgentNodeMeta = {
+      ...edit.meta,
+      price: Number(edit.meta.price) || 0,
+      sort_weight: Math.trunc(Number(edit.meta.sort_weight) || 0),
+      traffic_reset_day: Math.trunc(Number(edit.meta.traffic_reset_day) || 1),
+      // Expiry is the end of the chosen local day.
+      expire_at: edit.expireDate ? Math.floor(new Date(`${edit.expireDate}T23:59:59`).getTime() / 1000) : 0,
+      traffic_limit: Math.max(0, Math.round((Number(edit.trafficLimitGiB) || 0) * 1024 ** 3)),
+    }
+    await api(`api/agents/${edit.id}`, { method: 'PATCH', body: JSON.stringify({ name: edit.name.trim(), public_host: edit.publicHost.trim(), meta }) })
     edit.visible = false
     push.success({ message: i18n.global.t('agent.updateSuccess') })
     await loadNodes()
@@ -426,6 +788,9 @@ const toggleSelect = (id: number, enabled: boolean | null) => {
   if (enabled && !selected.value.includes(id)) selected.value.push(id)
   if (!enabled) selected.value = selected.value.filter(value => value !== id)
 }
+const toggleExpand = (id: number) => {
+  expanded.value = expanded.value.includes(id) ? expanded.value.filter(value => value !== id) : [...expanded.value, id]
+}
 const selectAllControllable = () => { selected.value = nodes.value.filter(node => node.controllable).map(node => node.id) }
 const batchCmd = async (type: string, args?: Record<string, any>) => {
   if (!canControl.value || !selected.value.length) return
@@ -439,32 +804,30 @@ const batchCmd = async (type: string, args?: Record<string, any>) => {
   finally { batch.loading = false }
 }
 
-const clampPercent = (value?: number) => Math.max(0, Math.min(100, Number(value) || 0))
-const usagePercent = (value?: AgentUsage) => value?.total ? Number(value.used || 0) * 100 / value.total : undefined
-const percent = (value?: number) => {
-  if (value == null || Number.isNaN(value)) return '-'
-  const digits = value > 0 && value < 1 ? 2 : 1
-  return `${value.toFixed(digits)}%`
-}
-const rate = (value?: number) => {
-  if (value == null) return '-'
-  if (value < 1024) return `${Math.round(value)} B/s`
-  if (value < 1024 ** 2) return `${(value / 1024).toFixed(1)}K/s`
-  return `${(value / (1024 ** 2)).toFixed(2)}M/s`
-}
-const bytes = (value?: number) => {
-  if (!value) return '0 B'
-  if (value < 1024 ** 2) return `${(value / 1024).toFixed(1)} KiB`
-  if (value < 1024 ** 3) return `${(value / (1024 ** 2)).toFixed(1)} MiB`
-  if (value < 1024 ** 4) return `${(value / (1024 ** 3)).toFixed(1)} GiB`
-  return `${(value / (1024 ** 4)).toFixed(2)} TiB`
-}
 const latencyLabel = (node: AgentNode) => node.online && node.latency?.last_ms != null ? `${node.latency.last_ms} ms` : '-'
-const barStyle = (value?: number) => {
-  const current = clampPercent(value)
-  const color = current >= 90 ? 'rgb(var(--v-theme-error))' : current >= 70 ? 'rgb(var(--v-theme-warning))' : 'rgb(var(--v-theme-success))'
-  return { width: `${current}%`, backgroundColor: color }
+const latencyClass = (node: AgentNode) => {
+  if (!node.online || node.latency?.last_ms == null) return 'text-medium-emphasis'
+  const loss = Number(node.latency.loss_pct || 0)
+  return loss >= 20 || node.latency.last_ms >= 250 ? 'text-error' : loss > 0 || node.latency.last_ms >= 100 ? 'text-warning' : 'text-success'
 }
+const loadText = (node: AgentNode) => {
+  const load = node.report.load?.load1
+  const parts = [load == null ? '-' : load.toFixed(2)]
+  if (node.report.tcp_conns != null || node.report.udp_conns != null) parts.push(`TCP ${node.report.tcp_conns ?? 0} · UDP ${node.report.udp_conns ?? 0}`)
+  return parts.join(' · ')
+}
+const nodeFacts = (node: AgentNode) => [
+  { label: 'CPU', value: node.report.cpu_model ? `${node.report.cpu_model} (x${node.report.cpu_cores || '?'})` : `${node.report.cpu_cores || '-'} ${t('agent.cpuCores')}` },
+  { label: t('monitor.arch'), value: node.report.arch || '-' },
+  { label: t('monitor.virtualization'), value: node.report.virtualization || '-' },
+  { label: t('monitor.os'), value: [osName(node), node.report.kernel].filter(Boolean).join(' · ') || '-' },
+  { label: t('monitor.ram'), value: usageText(node.report.memory) },
+  { label: t('monitor.swap'), value: usageText(node.report.swap) },
+  { label: t('agent.disk'), value: usageText(node.report.disk) },
+  { label: t('monitor.loadConns'), value: loadText(node) },
+  { label: t('agent.addresses'), value: [...(node.report.ipv4 || []), ...(node.report.ipv6 || [])].join(', ') || node.remote_ip || '-' },
+  { label: t('agent.lastSeen'), value: node.last_seen ? new Date(node.last_seen * 1000).toLocaleString() : '-' },
+]
 const copy = async (value: string) => {
   try { await copyText(value); push.success({ message: i18n.global.t('success') }) }
   catch { push.error({ message: i18n.global.t('failed') }) }
@@ -473,77 +836,115 @@ const copy = async (value: string) => {
 onMounted(() => {
   void Promise.all([loadControllerMode(), loadLocalConnection(), loadNodes()])
   document.addEventListener('visibilitychange', handleVisibilityChange)
-  refreshTimer = window.setInterval(() => { if (!document.hidden) void loadNodes() }, 10000)
+  document.addEventListener('keydown', handleKey)
+  refreshTimer = window.setInterval(() => { if (!document.hidden) void loadNodes() }, 5000)
+  clockTimer = window.setInterval(() => { now.value = new Date() }, 1000)
 })
 onBeforeUnmount(() => {
   if (refreshTimer) window.clearInterval(refreshTimer)
+  if (clockTimer) window.clearInterval(clockTimer)
   document.removeEventListener('visibilitychange', handleVisibilityChange)
+  document.removeEventListener('keydown', handleKey)
 })
 </script>
 
 <style scoped>
-.monitor-page { display: grid; gap: 18px; }
+.monitor-page { display: grid; gap: 14px; }
 .monitor-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .monitor-heading h1 { margin: 0; font-size: 1.35rem; line-height: 1.4; letter-spacing: 0; }
 .monitor-heading p { margin: 4px 0 0; color: rgba(var(--v-theme-on-surface), 0.62); font-size: 0.9rem; }
-.heading-actions, .monitor-controls, .batch-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
-.summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
-.summary-item { position: relative; min-height: 92px; padding: 16px 18px; border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); border-radius: 8px; background: rgb(var(--v-theme-surface)); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); display: flex; flex-direction: column; justify-content: center; gap: 4px; }
-.summary-item span { color: rgba(var(--v-theme-on-surface), 0.7); font-size: 0.86rem; }
-.summary-item strong { font-size: 1.45rem; line-height: 1.2; }
-.summary-item small { color: rgba(var(--v-theme-on-surface), 0.62); }
-.summary-dot, .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
-.summary-dot { position: absolute; right: 18px; bottom: 20px; }
-.dot-primary { background: rgb(var(--v-theme-primary)); }
-.dot-online { background: rgb(var(--v-theme-success)); box-shadow: 0 0 0 3px rgba(var(--v-theme-success), 0.12); }
-.dot-offline { background: rgb(var(--v-theme-error)); box-shadow: 0 0 0 3px rgba(var(--v-theme-error), 0.12); }
-.summary-network strong { font-size: 1rem; }
-.monitor-controls { justify-content: flex-end; }
-.search-field { flex: 1 1 240px; max-width: 420px; margin-right: auto; }
-.sort-field { flex: 0 1 190px; }
+.heading-actions, .batch-bar, .list-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+
+.stat-card { position: relative; padding: 14px 16px; border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); border-radius: 12px; background: rgb(var(--v-theme-surface)); }
+.stat-settings { position: absolute; top: 6px; right: 6px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 12px; padding-right: 22px; }
+.stat-item { min-width: 0; display: flex; flex-direction: column; }
+.stat-item span { color: rgba(var(--v-theme-on-surface), 0.6); font-size: 0.82rem; }
+.stat-item strong { font-weight: 500; font-size: 0.98rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.control-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.search-field { flex: 1 1 240px; max-width: 448px; }
+.control-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.sort-field { width: 150px; }
+.control-label { color: rgba(var(--v-theme-on-surface), 0.6); font-size: 0.82rem; white-space: nowrap; }
+.group-bar { display: flex; align-items: center; gap: 10px; overflow-x: auto; margin-top: -4px; }
+.group-toggle { flex-shrink: 0; }
+.list-summary { color: rgba(var(--v-theme-on-surface), 0.6); font-size: 0.84rem; margin-top: -4px; }
 .batch-bar { padding: 10px 12px; border: 1px solid rgba(var(--v-theme-primary), 0.25); border-radius: 8px; background: rgba(var(--v-theme-primary), 0.06); }
 .batch-shell { flex: 1 1 190px; max-width: 260px; }
-.server-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.server-row { min-width: 0; min-height: 72px; display: grid; grid-template-columns: 34px minmax(120px, 0.85fr) minmax(330px, 2.2fr) 34px; align-items: center; gap: 8px; padding: 10px 8px; border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); border-radius: 8px; background: rgb(var(--v-theme-surface)); box-shadow: 0 2px 7px rgba(0, 0, 0, 0.035); cursor: pointer; transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease; }
-.server-row:hover { border-color: rgba(var(--v-theme-primary), 0.42); box-shadow: 0 5px 14px rgba(0, 0, 0, 0.07); transform: translateY(-1px); }
-.server-row--offline { opacity: 0.68; }
-.server-select { display: flex; justify-content: center; }
-.server-identity { min-width: 0; display: flex; align-items: center; gap: 10px; }
-.server-identity > div { min-width: 0; }
-.server-identity strong, .server-identity small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.server-identity strong { font-size: 0.88rem; }
-.server-identity small { margin-top: 2px; color: rgba(var(--v-theme-on-surface), 0.58); font-size: 0.72rem; }
-.server-metrics { min-width: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 9px; }
-.mini-metric { min-width: 0; position: relative; padding-bottom: 4px; }
-.mini-metric span, .mini-metric strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mini-metric span { color: rgba(var(--v-theme-on-surface), 0.58); font-size: 0.68rem; }
-.mini-metric strong { margin-top: 2px; font-size: 0.76rem; font-weight: 600; }
-.mini-metric i { position: absolute; left: 0; bottom: 0; display: block; max-width: 100%; height: 2px; border-radius: 2px; }
-.server-menu { display: flex; justify-content: center; }
-@media (max-width: 1180px) {
-  .server-grid { grid-template-columns: minmax(0, 1fr); }
-}
+.empty-state { padding: 40px 16px; text-align: center; color: rgba(var(--v-theme-on-surface), 0.56); display: grid; gap: 4px; }
+
+.node-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.node-card { min-width: 0; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); border-radius: 12px; background: rgb(var(--v-theme-surface)); cursor: pointer; transition: all 0.2s; }
+.node-card:hover { box-shadow: 0 10px 24px rgba(0, 0, 0, 0.1); background: rgba(var(--v-theme-primary), 0.035); }
+.node-card--offline { opacity: 0.72; }
+.node-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.node-card__identity { min-width: 0; display: flex; align-items: flex-start; gap: 8px; }
+.node-card__title { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.node-card__title strong { font-size: 1.05rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.node-card__title small { color: rgba(var(--v-theme-on-surface), 0.6); font-size: 0.74rem; }
+.node-card__status { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.node-flag { font-size: 1.3rem; line-height: 1.4; }
+.status-badge { padding: 1px 8px; border-radius: 4px; font-size: 0.74rem; font-weight: 500; white-space: nowrap; }
+.status-badge--on { color: #218358; background: rgba(48, 164, 108, 0.16); }
+.status-badge--off { color: #ce2c31; background: rgba(229, 72, 77, 0.16); }
+.node-card__body { display: flex; flex-direction: column; gap: 8px; }
+.usage-stack { display: flex; flex-direction: column; gap: 6px; }
+.info-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 0.82rem; min-width: 0; }
+.info-row > span { color: rgba(var(--v-theme-on-surface), 0.6); white-space: nowrap; }
+.info-row > strong { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; }
+.info-row--sub { margin-top: -4px; font-size: 0.72rem; }
+.info-row--sub > span { color: rgba(var(--v-theme-on-surface), 0.6); }
+.core-badges { gap: 6px; }
+.core-badge { padding: 0 5px; border-radius: 4px; font-size: 0.68rem; color: rgba(var(--v-theme-on-surface), 0.45); background: rgba(var(--v-theme-on-surface), 0.07); }
+.core-badge--on { color: #218358; background: rgba(48, 164, 108, 0.16); }
+.mobile-only { display: none !important; }
+
+.node-table-wrap { overflow-x: auto; border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); border-radius: 12px; background: rgb(var(--v-theme-surface)); }
+.node-table { width: 100%; min-width: 1180px; border-collapse: collapse; font-size: 0.82rem; }
+.node-table th { padding: 10px 8px; text-align: left; font-weight: 500; color: rgba(var(--v-theme-on-surface), 0.62); white-space: nowrap; cursor: pointer; user-select: none; border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); }
+.node-table td { padding: 9px 8px; white-space: nowrap; border-bottom: 1px solid rgba(var(--v-border-color), calc(var(--v-border-opacity) * 0.7)); }
+.node-row { cursor: pointer; transition: background 0.15s; }
+.node-row:hover, .node-row--open { background: rgba(var(--v-theme-primary), 0.05); }
+.node-row--offline { opacity: 0.72; }
+.col-expand, .col-menu { width: 34px; cursor: default !important; }
+.col-bar { width: 100px; min-width: 100px; }
+.col-tags { max-width: 220px; white-space: normal !important; }
+.table-name { display: flex; align-items: center; gap: 8px; }
+.table-name strong, .table-name small { display: block; }
+.table-name small { color: rgba(var(--v-theme-on-surface), 0.58); font-size: 0.7rem; }
+.node-expand td { background: rgba(var(--v-theme-primary), 0.03); padding: 14px 16px; white-space: normal; }
+.expand-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px 18px; }
+.expand-grid span, .expand-grid strong { display: block; }
+.expand-grid span { font-weight: 600; font-size: 0.76rem; }
+.expand-grid strong { font-weight: 400; font-size: 0.8rem; color: rgba(var(--v-theme-on-surface), 0.72); word-break: break-word; }
+.expand-actions { margin-top: 12px; }
+
+.edit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; }
+.edit-grid .span-2 { grid-column: 1 / -1; }
+.edit-pair { display: flex; gap: 8px; align-items: flex-start; }
+.currency-field { flex: 0 0 90px; }
+.reset-field { flex: 0 0 110px; }
+.flag-preview { min-width: 1.2em; font-size: 1.1rem; }
+
 @media (max-width: 800px) {
-  .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .monitor-heading { align-items: center; }
-  .monitor-heading > div:first-child { text-align: center; flex: 1; }
   .monitor-heading { flex-wrap: wrap; justify-content: center; }
+  .monitor-heading > div:first-child { text-align: center; flex: 1; }
   .heading-actions { justify-content: center; width: 100%; }
 }
 @media (max-width: 600px) {
-  .monitor-page { gap: 14px; }
-  .summary-grid { gap: 8px; }
-  .summary-item { min-height: 82px; padding: 13px; }
-  .summary-item strong { font-size: 1.2rem; }
-  .summary-network strong { font-size: 0.78rem; }
-  .summary-network small { font-size: 0.68rem; }
-  .monitor-controls { justify-content: center; }
-  .search-field { flex-basis: 100%; max-width: none; margin-right: 0; }
-  .sort-field { flex: 1 1 150px; }
-  .server-row { grid-template-columns: 30px minmax(0, 1fr) 32px; grid-template-areas: 'select identity menu' '. metrics metrics'; gap: 9px 6px; }
-  .server-select { grid-area: select; }
-  .server-identity { grid-area: identity; }
-  .server-metrics { grid-area: metrics; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .server-menu { grid-area: menu; }
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat-item strong { font-size: 0.84rem; }
+  .search-field { max-width: none; flex-basis: 100%; }
+  .control-bar, .control-right { justify-content: space-between; width: 100%; }
+  .sort-field { flex: 1 1 120px; width: auto; }
+  .node-grid { gap: 8px; }
+  .desktop-only { display: none !important; }
+  .mobile-only { display: flex !important; }
+  .node-card__title small.mobile-only { display: block !important; }
+  .usage-stack { flex-direction: row; gap: 14px; }
+  .usage-stack > * { flex: 1 1 0; }
+  .usage-stack :deep(.usage-bar__detail) { display: none; }
+  .edit-grid { grid-template-columns: minmax(0, 1fr); }
 }
 </style>

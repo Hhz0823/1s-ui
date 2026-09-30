@@ -83,3 +83,52 @@ func TestAgentAddressOnlyEnrollmentConsumesWindow(t *testing.T) {
 		t.Fatalf("address enrollment created unexpected nodes: count=%d err=%v", count, err)
 	}
 }
+
+func TestAgentKeyEnrollmentIsReusableUntilRevoked(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("SUI_DB_FOLDER", dir)
+	if err := database.InitDB(filepath.Join(dir, "agent-key-enrollment.db")); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.GetDB().Create(&model.Setting{Key: "controllerMode", Value: "full"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	settings := &service.SettingService{}
+	key, err := settings.RotateAgentEnrollmentKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !settings.HasAgentEnrollmentKey() {
+		t.Fatal("rotated enrollment key is not reported as active")
+	}
+
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	NewAgentHandler(engine.Group("/app/agent/v1"))
+	enroll := func(code string) int {
+		body, _ := json.Marshal(map[string]string{"code": code, "name": "fnos-nas"})
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/app/agent/v1/enroll", strings.NewReader(string(body)))
+		request.Header.Set("Content-Type", "application/json")
+		engine.ServeHTTP(recorder, request)
+		return recorder.Code
+	}
+
+	for i := 0; i < 2; i++ {
+		if code := enroll(key); code != http.StatusOK {
+			t.Fatalf("key enrollment %d status = %d, want %d", i+1, code, http.StatusOK)
+		}
+	}
+	if code := enroll(strings.Repeat("x", 43)); code != http.StatusUnauthorized {
+		t.Fatalf("wrong key status = %d, want %d", code, http.StatusUnauthorized)
+	}
+	if err := settings.RevokeAgentEnrollmentKey(); err != nil {
+		t.Fatal(err)
+	}
+	if settings.HasAgentEnrollmentKey() {
+		t.Fatal("revoked enrollment key is still reported as active")
+	}
+	if code := enroll(key); code != http.StatusUnauthorized {
+		t.Fatalf("revoked key status = %d, want %d", code, http.StatusUnauthorized)
+	}
+}

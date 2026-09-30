@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Hhz0823/1s-ui/database"
 	"github.com/Hhz0823/1s-ui/database/model"
@@ -20,6 +21,7 @@ import (
 type fakeGitHub struct {
 	server     *httptest.Server
 	githubDown bool
+	githubSlow bool
 	latest     string
 	files      map[string][]byte
 	mirrored   map[string][]byte
@@ -32,11 +34,19 @@ func newFakeGitHub(t *testing.T) *fakeGitHub {
 	fake.server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		path := request.URL.Path
 		fake.requests = append(fake.requests, path)
-		mirrored := strings.HasPrefix(path, "/mirror/")
+		mirrored := strings.HasPrefix(path, "/mirror/") || strings.HasPrefix(path, "/mirror2/")
 		if mirrored {
-			path = strings.TrimPrefix(strings.TrimPrefix(path, "/mirror/"), fake.server.URL)
+			path = strings.TrimPrefix(path[strings.Index(path[1:], "/")+2:], fake.server.URL)
 		} else if fake.githubDown {
 			writer.WriteHeader(http.StatusServiceUnavailable)
+			return
+		} else if fake.githubSlow {
+			// A trickle, like github.com from some networks in China.
+			for request.Context().Err() == nil {
+				_, _ = writer.Write([]byte("x"))
+				writer.(http.Flusher).Flush()
+				time.Sleep(20 * time.Millisecond)
+			}
 			return
 		}
 		if strings.HasSuffix(path, "/releases/latest") && fake.latest != "" {
@@ -87,10 +97,10 @@ func sha256Digest(content []byte) string {
 
 func TestGitHubLatestTagFromRedirectAndMirrorPage(t *testing.T) {
 	fake := newFakeGitHub(t)
-	fake.latest = "v1.7.0"
+	fake.latest = "v99.0.0"
 	for _, source := range []githubSource{{trusted: true}, {prefix: fake.server.URL + "/mirror/"}} {
 		tag, err := githubLatestTag(newGitHubHTTPClient(), source, panelRepo)
-		if err != nil || tag != "v1.7.0" {
+		if err != nil || tag != "v99.0.0" {
 			t.Fatalf("%q: tag = %q, err = %v", source.prefix, tag, err)
 		}
 	}
@@ -98,7 +108,7 @@ func TestGitHubLatestTagFromRedirectAndMirrorPage(t *testing.T) {
 
 func TestPanelVersionCheckWorksWithoutGitHubAPI(t *testing.T) {
 	fake := newFakeGitHub(t)
-	fake.latest = "v1.7.0"
+	fake.latest = "v99.0.0"
 	oldAPI := panelReleaseAPIURL
 	panelReleaseAPIURL = closedURL(t)
 	t.Cleanup(func() { panelReleaseAPIURL = oldAPI })
@@ -109,7 +119,7 @@ func TestPanelVersionCheckWorksWithoutGitHubAPI(t *testing.T) {
 		if err != nil {
 			t.Fatalf("github down %v: %v", githubDown, err)
 		}
-		if info.Latest != "1.7.0" || !info.UpdateAvailable {
+		if info.Latest != "99.0.0" || !info.UpdateAvailable {
 			t.Fatalf("github down %v: %#v", githubDown, info)
 		}
 	}
@@ -122,7 +132,7 @@ func TestPanelVersionCheckWorksWithoutGitHubAPI(t *testing.T) {
 func TestGitHubDownloadsFromMirrorsOnlyWhenVerifiable(t *testing.T) {
 	fake := newFakeGitHub(t)
 	fake.githubDown = true
-	path := "/" + panelRepo + "/releases/download/v1.7.0/s-ui-linux-amd64.tar.gz"
+	path := "/" + panelRepo + "/releases/download/v99.0.0/s-ui-linux-amd64.tar.gz"
 	archive := []byte("release archive")
 	fake.files[path] = archive
 	assetURL := githubWebBase + path
@@ -177,5 +187,111 @@ func TestNormalizeGitHubMirror(t *testing.T) {
 		if _, err := normalizeGitHubMirror(input); err == nil {
 			t.Fatalf("%q was accepted", input)
 		}
+	}
+}
+
+func setDownloadLine(t *testing.T, line string) {
+	t.Helper()
+	if err := database.GetDB().Where(&model.Setting{Key: "downloadLine"}).Assign(model.Setting{Value: line}).FirstOrCreate(&model.Setting{}).Error; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDownloadLineOrdersSources(t *testing.T) {
+	setupQuickAddTest(t)
+	old := builtinGitHubMirrors
+	builtinGitHubMirrors = []string{"https://m1/", "https://m2/"}
+	t.Cleanup(func() { builtinGitHubMirrors = old })
+	describe := func() string {
+		var parts []string
+		for _, source := range githubSources() {
+			name := source.prefix
+			if name == "" {
+				name = "github"
+			}
+			if source.trusted {
+				name += "+"
+			}
+			parts = append(parts, name)
+		}
+		return strings.Join(parts, " ")
+	}
+	for line, want := range map[string]string{
+		"auto":   "github+ https://m1/ https://m2/",
+		"github": "github+",
+		"cn":     "https://m1/+ https://m2/+ github+",
+		"bogus":  "github+ https://m1/ https://m2/",
+	} {
+		setDownloadLine(t, line)
+		if got := describe(); got != want {
+			t.Fatalf("%s: sources %q, want %q", line, got, want)
+		}
+	}
+	if _, err := normalizeDownloadLine("bogus"); err == nil {
+		t.Fatal("an unknown download line was accepted")
+	}
+}
+
+func TestMirrorsServeReleaseCheckedBySHA256SUMS(t *testing.T) {
+	// The default line, whatever an earlier test left in the shared database:
+	// the "cn" line trusts a single built-in mirror.
+	setupQuickAddTest(t)
+	setDownloadLine(t, "auto")
+	fake := newFakeGitHub(t)
+	fake.githubDown = true
+	builtinGitHubMirrors = []string{fake.server.URL + "/mirror/", fake.server.URL + "/mirror2/"}
+	dir := "/" + panelRepo + "/releases/download/v99.0.0/"
+	archive := []byte("release archive")
+	fake.files[dir+"s-ui-linux-amd64.tar.gz"] = archive
+	sum := strings.TrimPrefix(sha256Digest(archive), "sha256:")
+	fake.files[dir+"SHA256SUMS"] = []byte(sum + "  s-ui-linux-amd64.tar.gz\n")
+	download := func() error {
+		name, err := downloadGitHubAsset(newGitHubHTTPClient(), githubWebBase+dir+"s-ui-linux-amd64.tar.gz", "", 1<<20, "github-test-*", nil)
+		if err == nil {
+			_ = os.Remove(name)
+		}
+		return err
+	}
+	if err := download(); err != nil {
+		t.Fatalf("two mirrors agreeing on SHA256SUMS must be enough: %v", err)
+	}
+	// One mirror alone cannot vouch for what it serves.
+	builtinGitHubMirrors = builtinGitHubMirrors[:1]
+	if err := download(); err == nil {
+		t.Fatal("a checksum from a single mirror was trusted")
+	}
+}
+
+func TestSlowDownloadMovesToNextSource(t *testing.T) {
+	fake := newFakeGitHub(t)
+	fake.githubSlow = true
+	oldGrace := slowDownloadGrace
+	slowDownloadGrace = 200 * time.Millisecond
+	t.Cleanup(func() { slowDownloadGrace = oldGrace })
+	path := "/" + panelRepo + "/releases/download/v99.0.0/s-ui-linux-amd64.tar.gz"
+	archive := []byte("release archive")
+	fake.files[path] = archive
+	started := time.Now()
+	name, err := downloadGitHubAsset(newGitHubHTTPClient(), githubWebBase+path, sha256Digest(archive), 1<<20, "github-test-*", nil)
+	if err != nil {
+		t.Fatalf("the mirror did not take over from a crawling GitHub: %v", err)
+	}
+	_ = os.Remove(name)
+	if elapsed := time.Since(started); elapsed > 5*time.Second {
+		t.Fatalf("switching took %v", elapsed)
+	}
+}
+
+func TestChecksumFor(t *testing.T) {
+	sum := strings.Repeat("ab", 32)
+	sums := sum + "  s-ui-frontend.tar.gz\n" + strings.Repeat("cd", 32) + " *s-ui-linux-arm64.tar.gz\n"
+	if got := checksumFor(sums, "s-ui-frontend.tar.gz"); got != "sha256:"+sum {
+		t.Fatalf("got %q", got)
+	}
+	if got := checksumFor(sums, "s-ui-linux-arm64.tar.gz"); got != "sha256:"+strings.Repeat("cd", 32) {
+		t.Fatalf("binary-mode line: got %q", got)
+	}
+	if got := checksumFor(sums, "missing.tar.gz"); got != "" {
+		t.Fatalf("missing asset: got %q", got)
 	}
 }

@@ -34,25 +34,33 @@ type PanelStatus struct {
 
 // Report is the telemetry and capability payload agents push to the panel.
 type Report struct {
-	Hostname     string        `json:"hostname"`
-	OS           string        `json:"os"`
-	Arch         string        `json:"arch"`
-	AgentVersion string        `json:"agent_version"`
-	Uptime       uint64        `json:"uptime"`
-	CPUPercent   float64       `json:"cpu_percent"`
-	CPUCores     int           `json:"cpu_cores,omitempty"`
-	Memory       ResourceUsage `json:"memory"`
-	Swap         ResourceUsage `json:"swap,omitempty"`
-	Disk         ResourceUsage `json:"disk"`
-	Network      NetworkUsage  `json:"network"`
+	Hostname     string  `json:"hostname"`
+	OS           string  `json:"os"`
+	Arch         string  `json:"arch"`
+	AgentVersion string  `json:"agent_version"`
+	Uptime       uint64  `json:"uptime"`
+	CPUPercent   float64 `json:"cpu_percent"`
+	CPUCores     int     `json:"cpu_cores,omitempty"`
+	// Static host facts; empty when an older agent does not report them.
+	CPUModel       string        `json:"cpu_model,omitempty"`
+	Platform       string        `json:"platform,omitempty"`
+	Kernel         string        `json:"kernel,omitempty"`
+	Virtualization string        `json:"virtualization,omitempty"`
+	Memory         ResourceUsage `json:"memory"`
+	Swap           ResourceUsage `json:"swap,omitempty"`
+	Disk           ResourceUsage `json:"disk"`
+	Network        NetworkUsage  `json:"network"`
 	// NetRate is bytes/sec estimated from consecutive samples on the agent side.
 	NetRate      NetworkUsage `json:"net_rate,omitempty"`
 	Load         LoadAverage  `json:"load"`
 	ProcessCount int          `json:"process_count,omitempty"`
-	IPv4         []string     `json:"ipv4,omitempty"`
-	IPv6         []string     `json:"ipv6,omitempty"`
-	Cores        CoreStatus   `json:"cores"`
-	Panel        PanelStatus  `json:"panel,omitempty"`
+	// Sockets in use, from /proc/net/sockstat on Linux.
+	TCPConns int         `json:"tcp_conns,omitempty"`
+	UDPConns int         `json:"udp_conns,omitempty"`
+	IPv4     []string    `json:"ipv4,omitempty"`
+	IPv6     []string    `json:"ipv6,omitempty"`
+	Cores    CoreStatus  `json:"cores"`
+	Panel    PanelStatus `json:"panel,omitempty"`
 	// ConnMode is set by the agent: "http" or "ws".
 	ConnMode string `json:"conn_mode,omitempty"`
 }

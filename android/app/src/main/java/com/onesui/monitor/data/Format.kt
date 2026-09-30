@@ -1,0 +1,65 @@
+package com.onesui.monitor.data
+
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlin.math.abs
+
+object Format {
+    private val units = arrayOf("B", "KB", "MB", "GB", "TB", "PB")
+
+    fun bytes(value: Long): String {
+        var v = value.toDouble().coerceAtLeast(0.0)
+        var i = 0
+        while (v >= 1024 && i < units.lastIndex) {
+            v /= 1024
+            i++
+        }
+        return if (i == 0) "${v.toLong()} B" else String.format(Locale.US, if (v >= 100) "%.0f %s" else "%.1f %s", v, units[i])
+    }
+
+    fun rate(bytesPerSecond: Long): String = bytes(bytesPerSecond) + "/s"
+
+    fun percent(value: Double): String = String.format(Locale.US, "%.1f%%", value.coerceIn(0.0, 100.0))
+
+    fun uptime(seconds: Long): String {
+        if (seconds <= 0) return "-"
+        val days = seconds / 86_400
+        val hours = seconds % 86_400 / 3_600
+        val minutes = seconds % 3_600 / 60
+        return when {
+            days > 0 -> "${days}天 ${hours}小时"
+            hours > 0 -> "${hours}小时 ${minutes}分"
+            else -> "${minutes}分"
+        }
+    }
+
+    fun ago(unixSeconds: Long, now: Long = System.currentTimeMillis() / 1000): String {
+        if (unixSeconds <= 0) return "从未上线"
+        val diff = abs(now - unixSeconds)
+        return when {
+            diff < 60 -> "${diff}秒前"
+            diff < 3_600 -> "${diff / 60}分钟前"
+            diff < 86_400 -> "${diff / 3_600}小时前"
+            else -> "${diff / 86_400}天前"
+        }
+    }
+
+    fun time(unixSeconds: Long): String =
+        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(unixSeconds * 1000))
+
+    fun date(unixSeconds: Long): String =
+        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(unixSeconds * 1000))
+
+    /** Two-letter region code to a flag emoji, e.g. "HK" to 🇭🇰. */
+    fun flag(region: String): String {
+        val code = region.trim().uppercase(Locale.US)
+        if (code.length != 2 || !code.all { it in 'A'..'Z' }) return ""
+        return code.map { String(Character.toChars(0x1F1E6 + (it - 'A'))) }.joinToString("")
+    }
+
+    fun osLabel(server: Server): String {
+        val base = server.platform.ifBlank { server.os }
+        return listOf(base, server.arch).filter { it.isNotBlank() }.joinToString(" / ")
+    }
+}

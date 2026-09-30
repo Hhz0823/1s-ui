@@ -208,7 +208,7 @@ func TestAgentEnrollmentHeartbeatAndRotation(t *testing.T) {
 	if len(detail.History) == 0 {
 		t.Fatal("expected metric history after heartbeat")
 	}
-	updated, err := service.Update(enrollment.Node.Id, "edge-renamed", "node.example.com")
+	updated, err := service.Update(enrollment.Node.Id, AgentUpdate{Name: "edge-renamed", PublicHost: "node.example.com"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,18 +376,33 @@ func TestBuildHostRequirementsKeepsMinimalPanelAvailable(t *testing.T) {
 	if requirements["mode"] != "panel" || requirements["applies"] != false || requirements["ok"] != true {
 		t.Fatalf("minimal panel should remain available on 1c512m: %#v", requirements)
 	}
-	if requirements["can_enable_agents"] != false {
-		t.Fatalf("1c512m must not enable the Agent control plane: %#v", requirements)
+	if requirements["can_enable_agents"] != true {
+		t.Fatalf("1c512m should allow the lite controller: %#v", requirements)
+	}
+	if tiny := buildHostRequirements(1, 256*1024*1024, 0); tiny["can_enable_agents"] != false {
+		t.Fatalf("1c256m must not enable the Agent control plane: %#v", tiny)
 	}
 }
 
-func TestAgentCreateRejectsUnderSpecControlPlane(t *testing.T) {
-	service := AgentService{
-		capacityProvider: func() (int, uint64) {
-			return 1, 4 * 1024 * 1024 * 1024
-		},
+func TestAgentCreateOnLowSpecControlPlaneNeedsSingboxOnly(t *testing.T) {
+	if err := database.InitDB(filepath.Join(t.TempDir(), "agent-lite.db")); err != nil {
+		t.Fatal(err)
 	}
-	if _, err := service.Create("edge-1"); err == nil {
-		t.Fatal("under-spec control plane created a server Agent")
+	singboxOnly := false
+	previous := singboxOnlyRuntime
+	singboxOnlyRuntime = func() bool { return singboxOnly }
+	t.Cleanup(func() { singboxOnlyRuntime = previous })
+
+	lowSpec := AgentService{capacityProvider: func() (int, uint64) { return 1, 512 * 1024 * 1024 }}
+	if _, err := lowSpec.Create("edge-xray"); err == nil {
+		t.Fatal("low-spec controller with Xray-core on created a server Agent")
+	}
+	singboxOnly = true
+	if _, err := lowSpec.Create("edge-lite"); err != nil {
+		t.Fatalf("lite controller rejected a server Agent: %v", err)
+	}
+	tiny := AgentService{capacityProvider: func() (int, uint64) { return 1, 256 * 1024 * 1024 }}
+	if _, err := tiny.Create("edge-tiny"); err == nil {
+		t.Fatal("controller below the lite floor created a server Agent")
 	}
 }
