@@ -64,6 +64,43 @@
               />
             </v-col>
           </v-row>
+          <v-row v-if="inbound.listen_port && inbound.type !== inTypes.Tun">
+            <v-col cols="12" sm="4">
+              <v-text-field
+                v-model.number="trafficLimitGB"
+                type="number"
+                min="0"
+                step="1"
+                suffix="GB"
+                :label="$t('in.trafficLimit')"
+                :hint="$t('in.trafficLimitHint')"
+                persistent-hint
+                :disabled="isXray"
+              />
+            </v-col>
+            <v-col cols="12" sm="4">
+              <v-select
+                v-model="inbound.traffic_reset_day"
+                :items="resetDayItems"
+                :label="$t('in.trafficResetDay')"
+                :hint="$t('in.trafficResetDayHint')"
+                persistent-hint
+                :disabled="isXray || !inbound.traffic_limit"
+              />
+            </v-col>
+            <v-col cols="12" sm="4">
+              <v-text-field
+                v-model.number="ipLimit"
+                type="number"
+                min="0"
+                step="1"
+                :label="$t('in.ipLimit')"
+                :hint="$t('in.ipLimitHint')"
+                persistent-hint
+                :disabled="isXray"
+              />
+            </v-col>
+          </v-row>
           <v-alert v-if="isXray && inbound.listen_port && inbound.type !== inTypes.Tun" type="info" variant="tonal" density="compact" class="mb-3">
             {{ $t('in.speedLimitUnsupported') }}
           </v-alert>
@@ -260,6 +297,8 @@ export default {
       if (this.inbound.core_type == CoreTypes.Xray) {
         this.inbound.upload_limit = 0
         this.inbound.download_limit = 0
+        this.inbound.traffic_limit = 0
+        this.inbound.ip_limit = 0
       }
       if (this.HasInData.includes(this.inbound.type) && this.inbound.out_json == null) {
         this.inbound.out_json = {}
@@ -295,6 +334,8 @@ export default {
       if (this.isXray) {
         this.inbound.upload_limit = 0
         this.inbound.download_limit = 0
+        this.inbound.traffic_limit = 0
+        this.inbound.ip_limit = 0
       }
       if (this.isXray && !this.xrayTypeItems.some((item) => item.value == this.inbound.type)) {
         this.inbound.type = InTypes.VLESS
@@ -314,6 +355,9 @@ export default {
         listen_port: this.inbound.listen_port,
         upload_limit: this.inbound.upload_limit || 0,
         download_limit: this.inbound.download_limit || 0,
+        traffic_limit: this.inbound.traffic_limit || 0,
+        traffic_reset_day: this.inbound.traffic_reset_day || 1,
+        ip_limit: this.inbound.ip_limit || 0,
       }
       this.inbound = createInbound(this.inbound.type, this.inbound.type != this.inTypes.Tun ? prevConfig : { tag: tag }, this.effectiveHost)
       if (this.HasInData.includes(this.inbound.type)){
@@ -337,6 +381,8 @@ export default {
       if (this.isXray) {
         this.inbound.upload_limit = 0
         this.inbound.download_limit = 0
+        this.inbound.traffic_limit = 0
+        this.inbound.ip_limit = 0
       }
       // check duplicate tag
       const isDuplicatedTag = this.dataSource?.checkTag
@@ -389,6 +435,28 @@ export default {
       set(value: number) {
         this.inbound.upload_limit = Math.round(Math.max(0, Number(value) || 0) * 125_000)
       },
+    },
+    trafficLimitGB: {
+      get(): number {
+        return Number(((Number(this.inbound.traffic_limit) || 0) / 1024 ** 3).toFixed(2))
+      },
+      set(value: number) {
+        this.inbound.traffic_limit = Math.round(Math.max(0, Number(value) || 0) * 1024 ** 3)
+      },
+    },
+    ipLimit: {
+      get(): number {
+        return Number(this.inbound.ip_limit) || 0
+      },
+      set(value: number) {
+        this.inbound.ip_limit = Math.max(0, Math.floor(Number(value) || 0))
+      },
+    },
+    resetDayItems(): { title: string, value: number }[] {
+      return Array.from({ length: 31 }, (_, index) => ({
+        title: this.$t('in.trafficResetDayItem', { day: index + 1 }),
+        value: index + 1,
+      }))
     },
     downloadLimitMbps: {
       get(): number {
