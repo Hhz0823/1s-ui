@@ -1681,10 +1681,26 @@ write_frontend_gateway_config() {
 
     {
         echo "# BEGIN 1S-UI MANAGED FRONTEND GATEWAY"
+        cat <<'EOF'
+# Build output under assets/ carries a unique name per build, so browsers may
+# keep it; everything else (index.html, fonts, images) is re-checked.
+map $uri $sui_frontend_cache_control {
+    default "no-cache";
+    "~/assets/[0-9a-f]{16,}\.(?:js|css)$" "public, max-age=31536000, immutable";
+}
+EOF
         echo "server {"
         printf '%s\n' "$listen_lines"
         echo "    server_name ${server_name};"
         echo "    client_max_body_size 32m;"
+        cat <<'EOF'
+    # The UI bundle is several MB; compress it for slow and cross-border links.
+    gzip on;
+    gzip_vary on;
+    gzip_comp_level 5;
+    gzip_min_length 1024;
+    gzip_types text/css application/javascript application/json image/svg+xml font/ttf application/vnd.ms-fontobject;
+EOF
         cat <<EOF
 
     location = /.well-known/1s-ui/config.js {
@@ -1707,8 +1723,9 @@ EOF
     location ^~ ${FRONTEND_PATH} {
         alias ${FRONTEND_ROOT}/;
         try_files \$uri \$uri/ ${FRONTEND_PATH}index.html;
-        # Browsers re-check the UI after a panel update instead of showing a cached one.
-        add_header Cache-Control "no-cache" always;
+        # Browsers re-check the UI after a panel update instead of showing a
+        # cached one; per-build bundles under assets/ are cached for good.
+        add_header Cache-Control \$sui_frontend_cache_control always;
     }
 }
 # END 1S-UI MANAGED FRONTEND GATEWAY

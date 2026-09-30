@@ -6,6 +6,7 @@
 
 // Composables
 import { createApp, ref } from 'vue'
+import { reloadForNewChunks } from '@/utils/chunkReload'
 
 // Components
 import App from './App.vue'
@@ -37,6 +38,12 @@ const notivue = createNotivue({
       duration: 3000
     }
   },
+})
+
+// Page chunks missing after a UI update: the router reloads into the page the
+// user was opening; this catches any other lazily loaded chunk.
+window.addEventListener('vite:preloadError', () => {
+  window.setTimeout(() => reloadForNewChunks(), 200)
 })
 
 const loading = ref(false)
