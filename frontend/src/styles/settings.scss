@@ -277,13 +277,7 @@ body {
 }
 
 /* Dark theme glass */
-.v-theme--dark .v-card[rounded],
-.v-theme--midnight .v-card,
-.v-theme--ocean .v-card,
-.v-theme--forest .v-card,
-.v-theme--cyberpunk .v-card,
-.v-theme--nord .v-card,
-.v-theme--dracula .v-card {
+.theme-dark .v-card {
   background: rgba(18, 18, 18, 0.5) !important;
   border-color: rgba(255, 255, 255, 0.08) !important;
   box-shadow:
@@ -292,13 +286,7 @@ body {
     inset 0 -1px 0 rgba(255, 255, 255, 0.02) !important;
 }
 
-.v-theme--dark .v-card[rounded]:hover,
-.v-theme--midnight .v-card:hover,
-.v-theme--ocean .v-card:hover,
-.v-theme--forest .v-card:hover,
-.v-theme--cyberpunk .v-card:hover,
-.v-theme--nord .v-card:hover,
-.v-theme--dracula .v-card:hover {
+.theme-dark .v-card:hover {
   border-color: rgba(255, 255, 255, 0.14) !important;
   box-shadow:
     0 8px 32px rgba(0, 0, 0, 0.25),
@@ -306,13 +294,7 @@ body {
     inset 0 -1px 0 rgba(255, 255, 255, 0.03) !important;
 }
 
-.v-theme--dark .v-card[rounded]::before,
-.v-theme--midnight .v-card::before,
-.v-theme--ocean .v-card::before,
-.v-theme--forest .v-card::before,
-.v-theme--cyberpunk .v-card::before,
-.v-theme--nord .v-card::before,
-.v-theme--dracula .v-card::before {
+.theme-dark .v-card::before {
   background: linear-gradient(
     90deg,
     rgba(255, 255, 255, 0.18) 0%,
@@ -321,13 +303,7 @@ body {
   );
 }
 
-.v-theme--dark .v-card[rounded]::after,
-.v-theme--midnight .v-card::after,
-.v-theme--ocean .v-card::after,
-.v-theme--forest .v-card::after,
-.v-theme--cyberpunk .v-card::after,
-.v-theme--nord .v-card::after,
-.v-theme--dracula .v-card::after {
+.theme-dark .v-card::after {
   background: linear-gradient(
     180deg,
     rgba(255, 255, 255, 0.15) 0%,
@@ -360,44 +336,20 @@ body {
 
 /* ===== Responsive ===== */
 
-.v-theme--dark .v-card[rounded],
-.v-theme--midnight .v-card,
-.v-theme--ocean .v-card,
-.v-theme--forest .v-card,
-.v-theme--cyberpunk .v-card,
-.v-theme--nord .v-card,
-.v-theme--dracula .v-card {
+.theme-dark .v-card {
   border-color: rgba(255, 255, 255, 0.06);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.1) !important;
 }
 
-.v-theme--dark .v-card[rounded]:hover,
-.v-theme--midnight .v-card:hover,
-.v-theme--ocean .v-card:hover,
-.v-theme--forest .v-card:hover,
-.v-theme--cyberpunk .v-card:hover,
-.v-theme--nord .v-card:hover,
-.v-theme--dracula .v-card:hover {
+.theme-dark .v-card:hover {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.15) !important;
 }
 
-.v-theme--dark .v-app-bar,
-.v-theme--midnight .v-app-bar,
-.v-theme--ocean .v-app-bar,
-.v-theme--forest .v-app-bar,
-.v-theme--cyberpunk .v-app-bar,
-.v-theme--nord .v-app-bar,
-.v-theme--dracula .v-app-bar {
+.theme-dark .v-app-bar {
   border-bottom-color: rgba(255, 255, 255, 0.06);
 }
 
-.v-theme--dark .v-navigation-drawer,
-.v-theme--midnight .v-navigation-drawer,
-.v-theme--ocean .v-navigation-drawer,
-.v-theme--forest .v-navigation-drawer,
-.v-theme--cyberpunk .v-navigation-drawer,
-.v-theme--nord .v-navigation-drawer,
-.v-theme--dracula .v-navigation-drawer {
+.theme-dark .v-navigation-drawer {
   border-right-color: rgba(255, 255, 255, 0.06);
 }
 
@@ -435,13 +387,7 @@ body {
   pointer-events: none;
 }
 
-.v-theme--dark .app-bg-image,
-.v-theme--midnight .app-bg-image,
-.v-theme--ocean .app-bg-image,
-.v-theme--forest .app-bg-image,
-.v-theme--cyberpunk .app-bg-image,
-.v-theme--nord .app-bg-image,
-.v-theme--dracula .app-bg-image {
+.theme-dark .app-bg-image {
   opacity: 0.08;
 }
 
@@ -591,13 +537,7 @@ body {
   z-index: 1;
 }
 
-.v-theme--dark .v-card[rounded]::before,
-.v-theme--midnight .v-card::before,
-.v-theme--ocean .v-card::before,
-.v-theme--forest .v-card::before,
-.v-theme--cyberpunk .v-card::before,
-.v-theme--nord .v-card::before,
-.v-theme--dracula .v-card::before {
+.theme-dark .v-card::before {
   background: linear-gradient(
     135deg,
     rgba(255, 255, 255, 0.22) 0%,
@@ -1164,14 +1104,7 @@ body,
   background: rgba(var(--v-theme-surface), 0.9) !important;
 }
 
-.v-dialog.v-theme--dark > .v-overlay__content > .v-card,
-.v-dialog.v-theme--midnight > .v-overlay__content > .v-card,
-.v-dialog.v-theme--ocean > .v-overlay__content > .v-card,
-.v-dialog.v-theme--forest > .v-overlay__content > .v-card,
-.v-dialog.v-theme--cyberpunk > .v-overlay__content > .v-card,
-.v-dialog.v-theme--nord > .v-overlay__content > .v-card,
-.v-dialog.v-theme--dracula > .v-overlay__content > .v-card,
-.v-dialog.v-theme--graphite > .v-overlay__content > .v-card {
+.theme-dark .v-dialog > .v-overlay__content > .v-card {
   border-color: rgba(255, 255, 255, 0.16) !important;
   box-shadow: 0 20px 52px rgba(0, 0, 0, 0.34), 0 2px 8px rgba(0, 0, 0, 0.18) !important;
 }
@@ -1926,14 +1859,8 @@ body.ui-style--clear .adaptive-ink {
   --glass-pointer-y: 18%;
 }
 
-.ui-style--glass.v-theme--dark,
-.ui-style--glass.v-theme--midnight,
-.ui-style--glass.v-theme--ocean,
-.ui-style--glass.v-theme--forest,
-.ui-style--glass.v-theme--cyberpunk,
-.ui-style--glass.v-theme--nord,
-.ui-style--glass.v-theme--dracula,
-.ui-style--glass.v-theme--graphite {
+.ui-style--glass.theme-dark,
+.theme-dark .ui-style--glass {
   --glass-surface: rgba(var(--v-theme-surface), 0.4);
   --glass-surface-strong: rgba(var(--v-theme-surface), 0.64);
   --glass-surface-soft: rgba(var(--v-theme-surface), 0.28);
@@ -3391,4 +3318,36 @@ body.ui-style--panel .v-dialog > .v-overlay__content > .v-card > .v-card-actions
   .list-table .list-clip {
     max-width: 180px;
   }
+}
+
+/* ===== Corner radius preference (Settings > Interface) =====
+   "auto" keeps each UI style's own corners. The other two replace the radius
+   tokens every style reads; the extra .v-application / .v-overlay-container
+   selectors beat the style blocks that redefine the tokens on those nodes. */
+body.ui-radius--sharp,
+body.ui-radius--sharp .v-application,
+body.ui-radius--sharp .v-overlay-container {
+  --app-control-radius: 2px;
+  --app-control-radius-lg: 2px;
+  --app-overlay-radius: 3px;
+  --app-list-item-radius: 2px;
+  --app-surface-radius: 3px;
+  --app-section-radius: 2px;
+  --app-dialog-radius: 4px;
+  --app-dialog-control-radius: 2px;
+  --app-dialog-button-radius: 2px;
+}
+
+body.ui-radius--round,
+body.ui-radius--round .v-application,
+body.ui-radius--round .v-overlay-container {
+  --app-control-radius: 14px;
+  --app-control-radius-lg: 16px;
+  --app-overlay-radius: 18px;
+  --app-list-item-radius: 12px;
+  --app-surface-radius: 20px;
+  --app-section-radius: 16px;
+  --app-dialog-radius: 26px;
+  --app-dialog-control-radius: 14px;
+  --app-dialog-button-radius: 14px;
 }
