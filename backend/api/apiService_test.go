@@ -60,6 +60,17 @@ func TestChinaCommandUsesMirror(t *testing.T) {
 	}
 }
 
+func TestChinaAgentKeyCommandsUseMirror(t *testing.T) {
+	root := chinaCommand(agentKeyInstallCommand("https://p/app/", "k"))
+	if !strings.HasPrefix(root, "bash <(curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/") || !strings.Contains(root, ") --mirror cn --panel ") {
+		t.Fatalf("China key command = %q", root)
+	}
+	nas := chinaAgentKeySudoInstallCommand("https://p/app/", "k")
+	if !strings.HasPrefix(nas, "curl -fsSL https://ghfast.top/"+agentInstallerURL+" -o ") || !strings.HasSuffix(nas, " --mirror cn") || !strings.Contains(nas, " --key 'k'") {
+		t.Fatalf("China NAS command = %q", nas)
+	}
+}
+
 func TestFirstRunSetupAPI(t *testing.T) {
 	logger.InitLogger(logging.ERROR)
 	if err := database.InitDB(filepath.Join(t.TempDir(), "setup-api.db")); err != nil {
