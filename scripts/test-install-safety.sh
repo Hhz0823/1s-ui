@@ -194,9 +194,38 @@ FORCE_XRAY=""
 FORCE_PROXY=""
 FORCE_SKIP_CORE=0
 FORCE_START_CORE=0
+apply_kind_defaults >/dev/null || fail "1c1G full install should become a lite controller"
+assert_eq 1 "$LITE_CONTROLLER" "sub-2c2G full install lite controller"
+assert_eq 1 "$DISABLE_XRAY" "lite controller sing-box only"
+assert_eq 0 "$INSTALL_XRAY" "lite controller skips Xray download"
+
+INSTALL_KIND="full"
+MEM_TOTAL_MB=1024
+FORCE_XRAY=1
+apply_kind_defaults >/dev/null || fail "lite controller with --with-xray should still install"
+assert_eq 1 "$DISABLE_XRAY" "--with-xray cannot re-enable Xray on a lite controller"
+assert_eq 0 "$INSTALL_XRAY" "--with-xray cannot download Xray on a lite controller"
+
+INSTALL_KIND="full"
+MEM_TOTAL_MB=256
+CPU_CORES=1
+FORCE_XRAY=""
 if apply_kind_defaults >/dev/null; then
-    fail "--force bypassed the full-server 2c2G hard gate"
+    fail "--force bypassed the controller minimum (1 core / 400MB)"
 fi
+
+INSTALL_KIND="client"
+MEM_TOTAL_MB=4096
+CPU_CORES=4
+PROFILE="high"
+FORCE_INSTALL=0
+SINGBOX_ONLY=1
+FORCE_XRAY=0
+apply_kind_defaults >/dev/null
+assert_eq 1 "$DISABLE_XRAY" "--singbox-only disables Xray"
+assert_eq 0 "$INSTALL_XRAY" "--singbox-only skips Xray download"
+SINGBOX_ONLY=0
+PROFILE="standard"
 
 INSTALL_KIND="full"
 MEM_TOTAL_MB=2048

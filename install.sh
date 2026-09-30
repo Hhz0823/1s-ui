@@ -65,6 +65,12 @@ PUBLIC_IP_SOURCE=""          # override | external | local | ""
 # Full/cluster recommendation
 CLUSTER_CPU_CORES=2
 CLUSTER_MEM_MB=2048
+# Below the cluster recommendation the controller runs in lite mode, which
+# uses sing-box only. Matches MinLiteControllerMemBytes in the panel.
+LITE_CONTROLLER_CPU_CORES=1
+LITE_CONTROLLER_MEM_MB=400
+LITE_CONTROLLER=0            # 1 = full install on a host below 2c2G
+SINGBOX_ONLY=0               # 1 = never download or start Xray-core
 
 # Runtime files are variables so the safety helpers can be tested without
 # touching the host. Production execution keeps these Linux defaults.
@@ -99,12 +105,14 @@ usage() {
   --minimal, --simple, -m   等同默认客户端安装
   --managed-client          等同默认安装，但要求同时提供 --connect 或旧式连接参数
   --full, --complete, --server
-                            旧版全面安装入口（面板 + Xray + 反代）
+                            主控制端安装（面板 + Xray + 反代）；低于 2核2G 时
+                            自动改为精简主控（仅 sing-box，代理与路由照常可用）
 
 通用选项:
   -y, --yes             兼容旧命令；默认安装本身不再询问安装类型
   --with-xray           额外安装 Xray-core（低配也支持，但只按需启动）
   --no-xray             跳过 Xray-core
+  --singbox-only        仅使用 sing-box 内核：不下载、不启动 Xray-core
   --with-proxy          安装反代（Caddy/Nginx）
   --no-proxy            不安装反代
   --domain DOMAIN       反代域名（HTTPS，多用于全面安装）
@@ -116,7 +124,7 @@ usage() {
   --start-core          安装后自动启动代理内核
   --skip-core           仅面板 Web，不自动启内核（更安全）
   --no-start            只装文件，不 systemctl start
-  --force               兼容旧命令；不能绕过全面服务端的 2核2G 硬门槛
+  --force               兼容旧命令；不能绕过主控制端 1核/400MB 的最低要求
   -h, --help            显示帮助
 
 EOF
@@ -152,6 +160,11 @@ parse_args() {
             shift
             ;;
         --no-xray)
+            FORCE_XRAY=0
+            shift
+            ;;
+        --singbox-only | --sing-box-only)
+            SINGBOX_ONLY=1
             FORCE_XRAY=0
             shift
             ;;
@@ -426,7 +439,8 @@ apply_kind_defaults() {
 
     DISABLE_XRAY=0
     XRAY_ON_DEMAND=0
-    if [[ "$PROFILE" == "low" ]]; then
+    LITE_CONTROLLER=0
+    if [[ "$PROFILE" == "low" || "$SINGBOX_ONLY" -eq 1 ]]; then
         DISABLE_XRAY=1
     fi
 
@@ -441,14 +455,15 @@ apply_kind_defaults() {
         xray_reason="全面服务端：安装 Xray-core"
         proxy_reason="全面服务端：安装反代"
         core_reason="全面服务端：自动启动代理内核"
-        # Full server/Agent control plane is a hard 2c2G gate.
+        # Below 2c2G the controller runs in lite mode with sing-box only.
         if [[ "$CPU_CORES" -lt "$CLUSTER_CPU_CORES" || "$MEM_TOTAL_MB" -lt "$CLUSTER_MEM_MB" ]]; then
-            echo -e "${red}全面服务端要求至少 ${CLUSTER_CPU_CORES} 核 / ${CLUSTER_MEM_MB}MB，当前 ${CPU_CORES} 核 / ${MEM_TOTAL_MB}MB。${plain}"
-            echo -e "${yellow}该配置请直接使用默认客户端安装：bash install.sh${plain}"
-            if [[ "$FORCE_INSTALL" -eq 1 ]]; then
-                echo -e "${yellow}--force 不会绕过服务器监控的 2核2G 门槛。${plain}"
+            if [[ "$CPU_CORES" -lt "$LITE_CONTROLLER_CPU_CORES" || "$MEM_TOTAL_MB" -lt "$LITE_CONTROLLER_MEM_MB" ]]; then
+                echo -e "${red}主控制端至少需要 ${LITE_CONTROLLER_CPU_CORES} 核 / ${LITE_CONTROLLER_MEM_MB}MB，当前 ${CPU_CORES} 核 / ${MEM_TOTAL_MB}MB。${plain}"
+                echo -e "${yellow}该配置请直接使用默认客户端安装：bash install.sh${plain}"
+                return 1
             fi
-            return 1
+            LITE_CONTROLLER=1
+            core_reason="精简主控：只启动 sing-box 内核"
         fi
     else
         INSTALL_KIND="client"
@@ -495,9 +510,15 @@ apply_kind_defaults() {
         INSTALL_XRAY=0
         xray_reason="当前架构无自动 Xray 包"
     fi
+    if [[ "$LITE_CONTROLLER" -eq 1 || "$SINGBOX_ONLY" -eq 1 ]]; then
+        DISABLE_XRAY=1
+        XRAY_ON_DEMAND=0
+    fi
     if [[ "$DISABLE_XRAY" -eq 1 ]]; then
         INSTALL_XRAY=0
         xray_reason="低配档位：仅使用 sing-box，禁止下载或启动 Xray-core"
+        [[ "$SINGBOX_ONLY" -eq 1 ]] && xray_reason="用户指定 --singbox-only：仅使用 sing-box"
+        [[ "$LITE_CONTROLLER" -eq 1 ]] && xray_reason="精简主控（低于 ${CLUSTER_CPU_CORES}核${CLUSTER_MEM_MB}MB）：仅使用 sing-box"
     fi
 
     if [[ "$FORCE_PROXY" == "1" || ( "$INSTALL_KIND" == "full" && "$FORCE_PROXY" != "0" ) || -n "$PROXY_DOMAIN" ]]; then
@@ -561,7 +582,9 @@ apply_kind_defaults() {
         echo -e "容器限制：内存上限 ${CGROUP_MEMORY_LIMIT_MB}MB$([ "$CGROUP_SWAP_BLOCKED" -eq 1 ] && echo ' / 禁止 Swap' || true)$([ "$CGROUP_SWAP_LIMIT_MB" -gt 0 ] && echo " / Swap 上限 ${CGROUP_SWAP_LIMIT_MB}MB" || true)"
     fi
     echo -e "档位：${PROFILE} | 面板：${INSTALL_MODE}"
-    if [[ "$INSTALL_KIND" == "full" ]]; then
+    if [[ "$LITE_CONTROLLER" -eq 1 ]]; then
+        echo -e "模式：${green}精简主控制端 (--full，仅 sing-box；代理与路由功能照常可用)${plain}"
+    elif [[ "$INSTALL_KIND" == "full" ]]; then
         echo -e "模式：${green}全面服务端 (--full)${plain}"
     else
         echo -e "模式：${green}统一客户端（默认）${plain}"
