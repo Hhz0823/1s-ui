@@ -350,6 +350,26 @@ func appendAgentLatency(nodeID uint, ms int64, ok bool) {
 		samples = samples[len(samples)-agentLatencyHistory:]
 	}
 	agentLatencies[nodeID] = samples
+	recordAgentPing(nodeID, ms, ok)
+}
+
+// AgentLatencyPoint is one probe for the live latency chart; failed probes
+// have OK false.
+type AgentLatencyPoint struct {
+	Time int64 `json:"time"`
+	MS   int64 `json:"ms"`
+	OK   bool  `json:"ok"`
+}
+
+func getAgentLatencyLog(nodeID uint) []AgentLatencyPoint {
+	agentLatencyMu.RLock()
+	defer agentLatencyMu.RUnlock()
+	samples := agentLatencies[nodeID]
+	out := make([]AgentLatencyPoint, 0, len(samples))
+	for _, sample := range samples {
+		out = append(out, AgentLatencyPoint{Time: sample.Time, MS: sample.MS, OK: sample.OK})
+	}
+	return out
 }
 
 func getAgentLatency(nodeID uint) AgentLatencyView {

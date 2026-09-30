@@ -208,7 +208,7 @@ func TestAgentEnrollmentHeartbeatAndRotation(t *testing.T) {
 	if len(detail.History) == 0 {
 		t.Fatal("expected metric history after heartbeat")
 	}
-	updated, err := service.Update(enrollment.Node.Id, "edge-renamed", "node.example.com")
+	updated, err := service.Update(enrollment.Node.Id, AgentUpdate{Name: "edge-renamed", PublicHost: "node.example.com"})
 	if err != nil {
 		t.Fatal(err)
 	}

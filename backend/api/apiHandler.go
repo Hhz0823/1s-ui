@@ -38,6 +38,7 @@ func (a *APIHandler) initRouter(g *gin.RouterGroup) {
 	g.POST("/agents/batch-command", a.ApiService.ControlAgentsBatch)
 	g.GET("/agents/:id", a.ApiService.GetAgent)
 	g.GET("/agents/:id/port-traffic", a.ApiService.GetAgentPortTraffic)
+	g.GET("/agents/:id/metrics", a.ApiService.GetAgentMetrics)
 	g.POST("/agents/:id/panel-access", a.ApiService.CreateAgentPanelAccess)
 	g.PATCH("/agents/:id", a.ApiService.UpdateAgent)
 	g.GET("/agents/:id/inbounds", a.ApiService.GetAgentInbounds)

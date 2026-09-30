@@ -88,11 +88,6 @@ type createAgentRequest struct {
 	Name string `json:"name"`
 }
 
-type updateAgentRequest struct {
-	Name       string `json:"name"`
-	PublicHost string `json:"public_host"`
-}
-
 type connectLocalAgentRequest struct {
 	ConnectURL string `json:"connect_url"`
 	Address    string `json:"address"`
@@ -231,6 +226,22 @@ func (a *ApiService) GetAgent(c *gin.Context) {
 	jsonObj(c, node, err)
 }
 
+// GetAgentMetrics returns stored history; range is in seconds (up to 31 days).
+func (a *ApiService) GetAgentMetrics(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil || id == 0 {
+		jsonObj(c, nil, common.NewError("invalid agent node id"))
+		return
+	}
+	rangeSeconds, err := strconv.ParseInt(c.DefaultQuery("range", "3600"), 10, 64)
+	if err != nil {
+		jsonObj(c, nil, common.NewError("invalid metric range"))
+		return
+	}
+	points, err := a.AgentService.Metrics(uint(id), rangeSeconds)
+	jsonObj(c, points, err)
+}
+
 func (a *ApiService) UpdateAgent(c *gin.Context) {
 	if err := a.SettingService.RequireControllerControl(); err != nil {
 		jsonObj(c, nil, err)
@@ -241,12 +252,12 @@ func (a *ApiService) UpdateAgent(c *gin.Context) {
 		jsonObj(c, nil, common.NewError("invalid agent node id"))
 		return
 	}
-	var request updateAgentRequest
+	var request service.AgentUpdate
 	if err := c.ShouldBindJSON(&request); err != nil {
 		jsonObj(c, nil, err)
 		return
 	}
-	node, err := a.AgentService.Update(uint(id), request.Name, request.PublicHost)
+	node, err := a.AgentService.Update(uint(id), request)
 	jsonObj(c, node, err)
 }
 

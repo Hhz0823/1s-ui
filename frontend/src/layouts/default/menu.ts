@@ -18,6 +18,7 @@ export const allMenuGroups: MenuGroup[] = [
     label: 'menu.group.overview',
     items: [
       { title: 'pages.home', icon: 'mdi-view-dashboard-outline', path: '/' },
+      { title: 'pages.agents', icon: 'mdi-server-network', path: '/agents' },
       { title: 'pages.portTraffic', icon: 'mdi-chart-timeline-variant', path: '/port-traffic' },
       { title: 'pages.userTraffic', icon: 'mdi-trophy-outline', path: '/user-traffic' },
     ],
@@ -49,7 +50,6 @@ export const allMenuGroups: MenuGroup[] = [
   {
     label: 'menu.group.admin',
     items: [
-      { title: 'pages.agents', icon: 'mdi-server-network', path: '/agents' },
       { title: 'pages.sdwan', icon: 'mdi-lan-connect', path: '/sdwan' },
       { title: 'pages.admins', icon: 'mdi-account-tie-outline', path: '/admins' },
       { title: 'pages.settings', icon: 'mdi-cog-outline', path: '/settings' },
