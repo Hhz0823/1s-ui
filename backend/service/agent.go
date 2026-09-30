@@ -565,3 +565,16 @@ func (s *SettingService) ValidateAgentEnrollmentKey(token string) error {
 	}
 	return nil
 }
+
+// HasAgentEnrollmentKey reports whether a reusable enrollment key is active.
+// Only its hash is stored, so the key itself is shown once when generated.
+func (s *SettingService) HasAgentEnrollmentKey() bool {
+	hash, err := s.getString(agentEnrollmentKey)
+	return err == nil && len(strings.TrimSpace(hash)) == sha256.Size*2
+}
+
+// RevokeAgentEnrollmentKey stops new enrollments with the reusable key.
+// Servers that already enrolled keep their own per-node tokens.
+func (s *SettingService) RevokeAgentEnrollmentKey() error {
+	return s.setString(agentEnrollmentKey, "")
+}

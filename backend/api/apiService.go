@@ -582,6 +582,59 @@ func (a *ApiService) CreateAgentEnrollmentLink(c *gin.Context) {
 	jsonObj(c, result, nil)
 }
 
+func (a *ApiService) GetAgentEnrollmentKey(c *gin.Context) {
+	if err := a.SettingService.RequireControllerMode(); err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	webPath, err := a.SettingService.GetWebPath()
+	if err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	jsonObj(c, map[string]interface{}{
+		"configured": a.SettingService.HasAgentEnrollmentKey(),
+		"panel_url":  panelURLForRequest(c, webPath),
+	}, nil)
+}
+
+// CreateAgentEnrollmentKey issues a reusable key for servers that bind with
+// "panel address + key", such as a fnOS NAS. Issuing a new key revokes the
+// previous one; servers that already enrolled keep their own tokens.
+func (a *ApiService) CreateAgentEnrollmentKey(c *gin.Context) {
+	if err := a.SettingService.RequireControllerMode(); err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	webPath, err := a.SettingService.GetWebPath()
+	if err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	key, err := a.SettingService.RotateAgentEnrollmentKey()
+	if err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	panelURL := panelURLForRequest(c, webPath)
+	jsonObj(c, map[string]interface{}{
+		"configured":  true,
+		"panel_url":   panelURL,
+		"key":         key,
+		"command":     agentKeyInstallCommand(panelURL, key),
+		"nas_command": agentKeySudoInstallCommand(panelURL, key),
+	}, nil)
+}
+
+func (a *ApiService) RevokeAgentEnrollmentKey(c *gin.Context) {
+	if err := a.SettingService.RequireControllerMode(); err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	jsonObj(c, map[string]interface{}{"configured": false}, a.SettingService.RevokeAgentEnrollmentKey())
+}
+
 func (a *ApiService) RotateAgent(c *gin.Context) {
 	if err := a.SettingService.RequireControllerControl(); err != nil {
 		jsonObj(c, nil, err)
@@ -649,6 +702,23 @@ func agentConnectionResponse(connectURL string) map[string]interface{} {
 		"connect_url": connectURL,
 		"command":     command, "managed_command": managedCommand,
 	}
+}
+
+const agentInstallerURL = "https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-agent.sh"
+
+func agentKeyArgs(panelURL, key string) string {
+	return " --panel " + shellQuote(panelURL) + " --key " + shellQuote(key) + " --version " + shellQuote(config.GetVersion())
+}
+
+// agentKeyInstallCommand is for a root shell.
+func agentKeyInstallCommand(panelURL, key string) string {
+	return "bash <(curl -fsSL " + agentInstallerURL + ")" + agentKeyArgs(panelURL, key)
+}
+
+// agentKeySudoInstallCommand works from a normal admin login such as fnOS SSH,
+// where "sudo bash <(...)" cannot read the process substitution.
+func agentKeySudoInstallCommand(panelURL, key string) string {
+	return "curl -fsSL " + agentInstallerURL + " -o /tmp/1s-ui-agent.sh && sudo bash /tmp/1s-ui-agent.sh" + agentKeyArgs(panelURL, key)
 }
 
 func managedPanelInstallCommand(_ string) string {
