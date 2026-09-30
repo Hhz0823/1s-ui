@@ -32,6 +32,43 @@
             </v-expansion-panel>
           </v-expansion-panels>
         </template>
+        <v-expansion-panels variant="accordion" class="enroll-commands mt-3">
+          <v-expansion-panel>
+            <v-expansion-panel-title>
+              <v-icon icon="mdi-nas" size="small" class="mr-2" />{{ $t('agent.keyBind') }}
+            </v-expansion-panel-title>
+            <v-expansion-panel-text>
+              <p class="text-body-2 mb-3">{{ $t('agent.keyBindHint') }}</p>
+              <v-text-field :model-value="enrollKey.panel_url" :label="$t('agent.keyPanelUrl')" readonly dir="ltr" density="compact" class="mb-2" hide-details>
+                <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enrollKey.panel_url)" /></template>
+              </v-text-field>
+              <template v-if="enrollKey.key">
+                <v-alert type="warning" variant="tonal" density="compact" class="my-2">{{ $t('agent.keyShownOnce') }}</v-alert>
+                <v-text-field :model-value="enrollKey.key" :label="$t('agent.keyValue')" readonly dir="ltr" density="compact" class="mb-2" hide-details>
+                  <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enrollKey.key)" /></template>
+                </v-text-field>
+                <v-textarea :model-value="enrollKey.nas_command" :label="$t('agent.keyNasCommand')" :hint="$t('agent.keyNasCommandHint')" persistent-hint readonly dir="ltr" rows="3" auto-grow class="mb-3">
+                  <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enrollKey.nas_command)" /></template>
+                </v-textarea>
+                <v-textarea :model-value="enrollKey.command" :label="$t('agent.keyRootCommand')" readonly dir="ltr" rows="2" auto-grow hide-details class="mb-3">
+                  <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enrollKey.command)" /></template>
+                </v-textarea>
+                <v-textarea v-if="enrollKey.cn_nas_command" :model-value="enrollKey.cn_nas_command" :label="$t('agent.keyCnNasCommand')" readonly dir="ltr" rows="3" auto-grow hide-details class="mb-3">
+                  <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enrollKey.cn_nas_command)" /></template>
+                </v-textarea>
+              </template>
+              <v-alert v-else-if="enrollKey.configured" type="info" variant="tonal" density="compact" class="my-2">{{ $t('agent.keyActive') }}</v-alert>
+              <div class="d-flex flex-wrap ga-2 mt-2">
+                <v-btn color="primary" variant="tonal" prepend-icon="mdi-key-plus" :loading="enrollKey.loading" @click="createEnrollmentKey">
+                  {{ enrollKey.configured ? $t('agent.keyRegenerate') : $t('agent.keyGenerate') }}
+                </v-btn>
+                <v-btn v-if="enrollKey.configured" color="warning" variant="tonal" prepend-icon="mdi-key-remove" :loading="enrollKey.loading" @click="revokeEnrollmentKey">
+                  {{ $t('agent.keyRevoke') }}
+                </v-btn>
+              </div>
+            </v-expansion-panel-text>
+          </v-expansion-panel>
+        </v-expansion-panels>
       </v-card-text>
       <v-card-actions class="justify-center">
         <v-btn variant="outlined" @click="closeEnrollment">{{ $t('actions.close') }}</v-btn>
@@ -429,6 +466,7 @@ const defaultMeta = (): AgentNodeMeta => ({
   sort_weight: 0, traffic_limit: 0, traffic_limit_type: 'sum', traffic_reset_day: 1,
 })
 const enroll = reactive({ visible: false, apiLoading: false, pairURL: '', pairExpiresAt: 0, command: '', managedCommand: '', cnManagedCommand: '' })
+const enrollKey = reactive({ loading: false, configured: false, panel_url: '', key: '', command: '', nas_command: '', cn_command: '', cn_nas_command: '' })
 const connect = reactive({ visible: false, loading: false, url: '', insecure: false })
 const edit = reactive({ visible: false, loading: false, id: 0, name: '', publicHost: '', meta: defaultMeta(), expireDate: '', trafficLimitGiB: 0 })
 const removeDialog = reactive<{ visible: boolean, loading: boolean, node?: AgentNode }>({ visible: false, loading: false })
@@ -585,6 +623,40 @@ const openEnrollment = () => {
   if (!serverMonitoringAvailable.value) return push.error({ message: serverRequirementText.value })
   Object.assign(enroll, { visible: true, apiLoading: false, pairURL: '', pairExpiresAt: 0, command: '', managedCommand: '', cnManagedCommand: '' })
   void createEnrollmentAPI()
+  void loadEnrollmentKey()
+}
+const loadEnrollmentKey = async () => {
+  Object.assign(enrollKey, { key: '', command: '', nas_command: '', cn_command: '', cn_nas_command: '' })
+  try {
+    const result = await api('api/agents/enrollment-key')
+    Object.assign(enrollKey, { configured: !!result?.configured, panel_url: result?.panel_url || '' })
+  } catch { /* the one-time address above still works */ }
+}
+const createEnrollmentKey = async () => {
+  if (enrollKey.configured && !window.confirm(i18n.global.t('agent.keyRegenerateConfirm'))) return
+  enrollKey.loading = true
+  try {
+    const result = await api('api/agents/enrollment-key', { method: 'POST', body: '{}' })
+    Object.assign(enrollKey, {
+      configured: true,
+      panel_url: result.panel_url || enrollKey.panel_url,
+      key: result.key || '',
+      command: result.command || '',
+      nas_command: result.nas_command || '',
+      cn_command: result.cn_command || '',
+      cn_nas_command: result.cn_nas_command || '',
+    })
+  } catch (error: any) { push.error({ message: error?.message || i18n.global.t('agent.createFailed') }) }
+  finally { enrollKey.loading = false }
+}
+const revokeEnrollmentKey = async () => {
+  if (!window.confirm(i18n.global.t('agent.keyRevokeConfirm'))) return
+  enrollKey.loading = true
+  try {
+    await api('api/agents/enrollment-key/revoke', { method: 'POST', body: '{}' })
+    Object.assign(enrollKey, { configured: false, key: '', command: '', nas_command: '', cn_command: '', cn_nas_command: '' })
+  } catch (error: any) { push.error({ message: error?.message || i18n.global.t('agent.createFailed') }) }
+  finally { enrollKey.loading = false }
 }
 const closeEnrollment = () => { enroll.visible = false; if (enroll.pairURL) void loadNodes() }
 const createEnrollmentAPI = async () => {

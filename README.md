@@ -130,6 +130,22 @@ bash <(curl -Ls https://ghfast.top/https://raw.githubusercontent.com/Hhz0823/1s-
 
 > 执行前必须先在主面板点击 **添加子服务器**。连接窗口有效 5 分钟且只能成功使用一次，不会永久开放匿名 Agent 注册。
 
+### 飞牛 NAS（fnOS）等只装服务端的设备
+
+飞牛 NAS 不需要安装完整面板，只安装 `sui-agent` 并用 **面板地址 + 接入密钥** 绑定主控：
+
+1. 主面板打开 **服务器监控 → 添加子服务器**，展开 **飞牛 NAS / 面板地址 + 密钥接入**，点击 **生成接入密钥**。密钥只显示一次，可重复用于多台设备。
+2. 在飞牛 NAS 的 **设置 → SSH** 开启 SSH，用管理员账号登录，粘贴面板给出的命令（按提示输入管理员密码）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-agent.sh -o /tmp/1s-ui-agent.sh \
+  && sudo bash /tmp/1s-ui-agent.sh --panel 'https://主控面板地址/app/' --key '接入密钥' [--name '飞牛NAS']
+```
+
+- 必须同时提供面板地址和密钥，主控校验密钥通过后才签发这台设备自己的 Agent Token；密钥错误、已重新生成或已停用时不会绑定。
+- 重新运行命令会用新的绑定替换旧绑定。重新生成或停用密钥只影响之后的新接入，已接入的设备不受影响。
+- 同样适用于其它带 systemd 的 Linux 设备；root 用户也可直接用面板里的 root 安装命令。
+
 ### 安装后的访问地址
 
 | 安装结果 | 面板地址 |

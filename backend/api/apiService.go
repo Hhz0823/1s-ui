@@ -602,6 +602,61 @@ func (a *ApiService) CreateAgentEnrollmentLink(c *gin.Context) {
 	jsonObj(c, result, nil)
 }
 
+func (a *ApiService) GetAgentEnrollmentKey(c *gin.Context) {
+	if err := a.SettingService.RequireControllerMode(); err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	webPath, err := a.SettingService.GetWebPath()
+	if err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	jsonObj(c, map[string]interface{}{
+		"configured": a.SettingService.HasAgentEnrollmentKey(),
+		"panel_url":  panelURLForRequest(c, webPath),
+	}, nil)
+}
+
+// CreateAgentEnrollmentKey issues a reusable key for servers that bind with
+// "panel address + key", such as a fnOS NAS. Issuing a new key revokes the
+// previous one; servers that already enrolled keep their own tokens.
+func (a *ApiService) CreateAgentEnrollmentKey(c *gin.Context) {
+	if err := a.SettingService.RequireControllerMode(); err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	webPath, err := a.SettingService.GetWebPath()
+	if err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	key, err := a.SettingService.RotateAgentEnrollmentKey()
+	if err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	panelURL := panelURLForRequest(c, webPath)
+	jsonObj(c, map[string]interface{}{
+		"configured":     true,
+		"panel_url":      panelURL,
+		"key":            key,
+		"command":        agentKeyInstallCommand(panelURL, key),
+		"nas_command":    agentKeySudoInstallCommand(panelURL, key),
+		"cn_command":     chinaCommand(agentKeyInstallCommand(panelURL, key)),
+		"cn_nas_command": chinaAgentKeySudoInstallCommand(panelURL, key),
+	}, nil)
+}
+
+func (a *ApiService) RevokeAgentEnrollmentKey(c *gin.Context) {
+	if err := a.SettingService.RequireControllerMode(); err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	jsonObj(c, map[string]interface{}{"configured": false}, a.SettingService.RevokeAgentEnrollmentKey())
+}
+
 func (a *ApiService) RotateAgent(c *gin.Context) {
 	if err := a.SettingService.RequireControllerControl(); err != nil {
 		jsonObj(c, nil, err)
@@ -677,19 +732,22 @@ func agentConnectionResponse(connectURL string) map[string]interface{} {
 // use when none is set under Settings.
 const defaultChinaMirror = "https://ghfast.top/"
 
-// chinaCommand is an install command for servers in mainland China: the
-// script comes through a GitHub mirror and downloads through it too.
-func chinaCommand(command string) string {
-	mirror := ""
+// chinaMirror returns the mirror prefix mainland China install commands
+// download through and the --mirror value that passes it to the installer.
+func chinaMirror() (mirror, line string) {
 	if database.GetDB() != nil {
 		mirror, _ = (&service.SettingService{}).GetGitHubMirror()
 	}
-	line := "cn"
 	if mirror == "" {
-		mirror = defaultChinaMirror
-	} else {
-		line = shellQuote(mirror)
+		return defaultChinaMirror, "cn"
 	}
+	return mirror, shellQuote(mirror)
+}
+
+// chinaCommand is an install command for servers in mainland China: the
+// script comes through a GitHub mirror and downloads through it too.
+func chinaCommand(command string) string {
+	mirror, line := chinaMirror()
 	const raw = "https://raw.githubusercontent.com/"
 	index := strings.Index(command, raw)
 	if index < 0 {
@@ -701,6 +759,30 @@ func chinaCommand(command string) string {
 	}
 	scriptEnd += index
 	return command[:index] + mirror + command[index:scriptEnd] + ") --mirror " + line + command[scriptEnd+1:]
+}
+
+const agentInstallerURL = "https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-agent.sh"
+
+func agentKeyArgs(panelURL, key string) string {
+	return " --panel " + shellQuote(panelURL) + " --key " + shellQuote(key) + " --version " + shellQuote(config.GetVersion())
+}
+
+// agentKeyInstallCommand is for a root shell.
+func agentKeyInstallCommand(panelURL, key string) string {
+	return "bash <(curl -fsSL " + agentInstallerURL + ")" + agentKeyArgs(panelURL, key)
+}
+
+// agentKeySudoInstallCommand works from a normal admin login such as fnOS SSH,
+// where "sudo bash <(...)" cannot read the process substitution.
+func agentKeySudoInstallCommand(panelURL, key string) string {
+	return "curl -fsSL " + agentInstallerURL + " -o /tmp/1s-ui-agent.sh && sudo bash /tmp/1s-ui-agent.sh" + agentKeyArgs(panelURL, key)
+}
+
+// chinaAgentKeySudoInstallCommand is agentKeySudoInstallCommand through the
+// mainland China download line.
+func chinaAgentKeySudoInstallCommand(panelURL, key string) string {
+	mirror, line := chinaMirror()
+	return "curl -fsSL " + mirror + agentInstallerURL + " -o /tmp/1s-ui-agent.sh && sudo bash /tmp/1s-ui-agent.sh" + agentKeyArgs(panelURL, key) + " --mirror " + line
 }
 
 func managedPanelInstallCommand(_ string) string {
