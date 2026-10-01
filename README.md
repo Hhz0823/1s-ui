@@ -239,7 +239,8 @@ s-ui update
 | SD-WAN 智能组网 | 多台受管服务器合并为一个入口：每台服务器同时部署 VLESS Reality（TCP）与 Hysteria2（QUIC）上行，按实时延迟选择最快线路，故障约 5 秒内自动切换；内置网络检测与一键调优 |
 | 出站导入 | 支持 SOCKS5/SOCKS4、HTTP(S)、Hysteria2 端口跳跃与 `user:pass` 认证、VMess、VLESS、Trojan、Shadowsocks、TUIC、AnyTLS、Naive 链接 |
 | 界面 | 默认宝塔 / 1Panel 风格面板（分组侧栏、面包屑、工具栏 + 表格列表）；28 个主题预览选择、跟随系统的浅色 / 深色主题、强调色、圆角风格；可选玻璃、实色、清透、自定义背景、菜单布局和紧凑密度 |
-| 手机监控 | 安卓 App 用只读监控密钥绑定面板，实时查看所有服务器并接收离线、资源过高提醒 |
+| 手机监控 | 安卓 App 用监控密钥绑定一个或多个面板，首页集中显示所有服务器（Komari 风格），查看节点摘要，手机到服务器的 TCP / UDP 测速与延迟；离线、资源过高、代理不可用时提醒 |
+| 代理监测 | 定时检测 SOCKS5 / HTTP 代理是否可用、延迟多少、出口 IP 在哪，可由主控或任一子服务器发起（适合只允许中转 IP 连接的落地代理），保留 3 天历史 |
 | 下载线路 | 安装、在线更新和子服务器安装支持中国大陆加速镜像，GitHub 不可用或太慢时自动切换 |
 | 反向代理 | 在服务端面板查看和管理 Caddy / Nginx 状态、域名与配置应用 |
 
@@ -389,6 +390,14 @@ flowchart LR
 - **路由与 DNS 规则**：表格保留匹配顺序，可拖动行或用箭头调整顺序，显示匹配条件摘要（悬停查看明细）和「有未保存的更改」提示。
 - **主题**：新增宝塔绿（默认）、1Panel 蓝与 1Panel 暗色，原有主题仍可在右上角切换；「设置 → 界面」可切回玻璃、实色或清透风格。
 
+### 安卓 App 群控、代理监测与测速
+
+- **首页集中显示所有面板**：绑定多个面板后，首页默认合并显示所有服务器（Komari 风格卡片：CPU / 内存 / 磁盘、网速、流量、负载、在线时长），可按面板、分组、在线状态筛选；某个面板连不上时只在顶部提示，不影响其他面板。
+- **服务器详情三个标签页**：概览（实时状态、历史曲线、系统信息）、节点（每个入站的协议、端口、TLS / REALITY、传输方式、VLESS Encryption、CDN、用户数、实时网速和流量，可从手机 TCP 测每个端口的延迟；不含任何密码、UUID 和密钥）、测速。
+- **测速**：测手机到服务器的 TCP 延迟、UDP 延迟（含丢包和抖动）、TCP 下载 / 上传（多连接）、UDP 下载 / 上传（按设定速率，显示丢包和抖动，可看出运营商是否限制 UDP）。服务器只在测速时临时打开测速端口（默认 5201，TCP 和 UDP），只回应持有本次令牌的手机，测完自动关闭；需要在防火墙和安全组放行这个端口。主控和子服务器都支持。
+- **代理监测**：添加 SOCKS5 / HTTP 代理（可直接粘贴 `socks5://`、`http://`、v2rayN 的 `socks://` 链接或 `IP:端口:用户名:密码`），选择由主控还是哪台子服务器检测；面板按间隔连接、登录、建立隧道并访问测试网址，记录各步耗时、出口 IP 和国家，失败时说明是连不上、认证失败、代理类型不对还是目标不通。App 和网页「总览 → 代理监测」都能查看和管理，App 可在代理不可用 / 恢复时通知。
+- **监控密钥权限**：密钥除了查看，默认还能管理代理监测和发起测速；可在「设置 → 前端与后端 → 手机监控 App」分别关闭，并修改测速端口。密钥仍不能登录面板、不能读取节点密码和密钥、不能修改节点。「仅监控」主控同样可以检测代理和测速。
+
 ### v1.7.0 更新重点
 
 v1.6.4 未单独发布，其修复一并包含在 v1.7.0 中。
@@ -480,6 +489,7 @@ v1.6.4 未单独发布，其修复一并包含在 v1.7.0 中。
 
 ### Highlights
 
+- Android app and proxy monitors: the app shows the servers of every bound panel on one home page, each server's nodes (protocol, port, TLS / REALITY, transport, users, traffic — never credentials) and a phone-to-server speed test (TCP and UDP latency, TCP download/upload, UDP download/upload at a chosen rate with loss and jitter, through a short-lived token-protected port, 5201 by default). Proxy monitors check SOCKS5 / HTTP proxies on a schedule from the controller or any managed server (useful when a landing proxy only accepts its relay's IP), recording each step's time, the exit IP and why a check failed; they are managed from the web UI and the app, which can also alert when a proxy goes down.
 - v1.7.0: Komari-style server monitor (grid/table views, groups, 1h to 30-day history, price/expiry/monthly traffic badges, TCP/UDP counts), a lite controller for 1 vCPU / 512MB hosts (sing-box only), per-port monthly traffic caps with a reset day and client IP limits, a mainland China download line for install, update and agent install, fnOS NAS agent install with the panel address and an enrollment key, 28 themes with accent color and corner options, and an Android monitor app bound with a read-only key.
 - Central fleet view with online state, live/history CPU, memory, disk, load, process, network, RTT, P95, loss, and per-port traffic.
 - Per-user traffic and bandwidth ranking for preset or custom periods, including upload/download totals, average rate, sampled peak, search, and sorting.
@@ -621,7 +631,7 @@ go build -o ../sui-agent ./cmd/sui-agent
 
 ## 安卓监控 App
 
-在面板「设置 → 前端与后端 → 手机监控 App」生成只读监控密钥，用 App 扫码即可绑定，实时查看所有服务器并接收离线、资源过高提醒。APK 随版本发布附在 Release 上，详见 [android/README.md](android/README.md)。
+在面板「设置 → 前端与后端 → 手机监控 App」生成监控密钥，用 App 扫码即可绑定。可以绑定多个面板，首页集中显示所有服务器；点进服务器查看实时状态、节点和测速；「代理监测」标签管理 SOCKS5 / HTTP 代理监测；后台在服务器离线、资源过高或代理不可用时通知。APK 随版本发布附在 Release 上，详见 [android/README.md](android/README.md)。
 
 ## 目录结构
 
@@ -663,6 +673,7 @@ windows/      Windows 脚本（暂停维护）
 5. 远程 Shell / PTY 权限等同 Agent 系统用户，通常是 root。
 6. 定期备份 `/usr/local/s-ui/db`，升级前保留可回滚副本。
 7. 不要为 IPv6 中转修改系统默认路由；使用面板内置的源地址绑定和验证流程。
+8. 手机监控密钥默认可以管理代理监测和发起测速；不需要时在「设置 → 前端与后端 → 手机监控 App」关闭。测速端口只在测速时打开、只回应持有本次令牌的客户端；代理检测不会连接本机回环、链路本地（含云厂商元数据）等地址。
 
 ## Credits
 
