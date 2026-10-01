@@ -61,10 +61,14 @@ func (c *CronJob) Start(loc *time.Location, trafficAge int, statsBucketSeconds i
 				logger.Warning("compact server metrics: ", err)
 			}
 		})))
-		// Check SOCKS5/HTTP proxy monitors when they are due
+		// Check proxy and node monitors when they are due
 		proxies := &service.ProxyMonitorService{}
 		c.cron.AddJob("@every 10s", cron.NewChain(cron.SkipIfStillRunning(cron.DiscardLogger)).Then(cron.FuncJob(func() {
 			proxies.RunDue(time.Now())
+		})))
+		// Follow changes to nodes picked from a server's inbounds
+		c.cron.AddJob("@every 2m", cron.NewChain(cron.SkipIfStillRunning(cron.DiscardLogger)).Then(cron.FuncJob(func() {
+			proxies.RefreshNodeLinks(time.Now())
 		})))
 		c.cron.AddJob("@hourly", cron.NewChain(cron.SkipIfStillRunning(cron.DiscardLogger)).Then(cron.FuncJob(func() {
 			if err := proxies.CleanupProxyResults(); err != nil {

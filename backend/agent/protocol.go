@@ -52,8 +52,15 @@ const (
 	CapabilitySdwanHysteria2 = "sdwan.hysteria2"
 	// SOCKS5/HTTP proxy checks run on this server (probe.proxies).
 	CapabilityProxyProbeV1 = "probe.proxy.v1"
+	// probe.proxies also checks nodes from share links (type "node").
+	CapabilityProxyProbeNodeV1 = "probe.node.v1"
+	// nodes.link: a share link of one inbound, for node monitors.
+	CapabilityNodeLinkV1 = "nodes.link.v1"
 	// Speed test sessions for the monitor app (speedtest.start).
 	CapabilitySpeedtestV1 = "speedtest.v1"
+	// This server can run speed tests against another one (speedtest.run),
+	// so a home relay can measure its line to a VPS.
+	CapabilitySpeedtestClientV1 = "speedtest.client.v1"
 )
 
 const (
@@ -74,6 +81,8 @@ const (
 	RPCMethodSdwanTune       = "sdwan.tune"
 	RPCMethodProxyProbe      = "probe.proxies"
 	RPCMethodSpeedtestStart  = "speedtest.start"
+	RPCMethodNodeLink        = "nodes.link"
+	RPCMethodSpeedtestRun    = "speedtest.run"
 )
 
 // Command types the panel may send to an online agent.

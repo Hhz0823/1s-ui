@@ -87,6 +87,8 @@ func (a *APIHandler) initRouter(g *gin.RouterGroup) {
 	g.GET("/proxy-monitors/:id", a.ApiService.GetProxyMonitor)
 	g.POST("/proxy-monitors/:id/check", a.ApiService.CheckProxyMonitor)
 	g.POST("/proxy-monitors/:id/delete", a.ApiService.DeleteProxyMonitor)
+	g.POST("/relay-speedtests", a.ApiService.StartRelaySpeedtest)
+	g.GET("/relay-speedtests/:id", a.ApiService.GetRelaySpeedtest)
 	g.GET("/xray-install", a.ApiService.GetXrayInstall)
 	g.POST("/xray-install", a.ApiService.InstallXray)
 	g.POST("/xray-enabled", a.ApiService.SetXrayEnabled)

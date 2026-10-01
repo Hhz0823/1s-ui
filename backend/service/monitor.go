@@ -64,6 +64,10 @@ type MonitorFeatures struct {
 	ManageProxies bool `json:"manage_proxies"`
 	Speedtest     bool `json:"speedtest"`
 	SpeedtestPort int  `json:"speedtest_port"`
+	// Node monitors (share links and server inbounds) and speed tests run
+	// from a relay server.
+	NodeMonitors   bool `json:"node_monitors"`
+	RelaySpeedtest bool `json:"relay_speedtest"`
 }
 
 // MonitorAppSettings are the key's extra permissions and the speed test port.
@@ -108,6 +112,7 @@ func (s *MonitorService) Overview() (*MonitorOverview, error) {
 		Features: MonitorFeatures{
 			Nodes: true, ProxyMonitors: true, ManageProxies: settings.Proxies,
 			Speedtest: settings.Speedtest, SpeedtestPort: settings.SpeedtestPort,
+			NodeMonitors: true, RelaySpeedtest: settings.Speedtest,
 		},
 		Servers: make([]MonitorNode, 0, len(nodes)+1),
 	}

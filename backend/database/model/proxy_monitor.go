@@ -1,8 +1,10 @@
 package model
 
-// ProxyMonitor is a SOCKS5 or HTTP proxy the panel checks on a schedule. The
-// check runs on the panel host (ServerId 0) or on a managed server, so a
-// proxy that only accepts its relay server's IP can be watched from there.
+// ProxyMonitor is a SOCKS5 or HTTP proxy, or a node (Type "node": VLESS,
+// VMess, Trojan, Shadowsocks, Hysteria2 … from its share link), that the
+// panel checks on a schedule. The check runs on the panel host (ServerId 0)
+// or on a managed server, so a proxy that only accepts its relay server's IP,
+// or a node as seen from a home network, can be watched from there.
 type ProxyMonitor struct {
 	Id        uint   `json:"id" gorm:"primaryKey;autoIncrement"`
 	Name      string `json:"name" gorm:"size:80;not null"`
@@ -17,6 +19,15 @@ type ProxyMonitor struct {
 	Enabled   bool   `json:"enabled" gorm:"not null;default:true"`
 	SortOrder int    `json:"sort_order" gorm:"not null;default:0"`
 	CreatedAt int64  `json:"created_at" gorm:"not null;default:0"`
+	// Link is a node's share link. It carries the node's credentials, so it
+	// is only sent to the server running the check, never to clients.
+	Link     string `json:"-" gorm:"type:text;not null;default:''"`
+	Protocol string `json:"protocol" gorm:"size:32;not null;default:''"`
+	// A node picked from a server's inbounds keeps its source, so its link
+	// follows changes made on that server (NodeServerId 0 is this panel).
+	NodeServerId  uint  `json:"node_server_id" gorm:"not null;default:0"`
+	NodeInboundId uint  `json:"node_inbound_id" gorm:"not null;default:0"`
+	LinkUpdatedAt int64 `json:"-" gorm:"not null;default:0"`
 }
 
 // ProxyMonitorResult is one check of a ProxyMonitor.

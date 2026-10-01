@@ -568,7 +568,9 @@ func validAgentRPCMethod(method string) bool {
 		agent.RPCMethodSdwanDiagnose,
 		agent.RPCMethodSdwanTune,
 		agent.RPCMethodProxyProbe,
-		agent.RPCMethodSpeedtestStart:
+		agent.RPCMethodSpeedtestStart,
+		agent.RPCMethodNodeLink,
+		agent.RPCMethodSpeedtestRun:
 		return true
 	default:
 		return false
@@ -580,7 +582,8 @@ func validAgentRPCMethod(method string) bool {
 // of them reads secrets or changes configuration.
 func agentRPCMonitoring(method string) bool {
 	switch method {
-	case agent.RPCMethodCapabilities, agent.RPCMethodPortTraffic, agent.RPCMethodProxyProbe, agent.RPCMethodSpeedtestStart:
+	case agent.RPCMethodCapabilities, agent.RPCMethodPortTraffic, agent.RPCMethodProxyProbe, agent.RPCMethodSpeedtestStart,
+		agent.RPCMethodSpeedtestRun:
 		return true
 	default:
 		return false
@@ -593,6 +596,11 @@ func agentRPCTimeout(method string) time.Duration {
 		return 10 * time.Minute
 	case agent.RPCMethodSdwanProvision, agent.RPCMethodSdwanRemove, agent.RPCMethodSdwanTune:
 		return 3 * time.Minute
+	case agent.RPCMethodProxyProbe:
+		// A full batch of slow checks: 32 probes, 8 at a time, 15 s each.
+		return 90 * time.Second
+	case agent.RPCMethodSpeedtestRun:
+		return 75 * time.Second
 	default:
 		return agentCommandTimeout
 	}

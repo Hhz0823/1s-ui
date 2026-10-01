@@ -134,7 +134,7 @@ func TestProxyMonitorsCheckRealProxiesOnSchedule(t *testing.T) {
 		{Type: "socks5", Host: host, Port: socksPort, ServerId: 999},
 		{Type: "socks5", Host: host, Port: socksPort, Interval: 5},
 		{Type: "vmess", Host: host, Port: socksPort},
-		{Link: "https://u:p@" + host + ":1"},
+		{Link: "ftp://u:p@" + host + ":1"},
 	} {
 		if _, err := service.Save(input); err == nil {
 			t.Fatalf("saved %+v", input)

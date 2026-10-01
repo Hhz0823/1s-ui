@@ -42,7 +42,8 @@ type ProxyProbeResponse struct {
 	Results []proxyprobe.Result `json:"results"`
 }
 
-// RunProxyProbes checks proxies from this server, a few at a time.
+// RunProxyProbes checks proxies and nodes from this server, a few at a
+// time. Nodes share one throwaway sing-box instance per request.
 func RunProxyProbes(request ProxyProbeRequest) (*ProxyProbeResponse, error) {
 	if len(request.Probes) == 0 || len(request.Probes) > maxProxyProbes {
 		return nil, common.NewErrorf("a probe request carries 1-%d proxies", maxProxyProbes)
@@ -50,7 +51,12 @@ func RunProxyProbes(request ProxyProbeRequest) (*ProxyProbeResponse, error) {
 	results := make([]proxyprobe.Result, len(request.Probes))
 	slots := make(chan struct{}, 8)
 	var wg sync.WaitGroup
+	var nodes []int
 	for i, spec := range request.Probes {
+		if strings.EqualFold(strings.TrimSpace(spec.Type), proxyprobe.TypeNode) {
+			nodes = append(nodes, i)
+			continue
+		}
 		wg.Add(1)
 		slots <- struct{}{}
 		go func(i int, spec proxyprobe.Spec) {
@@ -58,26 +64,38 @@ func RunProxyProbes(request ProxyProbeRequest) (*ProxyProbeResponse, error) {
 			results[i] = proxyprobe.Run(context.Background(), spec)
 		}(i, spec)
 	}
+	if len(nodes) > 0 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			runNodeProbes(request.Probes, nodes, results, slots)
+		}()
+	}
 	wg.Wait()
 	return &ProxyProbeResponse{Results: results}, nil
 }
 
 // ProxyMonitorInput is what the web UI and the monitor app send to save a
 // monitor. A nil Password keeps the stored one; Link fills the proxy fields
-// from a pasted share link or host:port:user:pass line.
+// from a pasted socks5:// or http:// link or host:port:user:pass line, or
+// makes a node monitor from a node share link (vless://, hy2:// …).
+// NodeInboundId picks a node from a server's inbounds instead (server
+// NodeServerId, 0 for this panel); its link never reaches the client.
 type ProxyMonitorInput struct {
-	Id       uint    `json:"id"`
-	Name     string  `json:"name"`
-	Link     string  `json:"link"`
-	Type     string  `json:"type"`
-	Host     string  `json:"host"`
-	Port     int     `json:"port"`
-	Username string  `json:"username"`
-	Password *string `json:"password"`
-	Target   string  `json:"target"`
-	ServerId uint    `json:"server_id"`
-	Interval int     `json:"interval"`
-	Enabled  *bool   `json:"enabled"`
+	Id            uint    `json:"id"`
+	Name          string  `json:"name"`
+	Link          string  `json:"link"`
+	Type          string  `json:"type"`
+	Host          string  `json:"host"`
+	Port          int     `json:"port"`
+	Username      string  `json:"username"`
+	Password      *string `json:"password"`
+	Target        string  `json:"target"`
+	ServerId      uint    `json:"server_id"`
+	Interval      int     `json:"interval"`
+	Enabled       *bool   `json:"enabled"`
+	NodeServerId  uint    `json:"node_server_id"`
+	NodeInboundId uint    `json:"node_inbound_id"`
 }
 
 // ProxyMonitorPoint is one check in a monitor's recent strip.
@@ -87,17 +105,18 @@ type ProxyMonitorPoint struct {
 	LatencyMs int64 `json:"latency_ms"`
 }
 
-// ProxyMonitorView never carries the password.
+// ProxyMonitorView never carries the password or a node's share link.
 type ProxyMonitorView struct {
 	model.ProxyMonitor
-	HasPassword bool                `json:"has_password"`
-	ServerName  string              `json:"server_name"`
-	Status      string              `json:"status"`
-	Last        *proxyprobe.Result  `json:"last,omitempty"`
-	Uptime      float64             `json:"uptime"`
-	AvgLatency  float64             `json:"avg_latency"`
-	Checks      int                 `json:"checks"`
-	Recent      []ProxyMonitorPoint `json:"recent"`
+	HasPassword    bool                `json:"has_password"`
+	ServerName     string              `json:"server_name"`
+	NodeServerName string              `json:"node_server_name,omitempty"`
+	Status         string              `json:"status"`
+	Last           *proxyprobe.Result  `json:"last,omitempty"`
+	Uptime         float64             `json:"uptime"`
+	AvgLatency     float64             `json:"avg_latency"`
+	Checks         int                 `json:"checks"`
+	Recent         []ProxyMonitorPoint `json:"recent"`
 }
 
 // ProxyMonitorBucket averages the checks of one slice of a history range.
@@ -189,9 +208,12 @@ func (s *ProxyMonitorService) List() ([]ProxyMonitorView, error) {
 
 func newProxyMonitorView(monitor model.ProxyMonitor, names map[uint]string) ProxyMonitorView {
 	view := ProxyMonitorView{ProxyMonitor: monitor, HasPassword: monitor.Password != "", Recent: []ProxyMonitorPoint{}}
-	view.Password = ""
+	view.Password, view.Link = "", ""
 	if monitor.ServerId != 0 {
 		view.ServerName = names[monitor.ServerId]
+	}
+	if monitor.NodeInboundId != 0 && monitor.NodeServerId != 0 {
+		view.NodeServerName = names[monitor.NodeServerId]
 	}
 	return view
 }
@@ -327,18 +349,53 @@ func bucketProxyResults(rows []model.ProxyMonitorResult, step int64) []ProxyMoni
 }
 
 // normalizeProxyMonitor turns an input into a monitor, keeping the stored
-// password unless a new one is given.
+// password (or node link) unless a new one is given.
 func (s *ProxyMonitorService) normalizeProxyMonitor(input ProxyMonitorInput, existing *model.ProxyMonitor) (model.ProxyMonitor, error) {
 	monitor := model.ProxyMonitor{}
 	if existing != nil {
 		monitor = *existing
 	}
-	spec := proxyprobe.Spec{Type: input.Type, Host: input.Host, Port: input.Port, Username: input.Username, Target: input.Target}
 	name := input.Name
-	if link := strings.TrimSpace(input.Link); link != "" {
-		parsed, linkName, err := proxyprobe.ParseLink(link)
+	spec := proxyprobe.Spec{Type: input.Type, Host: input.Host, Port: input.Port, Username: input.Username, Target: input.Target}
+	var node *NodeLinkResponse
+	var nodeServerID, nodeInboundID uint
+	link := strings.TrimSpace(input.Link)
+	switch {
+	case input.NodeInboundId != 0:
+		nodeServerID, nodeInboundID = input.NodeServerId, input.NodeInboundId
+		if existing != nil && existing.Type == proxyprobe.TypeNode && existing.Link != "" &&
+			existing.NodeInboundId == nodeInboundID && existing.NodeServerId == nodeServerID {
+			node = &NodeLinkResponse{Link: existing.Link, NodeLinkInfo: NodeLinkInfo{Protocol: existing.Protocol, Host: existing.Host, Port: existing.Port}}
+			break
+		}
+		resolved, err := s.resolveNodeLink(nodeServerID, nodeInboundID)
 		if err != nil {
 			return monitor, err
+		}
+		node = resolved
+		if strings.TrimSpace(name) == "" {
+			name = resolved.Tag
+			if nodeServerID != 0 {
+				if names, err := managedServerNames(); err == nil && names[nodeServerID] != "" {
+					name = names[nodeServerID] + " · " + resolved.Tag
+				}
+			}
+		}
+	case link != "":
+		parsed, linkName, err := proxyprobe.ParseLink(link)
+		if err != nil {
+			if !IsNodeLink(link) {
+				return monitor, err
+			}
+			_, info, nodeErr := ParseNodeLink(link)
+			if nodeErr != nil {
+				return monitor, nodeErr
+			}
+			node = &NodeLinkResponse{Link: link, NodeLinkInfo: info}
+			if strings.TrimSpace(name) == "" {
+				name = info.Name
+			}
+			break
 		}
 		parsed.Target = input.Target
 		spec = parsed
@@ -346,12 +403,20 @@ func (s *ProxyMonitorService) normalizeProxyMonitor(input ProxyMonitorInput, exi
 			name = linkName
 		}
 		input.Password = &parsed.Password
+	case existing != nil && existing.Type == proxyprobe.TypeNode && (input.Type == "" || input.Type == proxyprobe.TypeNode):
+		// Editing a node monitor without a new link keeps the node.
+		node = &NodeLinkResponse{Link: existing.Link, NodeLinkInfo: NodeLinkInfo{Protocol: existing.Protocol, Host: existing.Host, Port: existing.Port}}
+		nodeServerID, nodeInboundID = existing.NodeServerId, existing.NodeInboundId
 	}
-	switch {
-	case input.Password != nil:
-		spec.Password = *input.Password
-	case existing != nil:
-		spec.Password = existing.Password
+	if node != nil {
+		spec = proxyprobe.Spec{Type: proxyprobe.TypeNode, Link: node.Link, Host: node.Host, Port: node.Port, Target: input.Target}
+	} else {
+		switch {
+		case input.Password != nil:
+			spec.Password = *input.Password
+		case existing != nil:
+			spec.Password = existing.Password
+		}
 	}
 	if err := proxyprobe.Normalize(&spec); err != nil {
 		return monitor, err
@@ -359,8 +424,14 @@ func (s *ProxyMonitorService) normalizeProxyMonitor(input ProxyMonitorInput, exi
 	name = strings.TrimSpace(name)
 	if name == "" {
 		name = spec.Host + ":" + fmt.Sprint(spec.Port)
+		if node != nil && node.Protocol != "" {
+			name = node.Protocol + " " + name
+		}
 	}
-	if len([]rune(name)) > 80 || strings.IndexFunc(name, unicode.IsControl) >= 0 {
+	if len([]rune(name)) > 80 {
+		name = string([]rune(name)[:80])
+	}
+	if strings.IndexFunc(name, unicode.IsControl) >= 0 {
 		return monitor, common.NewError("monitor name must be at most 80 characters without control characters")
 	}
 	interval := input.Interval
@@ -381,6 +452,14 @@ func (s *ProxyMonitorService) normalizeProxyMonitor(input ProxyMonitorInput, exi
 	}
 	monitor.Name, monitor.Type, monitor.Host, monitor.Port = name, spec.Type, spec.Host, spec.Port
 	monitor.Username, monitor.Password, monitor.ServerId, monitor.Interval = spec.Username, spec.Password, input.ServerId, interval
+	monitor.Link, monitor.Protocol, monitor.NodeServerId, monitor.NodeInboundId = "", "", 0, 0
+	if node != nil {
+		monitor.Link, monitor.Protocol = node.Link, node.Protocol
+		monitor.NodeServerId, monitor.NodeInboundId = nodeServerID, nodeInboundID
+		if nodeInboundID != 0 && (existing == nil || existing.Link != node.Link || existing.LinkUpdatedAt == 0) {
+			monitor.LinkUpdatedAt = time.Now().Unix()
+		}
+	}
 	monitor.Target = ""
 	if spec.Target != proxyprobe.DefaultTarget {
 		monitor.Target = spec.Target
@@ -427,7 +506,8 @@ func (s *ProxyMonitorService) Save(input ProxyMonitorInput) (*ProxyMonitorView, 
 		}
 		changed := existing.Host != monitor.Host || existing.Port != monitor.Port || existing.Type != monitor.Type ||
 			existing.ServerId != monitor.ServerId || existing.Username != monitor.Username || existing.Password != monitor.Password ||
-			existing.Target != monitor.Target
+			existing.Target != monitor.Target || existing.Link != monitor.Link ||
+			existing.NodeServerId != monitor.NodeServerId || existing.NodeInboundId != monitor.NodeInboundId
 		if changed {
 			// Old results describe another proxy.
 			if err := db.Where("monitor_id = ?", monitor.Id).Delete(&model.ProxyMonitorResult{}).Error; err != nil {
@@ -488,12 +568,54 @@ func monitorSpec(monitor model.ProxyMonitor) proxyprobe.Spec {
 	return proxyprobe.Spec{
 		Type: monitor.Type, Host: monitor.Host, Port: monitor.Port,
 		Username: monitor.Username, Password: monitor.Password, Target: monitor.Target,
+		Link: monitor.Link,
 	}
 }
 
 // probe runs the checks on the panel host or on a managed server. When the
 // server cannot be asked, every result says so with ProxyStageServer.
 func (s *ProxyMonitorService) probe(serverID uint, monitors []model.ProxyMonitor) []proxyprobe.Result {
+	if serverID != 0 && s.relayLacksNodeChecks(serverID, monitors) {
+		// Old panels check SOCKS5/HTTP proxies only: send them those and
+		// mark the nodes as not checked.
+		results := make([]proxyprobe.Result, len(monitors))
+		var proxies []model.ProxyMonitor
+		var indexes []int
+		for i, monitor := range monitors {
+			if monitor.Type == proxyprobe.TypeNode {
+				results[i] = proxyprobe.Result{Time: time.Now().Unix(), Stage: ProxyStageServer,
+					Error: "the panel on this server is too old to check nodes; update it"}
+				continue
+			}
+			proxies = append(proxies, monitor)
+			indexes = append(indexes, i)
+		}
+		if len(proxies) > 0 {
+			for n, result := range s.probeServer(serverID, proxies) {
+				results[indexes[n]] = result
+			}
+		}
+		return results
+	}
+	return s.probeServer(serverID, monitors)
+}
+
+// relayLacksNodeChecks reports whether node monitors go to an online server
+// whose panel cannot check nodes yet.
+func (s *ProxyMonitorService) relayLacksNodeChecks(serverID uint, monitors []model.ProxyMonitor) bool {
+	hasNode := false
+	for _, monitor := range monitors {
+		hasNode = hasNode || monitor.Type == proxyprobe.TypeNode
+	}
+	if !hasNode {
+		return false
+	}
+	view, err := s.AgentService.Get(serverID)
+	return err == nil && view.Online && len(view.Report.Panel.Capabilities) > 0 &&
+		!hasCapability(view.Report.Panel.Capabilities, agent.CapabilityProxyProbeNodeV1)
+}
+
+func (s *ProxyMonitorService) probeServer(serverID uint, monitors []model.ProxyMonitor) []proxyprobe.Result {
 	request := ProxyProbeRequest{Probes: make([]proxyprobe.Spec, len(monitors))}
 	for i, monitor := range monitors {
 		request.Probes[i] = monitorSpec(monitor)

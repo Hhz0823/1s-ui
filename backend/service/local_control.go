@@ -72,7 +72,10 @@ func (s *LocalControlService) Capabilities() agent.PanelStatus {
 		agent.CapabilityPanelAccessV1,
 		agent.CapabilitySdwanV2,
 		agent.CapabilityProxyProbeV1,
+		agent.CapabilityProxyProbeNodeV1,
+		agent.CapabilityNodeLinkV1,
 		agent.CapabilitySpeedtestV1,
+		agent.CapabilitySpeedtestClientV1,
 	}
 	if sdwanRealitySupported {
 		capabilities = append(capabilities, agent.CapabilitySdwanReality)

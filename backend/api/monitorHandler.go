@@ -63,6 +63,29 @@ func registerMonitorRoutes(g *gin.RouterGroup) {
 		jsonObj(c, result, err)
 	})
 
+	group.POST("/servers/:id/speedtest/relay", func(c *gin.Context) {
+		if !monitor.SettingService.GetMonitorAppSettings().Speedtest {
+			monitorForbidden(c, "speed tests from the app are turned off in the panel")
+			return
+		}
+		id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+		if err != nil {
+			jsonMsg(c, "", err)
+			return
+		}
+		var options service.RelaySpeedtestOptions
+		if err := c.ShouldBindJSON(&options); err != nil {
+			jsonMsg(c, "", err)
+			return
+		}
+		result, err := monitor.StartRelaySpeedtest(uint(id), options)
+		jsonObj(c, result, err)
+	})
+	group.GET("/speedtests/:job", func(c *gin.Context) {
+		result, err := monitor.RelaySpeedtest(c.Param("job"))
+		jsonObj(c, result, err)
+	})
+
 	group.GET("/proxies", func(c *gin.Context) {
 		result, err := proxies.List()
 		jsonObj(c, result, err)
@@ -239,4 +262,27 @@ func (a *ApiService) DeleteProxyMonitor(c *gin.Context) {
 		return
 	}
 	jsonMsg(c, "", proxies.Delete(uint(id)))
+}
+
+// RelaySpeedtestRequest starts a speed test from one server to another.
+type RelaySpeedtestRequest struct {
+	ServerId uint `json:"server_id"`
+	service.RelaySpeedtestOptions
+}
+
+func (a *ApiService) StartRelaySpeedtest(c *gin.Context) {
+	var monitor service.MonitorService
+	var request RelaySpeedtestRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		jsonMsg(c, "", err)
+		return
+	}
+	result, err := monitor.StartRelaySpeedtest(request.ServerId, request.RelaySpeedtestOptions)
+	jsonObj(c, result, err)
+}
+
+func (a *ApiService) GetRelaySpeedtest(c *gin.Context) {
+	var monitor service.MonitorService
+	result, err := monitor.RelaySpeedtest(c.Param("id"))
+	jsonObj(c, result, err)
 }
