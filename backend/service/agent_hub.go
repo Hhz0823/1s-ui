@@ -485,7 +485,7 @@ func (s *AgentService) DispatchRPC(nodeID uint, method string, payload interface
 	if !status.Enabled {
 		return nil, common.NewError("controller mode is disabled")
 	}
-	if !status.CanControl && method != agent.RPCMethodCapabilities && method != agent.RPCMethodPortTraffic {
+	if !status.CanControl && !agentRPCMonitoring(method) {
 		return nil, common.NewError("controller monitor profile only allows read-only metrics")
 	}
 	agentHubMu.RLock()
@@ -525,7 +525,7 @@ func (s *AgentService) DispatchRPC(nodeID uint, method string, payload interface
 	select {
 	case response := <-resultCh:
 		response.ID = id
-		if agentRPCMutatesConfig(method) || !response.OK {
+		if agentRPCMutatesConfig(method) || (!response.OK && method != agent.RPCMethodProxyProbe) {
 			appendAgentCommandLog(nodeID, agentCommandLog{
 				ID: id, Type: "rpc/" + method, OK: response.OK, Error: response.Error,
 				CreatedAt: time.Now().Unix(), Actor: actor,
@@ -566,7 +566,21 @@ func validAgentRPCMethod(method string) bool {
 		agent.RPCMethodSdwanProvision,
 		agent.RPCMethodSdwanRemove,
 		agent.RPCMethodSdwanDiagnose,
-		agent.RPCMethodSdwanTune:
+		agent.RPCMethodSdwanTune,
+		agent.RPCMethodProxyProbe,
+		agent.RPCMethodSpeedtestStart:
+		return true
+	default:
+		return false
+	}
+}
+
+// agentRPCMonitoring lists the methods a monitor-only controller may call:
+// reading metrics and node traffic, checking proxies and speed tests. None
+// of them reads secrets or changes configuration.
+func agentRPCMonitoring(method string) bool {
+	switch method {
+	case agent.RPCMethodCapabilities, agent.RPCMethodPortTraffic, agent.RPCMethodProxyProbe, agent.RPCMethodSpeedtestStart:
 		return true
 	default:
 		return false

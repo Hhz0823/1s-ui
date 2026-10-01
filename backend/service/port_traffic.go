@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -38,6 +39,12 @@ type PortTrafficItem struct {
 	Exhausted       bool  `json:"exhausted"`
 	IPLimit         int   `json:"ip_limit"`
 	ActiveIPs       int   `json:"active_ips"`
+	// What the monitor app shows per node; none of it is a secret.
+	Security   string `json:"security,omitempty"`
+	Transport  string `json:"transport,omitempty"`
+	Encryption bool   `json:"encryption,omitempty"`
+	Users      int    `json:"users"`
+	CDN        string `json:"cdn,omitempty"`
 }
 
 type PortTrafficService struct{}
@@ -86,6 +93,7 @@ func (s *PortTrafficService) GetPortTraffic() (*PortTrafficResponse, error) {
 		online[tag] = true
 	}
 
+	reality, users := inboundSecurityAndUsers()
 	items := make([]PortTrafficItem, 0, len(inbounds))
 	for _, inbound := range inbounds {
 		listen, port := inboundListenPort(inbound.Options)
@@ -111,6 +119,8 @@ func (s *PortTrafficService) GetPortTraffic() (*PortTrafficResponse, error) {
 		item.NextReset = nextTrafficReset(periodStart, inbound.TrafficResetDay).Unix()
 		item.Exhausted = item.TrafficLimit > 0 && item.TrafficUsed >= item.TrafficLimit
 		item.UploadBytes, item.DownloadBytes = portTrafficTotals(persisted[inbound.Tag], current, trafficAge > 0)
+		describeInbound(&item, inbound, reality)
+		item.Users = users[inbound.Id]
 		if !item.Supported {
 			item.Online = false
 			item.UploadBPS = 0
@@ -172,6 +182,64 @@ func portTrafficTotals(persisted trafficTotalsByDirection, current core.InboundT
 		return persisted.upload + current.UploadPending, persisted.download + current.DownloadPending
 	}
 	return current.UploadSession, current.DownloadSession
+}
+
+// inboundSecurityAndUsers reads which TLS configs are REALITY and how many
+// enabled users each inbound has.
+func inboundSecurityAndUsers() (map[uint]bool, map[uint]int) {
+	reality := map[uint]bool{}
+	var configs []model.Tls
+	if err := database.GetDB().Select("id", "server").Find(&configs).Error; err == nil {
+		for _, config := range configs {
+			var server struct {
+				Reality struct {
+					Enabled bool `json:"enabled"`
+				} `json:"reality"`
+			}
+			if json.Unmarshal(config.Server, &server) == nil && server.Reality.Enabled {
+				reality[config.Id] = true
+			}
+		}
+	}
+	users := map[uint]int{}
+	var counts []struct {
+		InboundId uint
+		Users     int
+	}
+	if err := database.GetDB().Raw(`SELECT je.value AS inbound_id, COUNT(*) AS users
+		FROM clients, json_each(clients.inbounds) AS je WHERE clients.enable = 1 GROUP BY je.value`).Scan(&counts).Error; err == nil {
+		for _, count := range counts {
+			users[count.InboundId] = count.Users
+		}
+	}
+	return reality, users
+}
+
+func describeInbound(item *PortTrafficItem, inbound model.Inbound, reality map[uint]bool) {
+	if inbound.TlsId > 0 {
+		item.Security = "tls"
+		if reality[inbound.TlsId] {
+			item.Security = "reality"
+		}
+	}
+	var options struct {
+		Transport struct {
+			Type string `json:"type"`
+		} `json:"transport"`
+		Decryption string `json:"decryption"`
+		CDN        struct {
+			Domain string `json:"domain"`
+			Port   int    `json:"port"`
+		} `json:"cdn"`
+	}
+	if json.Unmarshal(inbound.Options, &options) != nil {
+		return
+	}
+	item.Transport = options.Transport.Type
+	item.Encryption = options.Decryption != "" && options.Decryption != "none"
+	if options.CDN.Domain != "" {
+		item.CDN = fmt.Sprintf("%s:%d", options.CDN.Domain, options.CDN.Port)
+	}
 }
 
 func inboundListenPort(raw json.RawMessage) (string, int) {

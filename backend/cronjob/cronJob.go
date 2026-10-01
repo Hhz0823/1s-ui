@@ -61,6 +61,16 @@ func (c *CronJob) Start(loc *time.Location, trafficAge int, statsBucketSeconds i
 				logger.Warning("compact server metrics: ", err)
 			}
 		})))
+		// Check SOCKS5/HTTP proxy monitors when they are due
+		proxies := &service.ProxyMonitorService{}
+		c.cron.AddJob("@every 10s", cron.NewChain(cron.SkipIfStillRunning(cron.DiscardLogger)).Then(cron.FuncJob(func() {
+			proxies.RunDue(time.Now())
+		})))
+		c.cron.AddJob("@hourly", cron.NewChain(cron.SkipIfStillRunning(cron.DiscardLogger)).Then(cron.FuncJob(func() {
+			if err := proxies.CleanupProxyResults(); err != nil {
+				logger.Warning("clean proxy checks: ", err)
+			}
+		})))
 		// database WAL checkpoint
 		c.cron.AddJob("@every 10m", NewWALCheckpointJob())
 		// Renew generated certificates; the first run waits for the core.

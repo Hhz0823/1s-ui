@@ -135,6 +135,18 @@ func (s *Server) startControlSocket() error {
 			result, callErr = local.DiagnoseSdwanUplink()
 		case agent.RPCMethodSdwanTune:
 			result = service.ApplySdwanTuning()
+		case agent.RPCMethodProxyProbe:
+			var payload service.ProxyProbeRequest
+			callErr = decodeLocalRPCPayload(request.Payload, &payload)
+			if callErr == nil {
+				result, callErr = service.RunProxyProbes(payload)
+			}
+		case agent.RPCMethodSpeedtestStart:
+			var payload service.SpeedtestStartRequest
+			callErr = decodeLocalRPCPayload(request.Payload, &payload)
+			if callErr == nil {
+				result, callErr = service.StartLocalSpeedtest(payload.Port)
+			}
 		case agent.RPCMethodRelayExport:
 			var payload service.RemoteRelayExportRequest
 			callErr = decodeLocalRPCPayload(request.Payload, &payload)

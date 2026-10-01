@@ -3,6 +3,7 @@ package service
 import (
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/json"
 	"os"
 	"runtime"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/Hhz0823/1s-ui/agent"
 	"github.com/Hhz0823/1s-ui/config"
+	"github.com/Hhz0823/1s-ui/speedtest"
 	"github.com/Hhz0823/1s-ui/util/common"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -25,6 +27,14 @@ import (
 // monitorKeyHash stores "sha256hex|createdUnix" of the read-only key that the
 // mobile monitor app uses. The key itself is shown once and never stored.
 const monitorKeyHash = "monitorKeyHash"
+
+// What the monitor key may do besides reading: manage proxy monitors and
+// open speed test sessions. Both default to on and are set on the key's card.
+const (
+	monitorAppProxiesKey   = "monitorAppProxies"
+	monitorAppSpeedtestKey = "monitorAppSpeedtest"
+	speedtestPortKey       = "speedtestPort"
+)
 
 const (
 	localMonitorCacheTTL      = 2 * time.Second
@@ -41,14 +51,32 @@ type MonitorNode struct {
 }
 
 type MonitorOverview struct {
-	PanelVersion string        `json:"panel_version"`
-	ServerTime   int64         `json:"server_time"`
-	Servers      []MonitorNode `json:"servers"`
+	PanelVersion string          `json:"panel_version"`
+	ServerTime   int64           `json:"server_time"`
+	Features     MonitorFeatures `json:"features"`
+	Servers      []MonitorNode   `json:"servers"`
+}
+
+// MonitorFeatures tells the app what this panel offers to its key.
+type MonitorFeatures struct {
+	Nodes         bool `json:"nodes"`
+	ProxyMonitors bool `json:"proxy_monitors"`
+	ManageProxies bool `json:"manage_proxies"`
+	Speedtest     bool `json:"speedtest"`
+	SpeedtestPort int  `json:"speedtest_port"`
+}
+
+// MonitorAppSettings are the key's extra permissions and the speed test port.
+type MonitorAppSettings struct {
+	Proxies       bool `json:"proxies"`
+	Speedtest     bool `json:"speedtest"`
+	SpeedtestPort int  `json:"speedtest_port"`
 }
 
 type MonitorKeyStatus struct {
 	Enabled   bool  `json:"enabled"`
 	CreatedAt int64 `json:"created_at"`
+	MonitorAppSettings
 }
 
 type MonitorService struct {
@@ -73,10 +101,15 @@ func (s *MonitorService) Overview() (*MonitorOverview, error) {
 	if err != nil {
 		return nil, err
 	}
+	settings := s.SettingService.GetMonitorAppSettings()
 	result := &MonitorOverview{
 		PanelVersion: config.GetVersion(),
 		ServerTime:   time.Now().Unix(),
-		Servers:      make([]MonitorNode, 0, len(nodes)+1),
+		Features: MonitorFeatures{
+			Nodes: true, ProxyMonitors: true, ManageProxies: settings.Proxies,
+			Speedtest: settings.Speedtest, SpeedtestPort: settings.SpeedtestPort,
+		},
+		Servers: make([]MonitorNode, 0, len(nodes)+1),
 	}
 	result.Servers = append(result.Servers, localMonitorNode(false))
 	for _, node := range nodes {
@@ -98,6 +131,26 @@ func (s *MonitorService) Server(id uint) (*MonitorNode, error) {
 	}
 	view.Commands = nil
 	return &MonitorNode{AgentNodeView: *view}, nil
+}
+
+// Nodes lists a server's inbounds with their traffic: protocol, port,
+// security, transport and user count, never credentials or keys.
+func (s *MonitorService) Nodes(id uint) (*PortTrafficResponse, error) {
+	if id == 0 {
+		return (&PortTrafficService{}).GetPortTraffic()
+	}
+	response, err := s.AgentService.DispatchRPC(id, agent.RPCMethodPortTraffic, map[string]interface{}{}, "monitor-app")
+	if err != nil {
+		return nil, err
+	}
+	var result PortTrafficResponse
+	if err := json.Unmarshal(response.Payload, &result); err != nil {
+		return nil, err
+	}
+	if result.Items == nil {
+		result.Items = []PortTrafficItem{}
+	}
+	return &result, nil
 }
 
 func localMonitorNode(withHistory bool) MonitorNode {
@@ -245,7 +298,34 @@ func (s *SettingService) DisableMonitorKey() error {
 
 func (s *SettingService) GetMonitorKeyStatus() MonitorKeyStatus {
 	hash, created := s.monitorKey()
-	return MonitorKeyStatus{Enabled: hash != "", CreatedAt: created}
+	return MonitorKeyStatus{Enabled: hash != "", CreatedAt: created, MonitorAppSettings: s.GetMonitorAppSettings()}
+}
+
+func (s *SettingService) GetMonitorAppSettings() MonitorAppSettings {
+	settings := MonitorAppSettings{Proxies: true, Speedtest: true, SpeedtestPort: speedtest.DefaultPort}
+	if value, err := s.getString(monitorAppProxiesKey); err == nil {
+		settings.Proxies = value != "false"
+	}
+	if value, err := s.getString(monitorAppSpeedtestKey); err == nil {
+		settings.Speedtest = value != "false"
+	}
+	if port, err := s.getInt(speedtestPortKey); err == nil && port > 0 && port <= 65535 {
+		settings.SpeedtestPort = port
+	}
+	return settings
+}
+
+func (s *SettingService) SetMonitorAppSettings(value MonitorAppSettings) error {
+	if value.SpeedtestPort < 1 || value.SpeedtestPort > 65535 {
+		return common.NewError("speed test port must be between 1 and 65535")
+	}
+	if err := s.setString(monitorAppProxiesKey, strconv.FormatBool(value.Proxies)); err != nil {
+		return err
+	}
+	if err := s.setString(monitorAppSpeedtestKey, strconv.FormatBool(value.Speedtest)); err != nil {
+		return err
+	}
+	return s.setInt(speedtestPortKey, value.SpeedtestPort)
 }
 
 func (s *SettingService) ValidateMonitorKey(key string) error {

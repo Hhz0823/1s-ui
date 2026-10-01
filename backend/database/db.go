@@ -140,6 +140,8 @@ func InitDB(dbPath string) error {
 		&model.AgentNode{},
 		&model.AgentMetric{},
 		&model.SdwanMember{},
+		&model.ProxyMonitor{},
+		&model.ProxyMonitorResult{},
 	)
 	if err != nil {
 		return err
