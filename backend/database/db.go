@@ -138,6 +138,7 @@ func InitDB(dbPath string) error {
 		&model.Changes{},
 		&model.RelayPool{},
 		&model.AgentNode{},
+		&model.AgentMetric{},
 		&model.SdwanMember{},
 	)
 	if err != nil {

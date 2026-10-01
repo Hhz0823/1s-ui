@@ -88,11 +88,6 @@ type createAgentRequest struct {
 	Name string `json:"name"`
 }
 
-type updateAgentRequest struct {
-	Name       string `json:"name"`
-	PublicHost string `json:"public_host"`
-}
-
 type connectLocalAgentRequest struct {
 	ConnectURL string `json:"connect_url"`
 	Address    string `json:"address"`
@@ -114,6 +109,15 @@ func (a *ApiService) GetAgents(c *gin.Context) {
 func (a *ApiService) GetPortTraffic(c *gin.Context) {
 	result, err := a.PortTrafficService.GetPortTraffic()
 	jsonObj(c, result, err)
+}
+
+func (a *ApiService) ResetPortTraffic(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		jsonMsg(c, "resetTraffic", common.NewError("invalid inbound id"))
+		return
+	}
+	jsonMsg(c, "resetTraffic", a.InboundService.ResetTrafficUsage(uint(id)))
 }
 
 func (a *ApiService) GetAgentPortTraffic(c *gin.Context) {
@@ -231,6 +235,22 @@ func (a *ApiService) GetAgent(c *gin.Context) {
 	jsonObj(c, node, err)
 }
 
+// GetAgentMetrics returns stored history; range is in seconds (up to 31 days).
+func (a *ApiService) GetAgentMetrics(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil || id == 0 {
+		jsonObj(c, nil, common.NewError("invalid agent node id"))
+		return
+	}
+	rangeSeconds, err := strconv.ParseInt(c.DefaultQuery("range", "3600"), 10, 64)
+	if err != nil {
+		jsonObj(c, nil, common.NewError("invalid metric range"))
+		return
+	}
+	points, err := a.AgentService.Metrics(uint(id), rangeSeconds)
+	jsonObj(c, points, err)
+}
+
 func (a *ApiService) UpdateAgent(c *gin.Context) {
 	if err := a.SettingService.RequireControllerControl(); err != nil {
 		jsonObj(c, nil, err)
@@ -241,12 +261,12 @@ func (a *ApiService) UpdateAgent(c *gin.Context) {
 		jsonObj(c, nil, common.NewError("invalid agent node id"))
 		return
 	}
-	var request updateAgentRequest
+	var request service.AgentUpdate
 	if err := c.ShouldBindJSON(&request); err != nil {
 		jsonObj(c, nil, err)
 		return
 	}
-	node, err := a.AgentService.Update(uint(id), request.Name, request.PublicHost)
+	node, err := a.AgentService.Update(uint(id), request)
 	jsonObj(c, node, err)
 }
 
@@ -582,6 +602,61 @@ func (a *ApiService) CreateAgentEnrollmentLink(c *gin.Context) {
 	jsonObj(c, result, nil)
 }
 
+func (a *ApiService) GetAgentEnrollmentKey(c *gin.Context) {
+	if err := a.SettingService.RequireControllerMode(); err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	webPath, err := a.SettingService.GetWebPath()
+	if err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	jsonObj(c, map[string]interface{}{
+		"configured": a.SettingService.HasAgentEnrollmentKey(),
+		"panel_url":  panelURLForRequest(c, webPath),
+	}, nil)
+}
+
+// CreateAgentEnrollmentKey issues a reusable key for servers that bind with
+// "panel address + key", such as a fnOS NAS. Issuing a new key revokes the
+// previous one; servers that already enrolled keep their own tokens.
+func (a *ApiService) CreateAgentEnrollmentKey(c *gin.Context) {
+	if err := a.SettingService.RequireControllerMode(); err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	webPath, err := a.SettingService.GetWebPath()
+	if err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	key, err := a.SettingService.RotateAgentEnrollmentKey()
+	if err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	panelURL := panelURLForRequest(c, webPath)
+	jsonObj(c, map[string]interface{}{
+		"configured":     true,
+		"panel_url":      panelURL,
+		"key":            key,
+		"command":        agentKeyInstallCommand(panelURL, key),
+		"nas_command":    agentKeySudoInstallCommand(panelURL, key),
+		"cn_command":     chinaCommand(agentKeyInstallCommand(panelURL, key)),
+		"cn_nas_command": chinaAgentKeySudoInstallCommand(panelURL, key),
+	}, nil)
+}
+
+func (a *ApiService) RevokeAgentEnrollmentKey(c *gin.Context) {
+	if err := a.SettingService.RequireControllerMode(); err != nil {
+		jsonObj(c, nil, err)
+		return
+	}
+	jsonObj(c, map[string]interface{}{"configured": false}, a.SettingService.RevokeAgentEnrollmentKey())
+}
+
 func (a *ApiService) RotateAgent(c *gin.Context) {
 	if err := a.SettingService.RequireControllerControl(); err != nil {
 		jsonObj(c, nil, err)
@@ -637,6 +712,7 @@ func (a *ApiService) agentEnrollmentResponse(c *gin.Context, enrollment *service
 		"node": enrollment.Node, "token": enrollment.Token,
 		"panel_url": panelURL, "connect_url": pairURL, "pair_url": pairURL, "pair_expires_at": enrollment.PairExpiresAt,
 		"command": command, "managed_command": managedCommand,
+		"cn_command": chinaCommand(command), "cn_managed_command": chinaCommand(managedCommand),
 		"legacy_command": legacyCommand, "legacy_managed_command": legacyManagedCommand,
 	}
 }
@@ -648,7 +724,65 @@ func agentConnectionResponse(connectURL string) map[string]interface{} {
 	return map[string]interface{}{
 		"connect_url": connectURL,
 		"command":     command, "managed_command": managedCommand,
+		"cn_command": chinaCommand(command), "cn_managed_command": chinaCommand(managedCommand),
 	}
+}
+
+// defaultChinaMirror is the GitHub mirror the mainland China install commands
+// use when none is set under Settings.
+const defaultChinaMirror = "https://ghfast.top/"
+
+// chinaMirror returns the mirror prefix mainland China install commands
+// download through and the --mirror value that passes it to the installer.
+func chinaMirror() (mirror, line string) {
+	if database.GetDB() != nil {
+		mirror, _ = (&service.SettingService{}).GetGitHubMirror()
+	}
+	if mirror == "" {
+		return defaultChinaMirror, "cn"
+	}
+	return mirror, shellQuote(mirror)
+}
+
+// chinaCommand is an install command for servers in mainland China: the
+// script comes through a GitHub mirror and downloads through it too.
+func chinaCommand(command string) string {
+	mirror, line := chinaMirror()
+	const raw = "https://raw.githubusercontent.com/"
+	index := strings.Index(command, raw)
+	if index < 0 {
+		return command
+	}
+	scriptEnd := strings.Index(command[index:], ")")
+	if scriptEnd < 0 {
+		return command
+	}
+	scriptEnd += index
+	return command[:index] + mirror + command[index:scriptEnd] + ") --mirror " + line + command[scriptEnd+1:]
+}
+
+const agentInstallerURL = "https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-agent.sh"
+
+func agentKeyArgs(panelURL, key string) string {
+	return " --panel " + shellQuote(panelURL) + " --key " + shellQuote(key) + " --version " + shellQuote(config.GetVersion())
+}
+
+// agentKeyInstallCommand is for a root shell.
+func agentKeyInstallCommand(panelURL, key string) string {
+	return "bash <(curl -fsSL " + agentInstallerURL + ")" + agentKeyArgs(panelURL, key)
+}
+
+// agentKeySudoInstallCommand works from a normal admin login such as fnOS SSH,
+// where "sudo bash <(...)" cannot read the process substitution.
+func agentKeySudoInstallCommand(panelURL, key string) string {
+	return "curl -fsSL " + agentInstallerURL + " -o /tmp/1s-ui-agent.sh && sudo bash /tmp/1s-ui-agent.sh" + agentKeyArgs(panelURL, key)
+}
+
+// chinaAgentKeySudoInstallCommand is agentKeySudoInstallCommand through the
+// mainland China download line.
+func chinaAgentKeySudoInstallCommand(panelURL, key string) string {
+	mirror, line := chinaMirror()
+	return "curl -fsSL " + mirror + agentInstallerURL + " -o /tmp/1s-ui-agent.sh && sudo bash /tmp/1s-ui-agent.sh" + agentKeyArgs(panelURL, key) + " --mirror " + line
 }
 
 func managedPanelInstallCommand(_ string) string {

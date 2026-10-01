@@ -11,7 +11,7 @@ import 'vuetify/styles/main.css'
 import colors from 'vuetify/util/colors'
 import { fa, en, vi, zhHans, zhHant, ru } from 'vuetify/locale'
 import { normalizeLocale } from '@/locales'
-import { savedTheme } from './themes'
+import { resolveTheme } from './themes'
 
 // Composables
 import { createVuetify } from 'vuetify'
@@ -52,7 +52,7 @@ export default createVuetify({
     },
   },
   theme: {
-    defaultTheme: savedTheme(),
+    defaultTheme: resolveTheme(),
     themes: {
       // Server-panel themes after BaoTa (宝塔) and 1Panel.
       bt: {
@@ -264,6 +264,174 @@ export default createVuetify({
           warning: '#FBBF24',
           info: '#A78BFA',
           'on-surface': '#E5E7EB',
+        },
+      },
+      // Dark companion of the BaoTa theme.
+      btDark: {
+        dark: true,
+        colors: {
+          background: '#17191C',
+          surface: '#212429',
+          primary: '#2DBE4A',
+          secondary: '#8A94A0',
+          error: '#F56C6C',
+          success: '#2DBE4A',
+          warning: '#E6A23C',
+          info: '#409EFF',
+          'on-surface': '#E3E6EA',
+          'on-background': '#E3E6EA',
+        },
+      },
+      // Palettes after well-known editor color schemes.
+      githubLight: {
+        dark: false,
+        colors: {
+          background: '#F6F8FA',
+          surface: '#FFFFFF',
+          primary: '#0969DA',
+          secondary: '#8250DF',
+          error: '#CF222E',
+          success: '#1A7F37',
+          warning: '#9A6700',
+          info: '#0969DA',
+          'on-surface': '#1F2328',
+          'on-background': '#1F2328',
+        },
+      },
+      solarizedLight: {
+        dark: false,
+        colors: {
+          background: '#EEE8D5',
+          surface: '#FDF6E3',
+          primary: '#268BD2',
+          secondary: '#2AA198',
+          error: '#DC322F',
+          success: '#859900',
+          warning: '#B58900',
+          info: '#6C71C4',
+          'on-surface': '#586E75',
+          'on-background': '#586E75',
+        },
+      },
+      solarizedDark: {
+        dark: true,
+        colors: {
+          background: '#002B36',
+          surface: '#073642',
+          primary: '#268BD2',
+          secondary: '#2AA198',
+          error: '#DC322F',
+          success: '#859900',
+          warning: '#B58900',
+          info: '#6C71C4',
+          'on-surface': '#93A1A1',
+          'on-background': '#93A1A1',
+        },
+      },
+      latte: {
+        dark: false,
+        colors: {
+          background: '#E6E9EF',
+          surface: '#EFF1F5',
+          primary: '#8839EF',
+          secondary: '#1E66F5',
+          error: '#D20F39',
+          success: '#40A02B',
+          warning: '#DF8E1D',
+          info: '#04A5E5',
+          'on-surface': '#4C4F69',
+          'on-background': '#4C4F69',
+        },
+      },
+      mocha: {
+        dark: true,
+        colors: {
+          background: '#181825',
+          surface: '#1E1E2E',
+          primary: '#CBA6F7',
+          secondary: '#89B4FA',
+          error: '#F38BA8',
+          success: '#A6E3A1',
+          warning: '#F9E2AF',
+          info: '#89DCEB',
+          'on-surface': '#CDD6F4',
+          'on-background': '#CDD6F4',
+        },
+      },
+      tokyoNight: {
+        dark: true,
+        colors: {
+          background: '#16161E',
+          surface: '#1A1B26',
+          primary: '#7AA2F7',
+          secondary: '#BB9AF7',
+          error: '#F7768E',
+          success: '#9ECE6A',
+          warning: '#E0AF68',
+          info: '#7DCFFF',
+          'on-surface': '#C0CAF5',
+          'on-background': '#C0CAF5',
+        },
+      },
+      gruvbox: {
+        dark: true,
+        colors: {
+          background: '#1D2021',
+          surface: '#282828',
+          primary: '#FE8019',
+          secondary: '#83A598',
+          error: '#FB4934',
+          success: '#B8BB26',
+          warning: '#FABD2F',
+          info: '#83A598',
+          'on-surface': '#EBDBB2',
+          'on-background': '#EBDBB2',
+        },
+      },
+      rosePine: {
+        dark: true,
+        colors: {
+          background: '#191724',
+          surface: '#1F1D2E',
+          primary: '#EBBCBA',
+          secondary: '#C4A7E7',
+          error: '#EB6F92',
+          success: '#9CCFD8',
+          warning: '#F6C177',
+          info: '#31748F',
+          'on-surface': '#E0DEF4',
+          'on-background': '#E0DEF4',
+        },
+      },
+      // Warm and soft light themes.
+      lavender: {
+        dark: false,
+        colors: {
+          background: '#F5F3FF',
+          surface: '#FFFFFF',
+          primary: '#7C3AED',
+          secondary: '#DB2777',
+          error: '#DC2626',
+          success: '#16A34A',
+          warning: '#D97706',
+          info: '#2563EB',
+          'on-surface': '#2E2A47',
+          'on-background': '#2E2A47',
+        },
+      },
+      coffee: {
+        dark: false,
+        colors: {
+          background: '#F5EFE6',
+          surface: '#FFFCF7',
+          primary: '#8B5E3C',
+          secondary: '#C08552',
+          error: '#C0392B',
+          success: '#5B8C3A',
+          warning: '#D68910',
+          info: '#2E86AB',
+          'on-surface': '#3E2C23',
+          'on-background': '#3E2C23',
         },
       },
     },

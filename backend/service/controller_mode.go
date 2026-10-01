@@ -34,7 +34,16 @@ type ControllerModeStatus struct {
 	MemoryBytes    uint64 `json:"memory_bytes"`
 	MinCPUCores    int    `json:"min_cpu_cores"`
 	MinMemoryBytes uint64 `json:"min_memory_bytes"`
+	// Lite is true while the controller runs on a host below the cluster
+	// minimum. It then uses sing-box only; proxy and routing work as usual.
+	Lite               bool   `json:"lite"`
+	SingboxOnly        bool   `json:"singbox_only"`
+	LiteMinCPUCores    int    `json:"lite_min_cpu_cores"`
+	LiteMinMemoryBytes uint64 `json:"lite_min_memory_bytes"`
 }
+
+// controllerCapacity reports the host's CPU cores and memory. Tests replace it.
+var controllerCapacity = currentClusterCapacity
 
 func (s *SettingService) GetControllerModeStatus() (*ControllerModeStatus, error) {
 	configured, err := s.getString(controllerModeKey)
@@ -70,7 +79,7 @@ func (s *SettingService) GetControllerModeStatus() (*ControllerModeStatus, error
 		}
 	}
 	enabled := profile != ControllerProfileClient
-	cpuCount, memoryBytes := currentClusterCapacity()
+	cpuCount, memoryBytes := controllerCapacity()
 
 	mode := "client"
 	if enabled {
@@ -84,12 +93,17 @@ func (s *SettingService) GetControllerModeStatus() (*ControllerModeStatus, error
 		CanControl:     profile == ControllerProfileFull,
 		Configured:     configured,
 		Inherited:      inherited,
-		CanEnable:      meetsClusterRequirements(cpuCount, memoryBytes),
+		CanEnable:      meetsClusterRequirements(cpuCount, memoryBytes) || meetsLiteControllerRequirements(cpuCount, memoryBytes),
 		AgentCount:     agentCount,
 		CPUCores:       cpuCount,
 		MemoryBytes:    memoryBytes,
 		MinCPUCores:    MinClusterCPUCores,
 		MinMemoryBytes: MinClusterMemBytes,
+
+		Lite:               enabled && !meetsClusterRequirements(cpuCount, memoryBytes),
+		SingboxOnly:        singboxOnlyRuntime(),
+		LiteMinCPUCores:    MinLiteControllerCPUCores,
+		LiteMinMemoryBytes: MinLiteControllerMemBytes,
 	}, nil
 }
 
@@ -123,6 +137,13 @@ func (s *SettingService) RequireControllerControl() error {
 	return nil
 }
 
+// liteControllerActive reports whether this panel is a controller running in
+// lite mode, where Xray-core must stay off.
+func liteControllerActive() bool {
+	status, err := (&SettingService{}).GetControllerModeStatus()
+	return err == nil && status.Lite
+}
+
 func (s *SettingService) SetControllerMode(enabled bool) (*ControllerModeStatus, error) {
 	profile := ControllerProfileClient
 	configured := controllerModeDisabled
@@ -146,14 +167,16 @@ func (s *SettingService) SetControllerProfile(profile string) (*ControllerModeSt
 func (s *SettingService) setControllerProfile(profile, configured string) (*ControllerModeStatus, error) {
 	s.CloseAgentAddressPairing()
 	if profile != ControllerProfileClient {
-		cpuCount, memoryBytes := currentClusterCapacity()
+		cpuCount, memoryBytes := controllerCapacity()
 		if !meetsClusterRequirements(cpuCount, memoryBytes) {
-			return nil, common.NewErrorf(
-				"controller mode requires at least %d CPU cores and 2 GiB memory; current host: %d CPU cores / %.2f GiB",
-				MinClusterCPUCores,
-				cpuCount,
-				float64(memoryBytes)/(1024*1024*1024),
-			)
+			// Lite controller: make sure sing-box is the only proxy core
+			// before the role changes, so Xray never competes for memory.
+			if err := controllerHostError(cpuCount, memoryBytes, true); err != nil {
+				return nil, err
+			}
+			if err := switchToSingboxOnly(); err != nil {
+				return nil, err
+			}
 		}
 		if err := s.setString(controllerModeKey, configured); err != nil {
 			return nil, err

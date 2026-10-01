@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"strings"
 	"sync"
@@ -47,6 +48,25 @@ type AgentNodeView struct {
 	Commands     []agentCommandLog   `json:"commands,omitempty"`
 	Latency      AgentLatencyView    `json:"latency"`
 	Managed      bool                `json:"managed"`
+	LatencyLog   []AgentLatencyPoint `json:"latency_history,omitempty"`
+	Traffic      AgentTrafficView    `json:"traffic"`
+	AgentNodeMeta
+}
+
+// AgentNodeMeta is the display metadata an admin sets for a server.
+type AgentNodeMeta struct {
+	Group            string  `json:"group"`
+	Tags             string  `json:"tags"`
+	Region           string  `json:"region"`
+	Remark           string  `json:"remark"`
+	Price            float64 `json:"price"`
+	Currency         string  `json:"currency"`
+	BillingCycle     int     `json:"billing_cycle"`
+	ExpireAt         int64   `json:"expire_at"`
+	SortWeight       int     `json:"sort_weight"`
+	TrafficLimit     uint64  `json:"traffic_limit"`
+	TrafficLimitType string  `json:"traffic_limit_type"`
+	TrafficResetDay  int     `json:"traffic_reset_day"`
 }
 
 type AgentEnrollment struct {
@@ -65,6 +85,9 @@ type AgentMetricSample struct {
 	ProcessCount int     `json:"process_count"`
 	NetSent      uint64  `json:"net_sent_rate"`
 	NetRecv      uint64  `json:"net_recv_rate"`
+	Load1        float64 `json:"load1"`
+	TCPConns     int     `json:"tcp_conns"`
+	UDPConns     int     `json:"udp_conns"`
 }
 
 type AgentService struct {
@@ -156,13 +179,8 @@ func (s *AgentService) create(name string, includePairing bool) (*AgentEnrollmen
 	if s.capacityProvider != nil {
 		cpuCount, memTotal = s.capacityProvider()
 	}
-	if !meetsClusterRequirements(cpuCount, memTotal) {
-		return nil, common.NewErrorf(
-			"server monitoring requires at least %d CPU cores and 2 GiB memory; current host: %d CPU cores / %.2f GiB",
-			MinClusterCPUCores,
-			cpuCount,
-			float64(memTotal)/(1024*1024*1024),
-		)
+	if err := controllerHostError(cpuCount, memTotal, singboxOnlyRuntime()); err != nil {
+		return nil, err
 	}
 	token, hash, err := newAgentToken()
 	if err != nil {
@@ -280,15 +298,24 @@ func (s *AgentService) ConsumePairingCode(code string) (*AgentEnrollment, error)
 	return &AgentEnrollment{Node: view, Token: token}, nil
 }
 
-func (s *AgentService) Update(id uint, name, publicHost string) (*AgentNodeView, error) {
+// AgentUpdate is an edit to a server's name, address and display metadata.
+// Nil metadata leaves the stored values unchanged, so older clients that only
+// send a name and address keep working.
+type AgentUpdate struct {
+	Name       string         `json:"name"`
+	PublicHost string         `json:"public_host"`
+	Meta       *AgentNodeMeta `json:"meta,omitempty"`
+}
+
+func (s *AgentService) Update(id uint, request AgentUpdate) (*AgentNodeView, error) {
 	if err := (&SettingService{}).RequireControllerControl(); err != nil {
 		return nil, err
 	}
-	name, err := normalizeAgentName(name)
+	name, err := normalizeAgentName(request.Name)
 	if err != nil {
 		return nil, err
 	}
-	publicHost, err = normalizeAgentPublicHost(publicHost)
+	publicHost, err := normalizeAgentPublicHost(request.PublicHost)
 	if err != nil {
 		return nil, err
 	}
@@ -296,15 +323,98 @@ func (s *AgentService) Update(id uint, name, publicHost string) (*AgentNodeView,
 	if err := database.GetDB().First(&node, id).Error; err != nil {
 		return nil, err
 	}
-	if err := database.GetDB().Model(&node).Updates(map[string]interface{}{
-		"name": name, "public_host": publicHost,
-	}).Error; err != nil {
+	updates := map[string]interface{}{"name": name, "public_host": publicHost}
+	if request.Meta != nil {
+		meta, err := normalizeAgentMeta(*request.Meta)
+		if err != nil {
+			return nil, err
+		}
+		for key, value := range map[string]interface{}{
+			"group": meta.Group, "tags": meta.Tags, "region": meta.Region, "remark": meta.Remark,
+			"price": meta.Price, "currency": meta.Currency, "billing_cycle": meta.BillingCycle,
+			"expire_at": meta.ExpireAt, "sort_weight": meta.SortWeight, "traffic_limit": meta.TrafficLimit,
+			"traffic_limit_type": meta.TrafficLimitType, "traffic_reset_day": meta.TrafficResetDay,
+		} {
+			updates[key] = value
+		}
+	}
+	if err := database.GetDB().Model(&node).Updates(updates).Error; err != nil {
 		return nil, err
 	}
-	node.Name = name
-	node.PublicHost = publicHost
+	if err := database.GetDB().First(&node, id).Error; err != nil {
+		return nil, err
+	}
+	agentTrafficMu.Lock()
+	delete(agentTrafficCache, id)
+	agentTrafficMu.Unlock()
 	view := agentNodeView(node, time.Now(), true)
 	return &view, nil
+}
+
+func normalizeAgentMeta(meta AgentNodeMeta) (AgentNodeMeta, error) {
+	clean := func(value string, limit int) (string, error) {
+		value = strings.TrimSpace(value)
+		if len([]rune(value)) > limit {
+			return "", common.NewError("server metadata field is too long")
+		}
+		for _, r := range value {
+			if unicode.IsControl(r) {
+				return "", common.NewError("server metadata contains control characters")
+			}
+		}
+		return value, nil
+	}
+	var err error
+	if meta.Group, err = clean(meta.Group, 40); err != nil {
+		return meta, err
+	}
+	if meta.Tags, err = clean(meta.Tags, 255); err != nil {
+		return meta, err
+	}
+	if meta.Remark, err = clean(meta.Remark, 255); err != nil {
+		return meta, err
+	}
+	if meta.Currency, err = clean(meta.Currency, 8); err != nil {
+		return meta, err
+	}
+	meta.Region = strings.ToUpper(strings.TrimSpace(meta.Region))
+	if meta.Region != "" && (len(meta.Region) != 2 || meta.Region[0] < 'A' || meta.Region[0] > 'Z' || meta.Region[1] < 'A' || meta.Region[1] > 'Z') {
+		return meta, common.NewError("region must be a two-letter country code")
+	}
+	if math.IsNaN(meta.Price) || math.IsInf(meta.Price, 0) || meta.Price < -1 || meta.Price > 1e9 {
+		return meta, common.NewError("invalid price")
+	}
+	if meta.BillingCycle == 0 {
+		meta.BillingCycle = 30
+	}
+	if meta.BillingCycle < -1 || meta.BillingCycle > 36500 {
+		return meta, common.NewError("invalid billing cycle")
+	}
+	if meta.ExpireAt < 0 {
+		meta.ExpireAt = 0
+	}
+	switch meta.TrafficLimitType {
+	case "":
+		meta.TrafficLimitType = "sum"
+	case "sum", "max", "min", "up", "down":
+	default:
+		return meta, common.NewError("invalid traffic limit type")
+	}
+	if meta.TrafficResetDay == 0 {
+		meta.TrafficResetDay = 1
+	}
+	if meta.TrafficResetDay < 1 || meta.TrafficResetDay > 28 {
+		return meta, common.NewError("traffic reset day must be between 1 and 28")
+	}
+	return meta, nil
+}
+
+func truncateRunes(value string, limit int) string {
+	runes := []rune(strings.TrimSpace(value))
+	if len(runes) > limit {
+		return string(runes[:limit])
+	}
+	return string(runes)
 }
 
 func (s *AgentService) Delete(id uint) error {
@@ -319,6 +429,7 @@ func (s *AgentService) Delete(id uint) error {
 		return common.NewError("agent node not found")
 	}
 	invalidateHostRequirementsCache()
+	forgetAgentMetrics(id)
 	agentHistoryMu.Lock()
 	delete(agentHistory, id)
 	agentHistoryMu.Unlock()
@@ -357,6 +468,10 @@ func (s *AgentService) applyReport(token, remoteIP string, report agent.Report) 
 	if report.ConnMode != "" && report.ConnMode != "http" && report.ConnMode != "ws" {
 		return 0, common.NewError("invalid agent conn_mode")
 	}
+	report.CPUModel = truncateRunes(report.CPUModel, 128)
+	report.Platform = truncateRunes(report.Platform, 128)
+	report.Kernel = truncateRunes(report.Kernel, 128)
+	report.Virtualization = truncateRunes(report.Virtualization, 32)
 	payload, err := json.Marshal(report)
 	if err != nil {
 		return 0, err
@@ -365,6 +480,15 @@ func (s *AgentService) applyReport(token, remoteIP string, report agent.Report) 
 	var node model.AgentNode
 	if err := database.GetDB().Where("token_hash = ?", hash).First(&node).Error; err != nil {
 		return 0, common.NewError("invalid agent token")
+	}
+	// Read the previous counters before Updates overwrites node.Report.
+	var sentDelta, recvDelta uint64
+	if node.LastSeen > 0 && len(node.Report) > 0 {
+		var previous agent.Report
+		if json.Unmarshal(node.Report, &previous) == nil {
+			sentDelta = counterDelta(previous.Network.Sent, report.Network.Sent)
+			recvDelta = counterDelta(previous.Network.Recv, report.Network.Recv)
+		}
 	}
 	result := database.GetDB().Model(&node).Updates(map[string]interface{}{
 		"last_seen": time.Now().Unix(),
@@ -376,6 +500,7 @@ func (s *AgentService) applyReport(token, remoteIP string, report agent.Report) 
 		return 0, result.Error
 	}
 	appendAgentHistory(node.Id, report)
+	recordAgentMetric(node.Id, report, sentDelta, recvDelta)
 	return node.Id, nil
 }
 
@@ -409,6 +534,9 @@ func appendAgentHistory(id uint, report agent.Report) {
 		ProcessCount: report.ProcessCount,
 		NetSent:      report.NetRate.Sent,
 		NetRecv:      report.NetRate.Recv,
+		Load1:        report.Load.Load1,
+		TCPConns:     report.TCPConns,
+		UDPConns:     report.UDPConns,
 	}
 	if report.Memory.Total > 0 {
 		sample.MemPercent = float64(report.Memory.Used) * 100 / float64(report.Memory.Total)
@@ -457,8 +585,16 @@ func agentNodeView(node model.AgentNode, now time.Time, withHistory bool) AgentN
 	view.Controllable = live
 	view.Managed = live && view.Report.Panel.ControlAvailable
 	view.Latency = getAgentLatency(node.Id)
+	view.Traffic = periodTraffic(node, now)
+	view.AgentNodeMeta = AgentNodeMeta{
+		Group: node.Group, Tags: node.Tags, Region: node.Region, Remark: node.Remark,
+		Price: node.Price, Currency: node.Currency, BillingCycle: node.BillingCycle, ExpireAt: node.ExpireAt,
+		SortWeight: node.SortWeight, TrafficLimit: node.TrafficLimit, TrafficLimitType: node.TrafficLimitType,
+		TrafficResetDay: node.TrafficResetDay,
+	}
 	if withHistory {
 		view.History = getAgentHistory(node.Id)
+		view.LatencyLog = getAgentLatencyLog(node.Id)
 	}
 	return view
 }
@@ -564,4 +700,17 @@ func (s *SettingService) ValidateAgentEnrollmentKey(token string) error {
 		return common.NewError("invalid controller enrollment key")
 	}
 	return nil
+}
+
+// HasAgentEnrollmentKey reports whether a reusable enrollment key is active.
+// Only its hash is stored, so the key itself is shown once when generated.
+func (s *SettingService) HasAgentEnrollmentKey() bool {
+	hash, err := s.getString(agentEnrollmentKey)
+	return err == nil && len(strings.TrimSpace(hash)) == sha256.Size*2
+}
+
+// RevokeAgentEnrollmentKey stops new enrollments with the reusable key.
+// Servers that already enrolled keep their own per-node tokens.
+func (s *SettingService) RevokeAgentEnrollmentKey() error {
+	return s.setString(agentEnrollmentKey, "")
 }

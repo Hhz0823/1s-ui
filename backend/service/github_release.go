@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Hhz0823/1s-ui/database"
@@ -29,8 +30,14 @@ import (
 //     https://ghfast.top/https://github.com/...: first the one set under
 //     Settings, then the built-in ones. A mirror sees and could alter what it
 //     forwards, so the built-in mirrors only serve downloads whose SHA-256 is
-//     known from GitHub or built into the panel; the administrator's own
-//     mirror is trusted like GitHub.
+//     known: from the API, from the SHA256SUMS file of the release (on
+//     GitHub, or the same on two mirrors) or built into the panel. The
+//     administrator's own mirror is trusted like GitHub, and so are the
+//     built-in ones once the administrator picks the China line.
+//
+// The download line under Settings orders the sources: GitHub first (auto),
+// GitHub and the administrator's mirror only (github), or the mirrors first
+// (cn). A download that crawls is dropped for the next source.
 var builtinGitHubMirrors = []string{
 	"https://ghfast.top/",
 	"https://gh-proxy.com/",
@@ -81,22 +88,30 @@ func (s githubSource) name() string {
 }
 
 // githubSources lists GitHub, the mirror set under Settings and the built-in
-// mirrors, in that order.
+// mirrors, in the order of the download line.
 func githubSources() []githubSource {
-	sources := []githubSource{{trusted: true}}
-	configured := ""
+	configured, line := "", downloadLineAuto
 	if database.GetDB() != nil {
-		configured, _ = (&SettingService{}).GetGitHubMirror()
+		settings := &SettingService{}
+		configured, _ = settings.GetGitHubMirror()
+		line, _ = settings.GetDownloadLine()
 	}
+	github := githubSource{trusted: true}
+	var mirrors []githubSource
 	if configured != "" {
-		sources = append(sources, githubSource{prefix: configured, trusted: true})
+		mirrors = append(mirrors, githubSource{prefix: configured, trusted: true})
 	}
-	for _, prefix := range builtinGitHubMirrors {
-		if prefix != configured {
-			sources = append(sources, githubSource{prefix: prefix})
+	if line != downloadLineGitHub {
+		for _, prefix := range builtinGitHubMirrors {
+			if prefix != configured {
+				mirrors = append(mirrors, githubSource{prefix: prefix, trusted: line == downloadLineCN})
+			}
 		}
 	}
-	return sources
+	if line == downloadLineCN {
+		return append(mirrors, github)
+	}
+	return append([]githubSource{github}, mirrors...)
 }
 
 func urlHost(rawURL string) string {
@@ -235,18 +250,24 @@ func isGitHubAssetURL(rawURL, repo string) bool {
 
 // downloadGitHubAsset saves an asset to a temporary file, from GitHub or a
 // mirror. digest ("sha256:<hex>") is checked when known; without it only
-// GitHub and the administrator's mirror are used. status reports the source
-// being tried.
+// GitHub and trusted mirrors are used. status reports the source being tried.
 func downloadGitHubAsset(client *http.Client, assetURL, digest string, maxSize int64, pattern string, status func(source string)) (string, error) {
-	var attempts githubAttempts
-	for _, source := range githubSources() {
-		if !source.trusted && digest == "" {
-			continue
+	sources := githubSources()
+	if digest == "" && isGitHubAssetURL(assetURL, panelRepo) && hasUntrustedSource(sources) {
+		digest = releaseChecksum(client, sources, assetURL)
+	}
+	var usable []githubSource
+	for _, source := range sources {
+		if source.trusted || digest != "" {
+			usable = append(usable, source)
 		}
+	}
+	var attempts githubAttempts
+	for index, source := range usable {
 		if status != nil {
 			status(source.name())
 		}
-		name, err := downloadGitHubAssetFrom(client, source.url(assetURL), digest, maxSize, pattern)
+		name, err := downloadGitHubAssetFrom(client, source.url(assetURL), digest, maxSize, pattern, index < len(usable)-1)
 		if err == nil {
 			return name, nil
 		}
@@ -255,8 +276,142 @@ func downloadGitHubAsset(client *http.Client, assetURL, digest string, maxSize i
 	return "", attempts.err("download")
 }
 
-func downloadGitHubAssetFrom(client *http.Client, rawURL, digest string, maxSize int64, pattern string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), githubDownloadTimeout)
+func hasUntrustedSource(sources []githubSource) bool {
+	for _, source := range sources {
+		if !source.trusted {
+			return true
+		}
+	}
+	return false
+}
+
+// releaseChecksumsName is the file listing the SHA-256 of every asset of a
+// panel release, as sha256sum prints it.
+const releaseChecksumsName = "SHA256SUMS"
+
+// releaseChecksum finds an asset's SHA-256 in its release's SHA256SUMS, for
+// when the GitHub API is unreachable. A trusted source's copy is taken as it
+// is; the built-in mirrors' copies count only when two of them agree.
+func releaseChecksum(client *http.Client, sources []githubSource, assetURL string) string {
+	slash := strings.LastIndex(assetURL, "/")
+	name, err := url.PathUnescape(assetURL[slash+1:])
+	if slash < 0 || err != nil {
+		return ""
+	}
+	sumsURL := assetURL[:slash+1] + releaseChecksumsName
+	type result struct {
+		trusted bool
+		digest  string
+	}
+	results := make(chan result, len(sources))
+	for _, source := range sources {
+		go func(source githubSource) {
+			results <- result{trusted: source.trusted, digest: fetchReleaseChecksum(client, source.url(sumsURL), name)}
+		}(source)
+	}
+	agreeing := map[string]int{}
+	for range sources {
+		found := <-results
+		if found.digest == "" {
+			continue
+		}
+		if found.trusted {
+			return found.digest
+		}
+		agreeing[found.digest]++
+		if agreeing[found.digest] >= 2 {
+			return found.digest
+		}
+	}
+	return ""
+}
+
+func fetchReleaseChecksum(client *http.Client, rawURL, name string) string {
+	ctx, cancel := context.WithTimeout(context.Background(), githubLookupTimeout)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return ""
+	}
+	request.Header.Set("User-Agent", "1s-ui")
+	response, err := client.Do(request)
+	if err != nil {
+		return ""
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return ""
+	}
+	body, _ := io.ReadAll(io.LimitReader(response.Body, 64<<10))
+	return checksumFor(string(body), name)
+}
+
+// checksumFor reads name's line in sha256sum output as "sha256:<hex>".
+func checksumFor(sums, name string) string {
+	for _, line := range strings.Split(sums, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 || strings.TrimPrefix(fields[1], "*") != name {
+			continue
+		}
+		if decoded, err := hex.DecodeString(fields[0]); err == nil && len(decoded) == sha256.Size {
+			return "sha256:" + strings.ToLower(fields[0])
+		}
+	}
+	return ""
+}
+
+// A download from a source that is not the last one is dropped for the next
+// source when, after slowDownloadGrace, it has averaged under
+// slowDownloadMinRate or stalled for slowDownloadGrace.
+var (
+	slowDownloadGrace         = 20 * time.Second
+	slowDownloadMinRate int64 = 64 << 10 // bytes per second
+	errDownloadTooSlow        = errors.New("too slow")
+)
+
+type byteCounter struct{ total atomic.Int64 }
+
+func (c *byteCounter) Write(p []byte) (int, error) {
+	c.total.Add(int64(len(p)))
+	return len(p), nil
+}
+
+// watchDownloadSpeed cancels the download with errDownloadTooSlow when it
+// crawls. The returned function stops the watch.
+func watchDownloadSpeed(received *byteCounter, cancel context.CancelCauseFunc) func() {
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(slowDownloadGrace / 4)
+		defer ticker.Stop()
+		start := time.Now()
+		last, lastProgress := int64(0), start
+		for {
+			select {
+			case <-done:
+				return
+			case now := <-ticker.C:
+				got := received.total.Load()
+				if got != last {
+					last, lastProgress = got, now
+				}
+				elapsed := now.Sub(start)
+				if elapsed < slowDownloadGrace {
+					continue
+				}
+				if now.Sub(lastProgress) >= slowDownloadGrace || float64(got) < elapsed.Seconds()*float64(slowDownloadMinRate) {
+					cancel(errDownloadTooSlow)
+					return
+				}
+			}
+		}
+	}()
+	return func() { close(done) }
+}
+
+func downloadGitHubAssetFrom(client *http.Client, rawURL, digest string, maxSize int64, pattern string, dropIfSlow bool) (string, error) {
+	parent, cancelSlow := context.WithCancelCause(context.Background())
+	defer cancelSlow(nil)
+	ctx, cancel := context.WithTimeout(parent, githubDownloadTimeout)
 	defer cancel()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
@@ -288,8 +443,16 @@ func downloadGitHubAssetFrom(client *http.Client, rawURL, digest string, maxSize
 		}
 	}()
 	hash := sha256.New()
-	written, err := io.Copy(io.MultiWriter(file, hash), io.LimitReader(response.Body, maxSize+1))
+	received := &byteCounter{}
+	if dropIfSlow {
+		stop := watchDownloadSpeed(received, cancelSlow)
+		defer stop()
+	}
+	written, err := io.Copy(io.MultiWriter(file, hash, received), io.LimitReader(response.Body, maxSize+1))
 	if err != nil {
+		if cause := context.Cause(ctx); errors.Is(cause, errDownloadTooSlow) {
+			return "", cause
+		}
 		return "", err
 	}
 	if written > maxSize {

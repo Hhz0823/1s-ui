@@ -22,6 +22,10 @@ const emptyControllerMode = () => ({
   memory_bytes: 0,
   min_cpu_cores: 2,
   min_memory_bytes: 2 * 1024 ** 3,
+  lite: false,
+  singbox_only: false,
+  lite_min_cpu_cores: 1,
+  lite_min_memory_bytes: 400 * 1024 ** 2,
 })
 
 const Data = defineStore('Data', {

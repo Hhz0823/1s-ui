@@ -67,18 +67,7 @@
                 />
               </template>
               <v-card class="theme-card" elevation="8">
-                <div class="theme-grid">
-                  <button
-                    v-for="th in themes"
-                    :key="th.value"
-                    @click="changeTheme(th.value)"
-                    class="theme-chip"
-                    :class="{ 'theme-chip--active': isActiveTheme(th.value) }"
-                  >
-                    <v-icon :icon="th.icon" size="16" />
-                    <span>{{ $t('theme.' + th.value) }}</span>
-                  </button>
-                </div>
+                <theme-picker compact />
               </v-card>
             </v-menu>
           </div>
@@ -90,16 +79,13 @@
 
 <script lang="ts" setup>
 import { ref } from "vue"
-import { useLocale, useTheme } from 'vuetify'
+import { useLocale } from 'vuetify'
 import { i18n, languages } from '@/locales'
 import { useRouter } from 'vue-router'
 import HttpUtil from '@/plugins/httputil'
-import { savedTheme, themeChoices } from '@/plugins/themes'
+import ThemePicker from '@/components/ThemePicker.vue'
 
-const theme = useTheme()
 const locale = useLocale()
-
-const themes = themeChoices
 
 const username = ref('')
 const usernameRules = [
@@ -138,11 +124,6 @@ const changeLocale = (l: any) => {
   locale.current.value = l ?? 'zhHans'
   localStorage.setItem('locale', locale.current.value)
 }
-const changeTheme = (th: string) => {
-  theme.change(th)
-  localStorage.setItem('theme', th)
-}
-const isActiveTheme = (th: string) => savedTheme() == th
 </script>
 
 <style scoped>
@@ -253,46 +234,11 @@ const isActiveTheme = (th: string) => savedTheme() == th
 }
 
 .theme-card {
+  width: min(420px, calc(100vw - 24px));
+  max-height: min(560px, calc(100vh - 80px));
+  overflow-y: auto !important;
+  padding: 10px;
   border-radius: 8px !important;
-  overflow: hidden;
-  min-width: 240px;
-}
-
-.theme-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  padding: 8px;
-}
-
-.theme-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  background: transparent;
-  background-clip: padding-box;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 500;
-  color: rgb(var(--v-theme-on-surface));
-  transition: all 0.2s ease;
-  font-family: inherit;
-  isolation: isolate;
-  overflow: hidden;
-  clip-path: inset(0 round 8px);
-}
-
-.theme-chip:hover {
-  background: rgba(var(--v-theme-primary), 0.08);
-}
-
-.theme-chip--active {
-  background: rgba(var(--v-theme-primary), 0.12);
-  border-color: rgba(var(--v-theme-primary), 0.3);
-  color: rgb(var(--v-theme-primary));
 }
 
 .login-card :deep(.v-text-field),

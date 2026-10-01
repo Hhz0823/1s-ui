@@ -51,3 +51,7 @@ func (s *XrayInstallService) SetEnabled(enabled bool) (XrayInstallStatus, error)
 func (s *XrayInstallService) Uninstall() (XrayInstallStatus, error) {
 	return s.Status(), errors.New("OpenWrt Lite uses sing-box only")
 }
+
+func isSingboxOnlyRuntime() bool { return true }
+
+func switchToSingboxOnly() error { return nil }

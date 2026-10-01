@@ -30,6 +30,14 @@ type PortTrafficItem struct {
 	DownloadBytes int64  `json:"download_bytes"`
 	UploadLimit   int64  `json:"upload_limit"`
 	DownloadLimit int64  `json:"download_limit"`
+	// Monthly cap: bytes used this period, the cap, and when it resets.
+	TrafficLimit    int64 `json:"traffic_limit"`
+	TrafficUsed     int64 `json:"traffic_used"`
+	TrafficResetDay int   `json:"traffic_reset_day"`
+	NextReset       int64 `json:"next_reset"`
+	Exhausted       bool  `json:"exhausted"`
+	IPLimit         int   `json:"ip_limit"`
+	ActiveIPs       int   `json:"active_ips"`
 }
 
 type PortTrafficService struct{}
@@ -56,9 +64,12 @@ func (s *PortTrafficService) GetPortTraffic() (*PortTrafficResponse, error) {
 	}
 	sampledAt := time.Now().Unix()
 	traffic := make(map[string]core.InboundTrafficSnapshot)
+	activeIPs := make(map[string]int)
 	if corePtr != nil && corePtr.IsRunning() && corePtr.GetInstance() != nil && corePtr.GetInstance().StatsTracker() != nil {
 		sampledAt, traffic = corePtr.GetInstance().StatsTracker().InboundTrafficSnapshot()
+		activeIPs = corePtr.GetInstance().StatsTracker().InboundActiveIPs()
 	}
+	now := time.Now().In(trafficLocation())
 	persisted := make(map[string]trafficTotalsByDirection)
 	if trafficAge > 0 {
 		persisted, err = persistedInboundTraffic()
@@ -88,7 +99,17 @@ func (s *PortTrafficService) GetPortTraffic() (*PortTrafficResponse, error) {
 			Supported: inbound.RuntimeCore() == model.CoreTypeSingBox,
 			UploadBPS: current.UploadBPS, DownloadBPS: current.DownloadBPS,
 			UploadLimit: inbound.UploadLimit, DownloadLimit: inbound.DownloadLimit,
+			TrafficLimit: inbound.TrafficLimit, TrafficResetDay: inbound.TrafficResetDay,
+			TrafficUsed: inbound.TrafficUsed + current.UploadPending + current.DownloadPending,
+			IPLimit:     inbound.IPLimit, ActiveIPs: activeIPs[inbound.Tag],
 		}
+		periodStart := trafficPeriodStart(now, inbound.TrafficResetDay)
+		if inbound.TrafficPeriodStart < periodStart.Unix() {
+			// The stats job has not rolled this period over yet.
+			item.TrafficUsed = current.UploadPending + current.DownloadPending
+		}
+		item.NextReset = nextTrafficReset(periodStart, inbound.TrafficResetDay).Unix()
+		item.Exhausted = item.TrafficLimit > 0 && item.TrafficUsed >= item.TrafficLimit
 		item.UploadBytes, item.DownloadBytes = portTrafficTotals(persisted[inbound.Tag], current, trafficAge > 0)
 		if !item.Supported {
 			item.Online = false

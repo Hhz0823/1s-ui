@@ -42,6 +42,26 @@
             </v-chip>
           </div>
           <v-alert
+            v-if="controllerMode.lite"
+            type="info"
+            variant="tonal"
+            density="compact"
+            class="mt-3"
+            icon="mdi-feather"
+          >
+            {{ $t('setting.roleLiteActive') }}
+          </v-alert>
+          <v-alert
+            v-else-if="controllerMode.profile === 'client' && controllerMode.can_enable && hostBelowCluster"
+            type="info"
+            variant="tonal"
+            density="compact"
+            class="mt-3"
+            icon="mdi-feather"
+          >
+            {{ $t('setting.roleLiteNotice') }}
+          </v-alert>
+          <v-alert
             :type="controllerMode.profile === 'client' ? 'success' : 'info'"
             variant="tonal"
             density="compact"
@@ -76,7 +96,7 @@
               >{{ option.title }}</v-btn>
             </v-btn-toggle>
             <span class="text-caption text-medium-emphasis">
-              {{ controllerMode.can_enable ? $t('setting.roleResourceReady') : '2 CPU / 2 GiB' }}
+              {{ controllerMode.can_enable ? $t(hostBelowCluster ? 'setting.roleResourceLite' : 'setting.roleResourceReady') : liteFloorLabel }}
             </span>
           </div>
         </section>
@@ -122,7 +142,16 @@
           </v-alert>
           <template v-else>
             <v-alert
-              v-if="xrayInstall.low_resource"
+              v-if="controllerMode.lite"
+              type="info"
+              variant="tonal"
+              density="compact"
+              class="mt-3"
+            >
+              {{ $t('setting.xrayLiteControllerHint') }}
+            </v-alert>
+            <v-alert
+              v-else-if="xrayInstall.low_resource"
               type="warning"
               variant="tonal"
               density="compact"
@@ -186,7 +215,7 @@
                 color="primary"
                 prepend-icon="mdi-download"
                 :loading="xrayInstallLoading || xrayInstallRunning"
-                :disabled="!xrayInstall.can_install || xrayInstallActionLoading || xrayInstall.running"
+                :disabled="!xrayInstall.can_install || xrayInstallActionLoading || xrayInstall.running || controllerMode.lite"
                 @click="requestXrayInstall"
               >
                 {{ xrayInstall.installed ? $t('setting.xrayReinstall') : $t('setting.xrayInstallNow') }}
@@ -197,7 +226,7 @@
                   :variant="xrayInstall.disabled ? 'elevated' : 'tonal'"
                   :prepend-icon="xrayInstall.disabled ? 'mdi-power-plug-outline' : 'mdi-power-plug-off-outline'"
                   :loading="xrayInstallAction === 'enabled'"
-                  :disabled="xrayInstallActionLoading || xrayInstallRunning"
+                  :disabled="xrayInstallActionLoading || xrayInstallRunning || (xrayInstall.disabled && controllerMode.lite)"
                   @click="setXrayEnabled(xrayInstall.disabled)"
                 >
                   {{ xrayInstall.disabled ? $t('setting.xrayEnable') : $t('setting.xrayDisable') }}
@@ -326,6 +355,16 @@
             {{ $t('setting.githubUnreachableHint') }}
           </v-alert>
           <v-row class="mt-3">
+            <v-col cols="12" lg="10">
+              <v-select
+                v-model="settings.downloadLine"
+                :items="downloadLineOptions"
+                :label="$t('setting.downloadLine')"
+                :hint="$t('setting.downloadLineHint')"
+                persistent-hint
+                prepend-inner-icon="mdi-map-marker-path"
+              ></v-select>
+            </v-col>
             <v-col cols="12" lg="10">
               <v-text-field
                 v-model="settings.githubMirror"
@@ -516,9 +555,11 @@
               placeholder="0 0 1 * *"></v-text-field>
           </v-col>
         </v-row>
+        <MonitorAppKey />
       </v-window-item>
 
       <v-window-item value="t1">
+        <theme-settings />
         <div class="text-subtitle-2 font-weight-bold mb-3" style="letter-spacing: 0.02em;">{{ $t('setting.uiCustomization') }}</div>
         <v-row>
           <v-col cols="12" sm="6" md="4">
@@ -831,12 +872,14 @@
 
 <script lang="ts" setup>
 import { i18n } from '@/locales'
-import { Ref, computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { Ref, computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import ThemeSettings from '@/components/ThemeSettings.vue'
 import HttpUtils from '@/plugins/httputil'
 import { FindDiff } from '@/plugins/utils'
 import SubJsonExtVue from '@/components/SubJsonExt.vue'
 import SubClashExtVue from '@/components/SubClashExt.vue'
+import MonitorAppKey from '@/components/MonitorAppKey.vue'
 import { push } from 'notivue'
 import bgAsset from '@/assets/bg.jpg'
 import { backendBaseUrl, resolveFrontendUrl, runtimeConfig } from '@/utils/backend'
@@ -954,7 +997,12 @@ const emptyReverseProxyStatus = (): ReverseProxyStatus => ({
   message: '',
 })
 
-const tab = ref("t0")
+const route = useRoute()
+const tabs = ['t0', 't1', 't2', 't3', 't4', 't5']
+const queryTab = () => (tabs.includes(String(route.query.tab)) ? String(route.query.tab) : '')
+// ?tab=t1 opens a tab directly, e.g. from the theme menu in the header.
+const tab = ref(queryTab() || "t0")
+watch(() => route.query.tab, () => { if (queryTab()) tab.value = queryTab() })
 
 const versionInfo = ref<VersionInfo>(emptyVersionInfo())
 const versionLoading = ref(false)
@@ -976,7 +1024,16 @@ const controllerProfileOptions = computed(() => [
   { value: 'full', title: i18n.global.t('setting.roleFull'), icon: 'mdi-server-network' },
   { value: 'monitor', title: i18n.global.t('setting.roleMonitor'), icon: 'mdi-monitor-eye' },
 ])
-const controllerProfileLabel = computed(() => i18n.global.t(`setting.role${controllerMode.value.profile === 'full' ? 'Full' : controllerMode.value.profile === 'monitor' ? 'Monitor' : 'Client'}`))
+const controllerProfileLabel = computed(() => {
+  const label = i18n.global.t(`setting.role${controllerMode.value.profile === 'full' ? 'Full' : controllerMode.value.profile === 'monitor' ? 'Monitor' : 'Client'}`)
+  return controllerMode.value.lite ? `${label} · ${i18n.global.t('setting.roleLite')}` : label
+})
+// Below the cluster minimum the controller runs in lite mode (sing-box only).
+const hostBelowCluster = computed(() =>
+  controllerMode.value.cpu_cores < controllerMode.value.min_cpu_cores ||
+  controllerMode.value.memory_bytes < controllerMode.value.min_memory_bytes)
+const liteFloorLabel = computed(() =>
+  `${controllerMode.value.lite_min_cpu_cores} CPU / ${Math.round(controllerMode.value.lite_min_memory_bytes / 1024 / 1024)} MiB`)
 const controllerProfileHint = computed(() => i18n.global.t(`setting.role${controllerMode.value.profile === 'full' ? 'Full' : controllerMode.value.profile === 'monitor' ? 'Monitor' : 'Client'}Hint`))
 
 const xrayInstallRunning = computed(() => ['downloading', 'installing'].includes(xrayInstall.value.install.state))
@@ -1192,7 +1249,14 @@ const settings = ref({
   congestionAlgo: "",
   qdisc: "",
   githubMirror: "",
+  downloadLine: "auto",
 })
+
+const downloadLineOptions = computed(() => [
+  { title: i18n.global.t('setting.downloadLineAuto'), value: 'auto' },
+  { title: i18n.global.t('setting.downloadLineCN'), value: 'cn' },
+  { title: i18n.global.t('setting.downloadLineGitHub'), value: 'github' },
+])
 
 const reverseProxyLoading = ref(false)
 const reverseProxyStatus = ref<ReverseProxyStatus>(emptyReverseProxyStatus())
@@ -1272,6 +1336,8 @@ const setControllerMode = async (profile: string) => {
   if (msg.success && msg.obj) {
     dataStore.assignControllerMode(msg.obj)
     push.success({ message: i18n.global.t('setting.roleUpdated') })
+    // A lite controller may have just turned Xray-core off.
+    if (msg.obj.lite) await loadXrayInstall()
   }
   pendingControllerProfile.value = ''
   controllerModeLoading.value = false
@@ -1331,6 +1397,7 @@ const setXrayEnabled = async (enabled: boolean) => {
   if (msg.success) {
     assignXrayInstallStatus(msg.obj)
     push.success({ message: i18n.global.t(enabled ? 'setting.xrayEnabledSuccess' : 'setting.xrayDisabledSuccess') })
+    await dataStore.loadControllerMode(true)
   }
   xrayInstallAction.value = ''
 }
@@ -1723,7 +1790,7 @@ const applyCongestion = async () => {
   }
 }
 
-.ui-choice-field,
+:deep(.ui-choice-field),
 .ui-range-field {
   min-height: 64px;
   border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
@@ -1733,7 +1800,7 @@ const applyCongestion = async () => {
   padding: 8px;
 }
 
-.ui-choice-label,
+:deep(.ui-choice-label),
 .ui-range-header {
   color: rgba(var(--v-theme-on-surface), 0.68);
   font-size: 12px;
@@ -1741,14 +1808,14 @@ const applyCongestion = async () => {
   margin-bottom: 7px;
 }
 
-.ui-choice-group {
+:deep(.ui-choice-group) {
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
   gap: 4px;
 }
 
-.ui-choice-button {
+:deep(.ui-choice-button) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1772,11 +1839,11 @@ const applyCongestion = async () => {
   clip-path: inset(0 round 8px);
 }
 
-.ui-choice-button:hover {
+:deep(.ui-choice-button:hover) {
   background: rgba(var(--v-theme-primary), 0.08);
 }
 
-.ui-choice-button.is-active {
+:deep(.ui-choice-button.is-active) {
   background: rgba(var(--v-theme-primary), 0.92);
   color: rgb(var(--v-theme-on-primary));
   box-shadow: 0 6px 16px rgba(var(--v-theme-primary), 0.22);
@@ -1861,12 +1928,12 @@ const applyCongestion = async () => {
 }
 
 @media (max-width: 560px) {
-  .ui-choice-group {
+  :deep(.ui-choice-group) {
     grid-auto-flow: row;
     grid-auto-columns: unset;
   }
 
-  .ui-choice-button {
+  :deep(.ui-choice-button) {
     justify-content: center;
     white-space: normal;
   }
