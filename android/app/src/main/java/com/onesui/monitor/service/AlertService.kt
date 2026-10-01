@@ -18,6 +18,7 @@ import com.onesui.monitor.MonitorApp
 import com.onesui.monitor.R
 import com.onesui.monitor.data.AlertEvaluator
 import com.onesui.monitor.data.MonitorClient
+import com.onesui.monitor.data.ProxyAlertEvaluator
 import com.onesui.monitor.data.ServerAlertState
 import com.onesui.monitor.data.Store
 import com.onesui.monitor.ui.MainActivity
@@ -38,6 +39,7 @@ class AlertService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var loop: Job? = null
     private val states = mutableMapOf<String, ServerAlertState>()
+    private val proxyStates = mutableMapOf<String, Boolean>()
     private val unreachable = mutableSetOf<String>()
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -74,6 +76,13 @@ class AlertService : Service() {
                 val (alerts, next) = AlertEvaluator.evaluate(panel, overview.servers, states, settings)
                 states.putAll(next)
                 alerts.forEach { notify(it.key, it.title, it.text, it.recovered) }
+                if (settings.alertProxies && overview.features.proxyMonitors) {
+                    runCatching { MonitorClient(panel).proxies() }.getOrNull()?.let { monitors ->
+                        val (proxyAlerts, proxyNext) = ProxyAlertEvaluator.evaluate(panel, monitors, proxyStates)
+                        proxyStates.putAll(proxyNext)
+                        proxyAlerts.forEach { notify(it.key, it.title, it.text, it.recovered) }
+                    }
+                }
                 total += overview.servers.size
                 online += overview.servers.count { it.online }
             }

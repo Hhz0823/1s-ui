@@ -1,7 +1,6 @@
 package com.onesui.monitor.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,16 +20,12 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -44,7 +39,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,33 +48,40 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.onesui.monitor.data.Format
+import com.onesui.monitor.data.MonitorController
+import com.onesui.monitor.data.Screen
 import com.onesui.monitor.data.Server
+import com.onesui.monitor.data.UiState
 
 private enum class StatusFilter(val label: String) { ALL("全部"), ONLINE("在线"), OFFLINE("离线") }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ServersScreen(state: UiState, vm: MonitorViewModel) {
+fun ServersScreen(state: UiState, vm: MonitorController) {
     var filter by rememberSaveable { mutableStateOf(StatusFilter.ALL) }
     var group by rememberSaveable { mutableStateOf("") }
+    var panelFilter by rememberSaveable { mutableStateOf("") }
     var query by rememberSaveable { mutableStateOf("") }
     var searching by rememberSaveable { mutableStateOf(false) }
-    val servers = state.overview?.servers.orEmpty()
-    val groups = servers.map { it.group }.filter { it.isNotBlank() }.distinct().sorted()
-    val shown = servers.filter { server ->
+    val servers = state.servers
+    val groups = servers.map { it.server.group }.filter { it.isNotBlank() }.distinct().sorted()
+    val inScope = servers.filter { panelFilter.isEmpty() || it.panel.id == panelFilter }
+    val shown = inScope.filter { item ->
+        val server = item.server
         when (filter) {
             StatusFilter.ALL -> true
             StatusFilter.ONLINE -> server.online
             StatusFilter.OFFLINE -> !server.online
         } && (group.isEmpty() || server.group == group) &&
-            (query.isBlank() || listOf(server.name, server.hostname, server.remoteIp, server.publicHost, server.remark)
+            (query.isBlank() || listOf(server.name, server.hostname, server.remoteIp, server.publicHost, server.remark, item.panel.name)
                 .any { it.contains(query.trim(), ignoreCase = true) })
     }
+    val loaded = state.scopedPanels.any { state.data[it.id]?.overview != null }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { PanelSwitcher(state, vm) },
+                title = { PanelSwitcher(state, vm, "服务器监控") },
                 actions = {
                     IconButton(onClick = { searching = !searching; if (!searching) query = "" }) {
                         Icon(Icons.Default.Search, contentDescription = "搜索")
@@ -90,6 +91,7 @@ fun ServersScreen(state: UiState, vm: MonitorViewModel) {
                 },
             )
         },
+        bottomBar = { HomeBar(state, vm) },
     ) { padding ->
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 320.dp),
@@ -103,84 +105,76 @@ fun ServersScreen(state: UiState, vm: MonitorViewModel) {
                     OutlinedTextField(
                         value = query,
                         onValueChange = { query = it },
-                        placeholder = { Text("按名称、主机名或 IP 搜索") },
+                        placeholder = { Text("按名称、主机名、IP 或面板搜索") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
-            item(span = { GridItemSpan(maxLineSpan) }) { SummaryCard(servers, state) }
+            item(span = { GridItemSpan(maxLineSpan) }) { SummaryCard(inScope.map { it.server }, state, loaded) }
+            state.panelErrors.forEach { (panel, error) ->
+                item(span = { GridItemSpan(maxLineSpan) }, key = "error-${panel.id}") {
+                    Text(
+                        "${panel.name}：$error",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
+                }
+            }
             item(span = { GridItemSpan(maxLineSpan) }) {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(StatusFilter.entries.toList()) { f ->
                         val count = when (f) {
-                            StatusFilter.ALL -> servers.size
-                            StatusFilter.ONLINE -> servers.count { it.online }
-                            StatusFilter.OFFLINE -> servers.count { !it.online }
+                            StatusFilter.ALL -> inScope.size
+                            StatusFilter.ONLINE -> inScope.count { it.server.online }
+                            StatusFilter.OFFLINE -> inScope.count { !it.server.online }
                         }
                         FilterChip(selected = filter == f, onClick = { filter = f }, label = { Text("${f.label} $count") })
+                    }
+                    if (state.allPanels) {
+                        items(state.panels) { panel ->
+                            FilterChip(
+                                selected = panelFilter == panel.id,
+                                onClick = { panelFilter = if (panelFilter == panel.id) "" else panel.id },
+                                label = { Text(panel.name) },
+                            )
+                        }
                     }
                     items(groups) { g ->
                         FilterChip(selected = group == g, onClick = { group = if (group == g) "" else g }, label = { Text(g) })
                     }
                 }
             }
-            if (state.overview == null) {
+            if (!loaded) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
-                        if (state.error != null) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(state.error, color = MaterialTheme.colorScheme.error)
-                                TextButton(onClick = vm::refresh) { Text("重试") }
-                            }
+                        if (state.panelErrors.isNotEmpty()) {
+                            TextButton(onClick = vm::refresh) { Text("重试") }
                         } else {
                             CircularProgressIndicator()
                         }
                     }
                 }
             }
-            items(shown, key = { (if (it.local) "l" else "n") + it.id }) { server ->
-                ServerCard(server) { vm.openServer(server) }
+            items(shown, key = { it.key }) { item ->
+                ServerCard(item.server, if (state.allPanels) item.panel.name else "") { vm.openServer(item) }
             }
         }
     }
 }
 
 @Composable
-private fun PanelSwitcher(state: UiState, vm: MonitorViewModel) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.clickable { open = true },
-        ) {
-            Text(state.panel?.name ?: "服务器监控", maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Icon(Icons.Default.ArrowDropDown, contentDescription = "切换面板")
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            state.panels.forEach { panel ->
-                DropdownMenuItem(
-                    text = { Text(panel.name) },
-                    leadingIcon = { if (panel.id == state.panelId) Icon(Icons.Default.Check, contentDescription = null) },
-                    onClick = { open = false; vm.selectPanel(panel.id) },
-                )
-            }
-            DropdownMenuItem(text = { Text("绑定新面板…") }, onClick = { open = false; vm.navigate(Screen.BIND) })
-        }
-    }
-}
-
-@Composable
-private fun SummaryCard(servers: List<Server>, state: UiState) {
+private fun SummaryCard(servers: List<Server>, state: UiState, loaded: Boolean) {
     val online = servers.filter { it.online }
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("在线 ${online.size} / ${servers.size}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
-                val stale = state.error != null && state.overview != null
+                val stale = loaded && state.panelErrors.isNotEmpty()
                 Text(
-                    if (stale) "连接中断：${state.error}" else if (state.updatedAt > 0) "实时" else "",
+                    if (stale) "${state.panelErrors.size} 个面板连接中断" else if (loaded) "实时" else "",
                     style = MaterialTheme.typography.labelSmall,
                     color = if (stale) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onPrimaryContainer,
                     maxLines = 1,
@@ -202,7 +196,7 @@ private fun SummaryCard(servers: List<Server>, state: UiState) {
 }
 
 @Composable
-fun ServerCard(server: Server, onClick: () -> Unit) {
+fun ServerCard(server: Server, panelName: String = "", onClick: () -> Unit) {
     Card(
         onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -221,6 +215,7 @@ fun ServerCard(server: Server, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
+                if (panelName.isNotBlank()) Tag(panelName)
                 if (server.local) Tag("主控")
                 Text(
                     if (server.online) Format.uptime(server.uptime) else Format.ago(server.lastSeen),

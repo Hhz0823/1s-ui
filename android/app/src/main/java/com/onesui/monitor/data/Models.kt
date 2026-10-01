@@ -75,21 +75,251 @@ data class Server(
     val currency: String,
 )
 
+/** What a panel lets its monitor key do; older panels report nothing. */
+data class Features(
+    val nodes: Boolean = false,
+    val proxyMonitors: Boolean = false,
+    val manageProxies: Boolean = false,
+    val speedtest: Boolean = false,
+    val speedtestPort: Int = 0,
+)
+
 data class Overview(
     val panelVersion: String,
     val serverTime: Long,
     val servers: List<Server>,
+    val features: Features = Features(),
+)
+
+/** One inbound of a server: what it is and its traffic, never its secrets. */
+data class NodeItem(
+    val id: Long,
+    val tag: String,
+    val type: String,
+    val coreType: String,
+    val listen: String,
+    val port: Int,
+    val online: Boolean,
+    val uploadBps: Long,
+    val downloadBps: Long,
+    val uploadBytes: Long,
+    val downloadBytes: Long,
+    val trafficLimit: Long,
+    val trafficUsed: Long,
+    val exhausted: Boolean,
+    val ipLimit: Int,
+    val activeIps: Int,
+    val security: String,
+    val transport: String,
+    val encryption: Boolean,
+    val users: Int,
+    val cdn: String,
+) {
+    /** Protocols that carry their traffic over UDP, where a TCP ping says nothing. */
+    val udpOnly: Boolean get() = type in setOf("hysteria", "hysteria2", "tuic", "wireguard")
+}
+
+/** One proxy check, from the panel host or the server chosen to run it. */
+data class ProbeResult(
+    val ok: Boolean,
+    val time: Long,
+    val connectMs: Long,
+    val handshakeMs: Long,
+    val tlsMs: Long,
+    val ttfbMs: Long,
+    val latencyMs: Long,
+    val status: Int,
+    val exitIp: String,
+    val country: String,
+    val stage: String,
+    val error: String,
+)
+
+data class ProbePoint(val time: Long, val ok: Boolean, val latencyMs: Long)
+
+data class ProxyMonitor(
+    val id: Long,
+    val name: String,
+    val type: String,
+    val host: String,
+    val port: Int,
+    val username: String,
+    val hasPassword: Boolean,
+    val target: String,
+    val serverId: Long,
+    val serverName: String,
+    val interval: Int,
+    val enabled: Boolean,
+    val status: String,
+    val last: ProbeResult?,
+    val uptime: Double,
+    val avgLatency: Double,
+    val checks: Int,
+    val recent: List<ProbePoint>,
+)
+
+data class ProxyBucket(val time: Long, val checks: Int, val failures: Int, val latencyMs: Double, val maxMs: Long)
+
+data class ExitIp(val ip: String, val country: String, val firstSeen: Long, val lastSeen: Long, val checks: Int)
+
+data class ProxyDetail(
+    val monitor: ProxyMonitor,
+    val range: Long,
+    val points: List<ProxyBucket>,
+    val failures: List<ProbeResult>,
+    val exitIps: List<ExitIp>,
+)
+
+/** What the editor sends; a null password keeps the stored one. */
+data class ProxyInput(
+    val id: Long = 0,
+    val name: String = "",
+    val link: String = "",
+    val type: String = "socks5",
+    val host: String = "",
+    val port: Int = 0,
+    val username: String = "",
+    val password: String? = null,
+    val target: String = "",
+    val serverId: Long = 0,
+    val interval: Int = 60,
+    val enabled: Boolean = true,
+) {
+    fun toJson(): JSONObject = JSONObject()
+        .put("id", id)
+        .put("name", name)
+        .put("link", link)
+        .put("type", type)
+        .put("host", host)
+        .put("port", port)
+        .put("username", username)
+        .put("password", password ?: JSONObject.NULL)
+        .put("target", target)
+        .put("server_id", serverId)
+        .put("interval", interval)
+        .put("enabled", enabled)
+}
+
+/** A speed test session on one server. */
+data class SpeedtestTarget(
+    val token: String,
+    val port: Int,
+    val expiresAt: Long,
+    val maxSeconds: Int,
+    val maxUdpMbps: Int,
+    val hosts: List<String>,
 )
 
 object MonitorJson {
     fun parseOverview(obj: JSONObject): Overview {
         val servers = obj.optJSONArray("servers")
+        val features = obj.optJSONObject("features")
         return Overview(
             panelVersion = obj.optString("panel_version"),
             serverTime = obj.optLong("server_time"),
             servers = servers.objects().map(::parseServer),
+            features = if (features == null) Features() else Features(
+                nodes = features.optBoolean("nodes"),
+                proxyMonitors = features.optBoolean("proxy_monitors"),
+                manageProxies = features.optBoolean("manage_proxies"),
+                speedtest = features.optBoolean("speedtest"),
+                speedtestPort = features.optInt("speedtest_port"),
+            ),
         )
     }
+
+    fun parseNodes(obj: JSONObject): List<NodeItem> = obj.optJSONArray("items").objects().map { item ->
+        NodeItem(
+            id = item.optLong("id"),
+            tag = item.optString("tag"),
+            type = item.optString("type"),
+            coreType = item.optString("core_type"),
+            listen = item.optString("listen"),
+            port = item.optInt("port"),
+            online = item.optBoolean("online"),
+            uploadBps = item.optLong("upload_bps"),
+            downloadBps = item.optLong("download_bps"),
+            uploadBytes = item.optLong("upload_bytes"),
+            downloadBytes = item.optLong("download_bytes"),
+            trafficLimit = item.optLong("traffic_limit"),
+            trafficUsed = item.optLong("traffic_used"),
+            exhausted = item.optBoolean("exhausted"),
+            ipLimit = item.optInt("ip_limit"),
+            activeIps = item.optInt("active_ips"),
+            security = item.optString("security"),
+            transport = item.optString("transport"),
+            encryption = item.optBoolean("encryption"),
+            users = item.optInt("users"),
+            cdn = item.optString("cdn"),
+        )
+    }
+
+    fun parseProbe(obj: JSONObject) = ProbeResult(
+        ok = obj.optBoolean("ok"),
+        time = obj.optLong("time"),
+        connectMs = obj.optLong("connect_ms"),
+        handshakeMs = obj.optLong("handshake_ms"),
+        tlsMs = obj.optLong("tls_ms"),
+        ttfbMs = obj.optLong("ttfb_ms"),
+        latencyMs = obj.optLong("latency_ms"),
+        status = obj.optInt("status"),
+        exitIp = obj.optString("exit_ip"),
+        country = obj.optString("country"),
+        stage = obj.optString("stage"),
+        error = obj.optString("error"),
+    )
+
+    fun parseProxy(obj: JSONObject) = ProxyMonitor(
+        id = obj.optLong("id"),
+        name = obj.optString("name"),
+        type = obj.optString("type"),
+        host = obj.optString("host"),
+        port = obj.optInt("port"),
+        username = obj.optString("username"),
+        hasPassword = obj.optBoolean("has_password"),
+        target = obj.optString("target"),
+        serverId = obj.optLong("server_id"),
+        serverName = obj.optString("server_name"),
+        interval = obj.optInt("interval"),
+        enabled = obj.optBoolean("enabled"),
+        status = obj.optString("status"),
+        last = obj.optJSONObject("last")?.let(::parseProbe),
+        uptime = obj.optDouble("uptime", 0.0).finite(),
+        avgLatency = obj.optDouble("avg_latency", 0.0).finite(),
+        checks = obj.optInt("checks"),
+        recent = obj.optJSONArray("recent").objects().map {
+            ProbePoint(it.optLong("time"), it.optBoolean("ok"), it.optLong("latency_ms"))
+        },
+    )
+
+    fun parseProxies(array: JSONArray?): List<ProxyMonitor> = array.objects().map(::parseProxy)
+
+    fun parseProxyDetail(obj: JSONObject) = ProxyDetail(
+        monitor = parseProxy(obj),
+        range = obj.optLong("range"),
+        points = obj.optJSONArray("points").objects().map {
+            ProxyBucket(
+                time = it.optLong("time"),
+                checks = it.optInt("checks"),
+                failures = it.optInt("failures"),
+                latencyMs = it.optDouble("latency_ms", 0.0).finite(),
+                maxMs = it.optLong("max_ms"),
+            )
+        },
+        failures = obj.optJSONArray("failures").objects().map(::parseProbe),
+        exitIps = obj.optJSONArray("exit_ips").objects().map {
+            ExitIp(it.optString("ip"), it.optString("country"), it.optLong("first_seen"), it.optLong("last_seen"), it.optInt("checks"))
+        },
+    )
+
+    fun parseSpeedtest(obj: JSONObject) = SpeedtestTarget(
+        token = obj.optString("token"),
+        port = obj.optInt("port"),
+        expiresAt = obj.optLong("expires_at"),
+        maxSeconds = obj.optInt("max_seconds", 15),
+        maxUdpMbps = obj.optInt("max_udp_mbps", 1000),
+        hosts = obj.optJSONArray("hosts").strings(),
+    )
 
     fun parseServer(obj: JSONObject): Server {
         val report = obj.optJSONObject("report") ?: JSONObject()
