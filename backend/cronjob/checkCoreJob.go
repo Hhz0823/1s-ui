@@ -14,8 +14,9 @@ func NewCheckCoreJob() *CheckCoreJob {
 }
 
 func (s *CheckCoreJob) Run() {
-	// Respect safe-mode installs that intentionally do not auto-start cores.
-	if config.IsSkipCore() {
+	// Respect safe-mode installs that intentionally do not auto-start cores,
+	// unless the proxy client, which runs in sing-box, is switched on.
+	if config.IsSkipCore() && !service.ProxyClientWantsCore() {
 		return
 	}
 	s.ConfigService.StartCore()

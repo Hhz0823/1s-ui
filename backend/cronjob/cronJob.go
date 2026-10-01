@@ -70,6 +70,18 @@ func (c *CronJob) Start(loc *time.Location, trafficAge int, statsBucketSeconds i
 		c.cron.AddJob("@every 2m", cron.NewChain(cron.SkipIfStillRunning(cron.DiscardLogger)).Then(cron.FuncJob(func() {
 			proxies.RefreshNodeLinks(time.Now())
 		})))
+		// Proxy client: subscriptions, weekly rule files, and the dnsmasq
+		// hand-off on OpenWrt following whether sing-box serves DNS.
+		client := &service.ProxyClientService{}
+		c.cron.AddJob("@every 10m", cron.NewChain(cron.SkipIfStillRunning(cron.DiscardLogger)).Then(cron.FuncJob(func() {
+			client.UpdateDueSubscriptions(time.Now())
+		})))
+		c.cron.AddJob("@every 6h", cron.NewChain(cron.SkipIfStillRunning(cron.DiscardLogger)).Then(cron.FuncJob(func() {
+			client.RefreshOldRuleSets(time.Now())
+		})))
+		c.cron.AddJob("@every 1m", cron.NewChain(cron.SkipIfStillRunning(cron.DiscardLogger)).Then(cron.FuncJob(func() {
+			client.SyncDNS()
+		})))
 		c.cron.AddJob("@hourly", cron.NewChain(cron.SkipIfStillRunning(cron.DiscardLogger)).Then(cron.FuncJob(func() {
 			if err := proxies.CleanupProxyResults(); err != nil {
 				logger.Warning("clean proxy checks: ", err)

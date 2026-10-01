@@ -124,6 +124,7 @@ func (s *ConfigService) GetConfigWithDB(data string, db *gorm.DB) (*[]byte, erro
 		return nil, err
 	}
 	applySdwanConfig(db, &singboxConfig)
+	applyProxyClientConfig(db, &singboxConfig)
 	rawConfig, err := json.MarshalIndent(singboxConfig, "", "  ")
 	if err != nil {
 		return nil, err

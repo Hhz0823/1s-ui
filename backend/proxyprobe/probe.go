@@ -79,6 +79,9 @@ type Spec struct {
 	Password string `json:"password,omitempty"`
 	Target   string `json:"target,omitempty"`
 	Link     string `json:"link,omitempty"`
+	// Outbound is a sing-box outbound for a node that has no share link
+	// (from a sing-box JSON subscription); it is used instead of Link.
+	Outbound map[string]interface{} `json:"outbound,omitempty"`
 }
 
 // Result is one check. Times are milliseconds; LatencyMs runs from the first
@@ -108,6 +111,9 @@ func Normalize(spec *Spec) error {
 	switch spec.Type {
 	case TypeNode:
 		spec.Link = strings.TrimSpace(spec.Link)
+		if len(spec.Outbound) > 0 {
+			break
+		}
 		if spec.Link == "" || !strings.Contains(spec.Link, "://") {
 			return errors.New("a node check needs the node's share link")
 		}

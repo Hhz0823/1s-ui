@@ -153,6 +153,14 @@ func (s *Server) startControlSocket() error {
 			if callErr == nil {
 				result, callErr = service.RunLocalSpeedtest(payload)
 			}
+		case agent.RPCMethodClientGet:
+			result, callErr = (&service.ProxyClientService{}).State()
+		case agent.RPCMethodClientCall:
+			var payload service.ProxyClientCall
+			callErr = decodeLocalRPCPayload(request.Payload, &payload)
+			if callErr == nil {
+				result, callErr = (&service.ProxyClientService{}).Call(payload)
+			}
 		case agent.RPCMethodNodeLink:
 			var payload service.NodeLinkRequest
 			callErr = decodeLocalRPCPayload(request.Payload, &payload)

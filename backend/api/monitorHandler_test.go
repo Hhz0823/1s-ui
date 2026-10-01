@@ -139,7 +139,7 @@ func TestMonitorAppNodesProxiesAndSpeedtest(t *testing.T) {
 	}
 
 	_, body := call(http.MethodGet, "/apiv2/monitor/servers", "")
-	if !strings.Contains(body, `"features":{"nodes":true,"proxy_monitors":true,"manage_proxies":true,"speedtest":true,"speedtest_port":5201,"node_monitors":true,"relay_speedtest":true}`) {
+	if !strings.Contains(body, `"features":{"nodes":true,"proxy_monitors":true,"manage_proxies":true,"speedtest":true,"speedtest_port":5201,"node_monitors":true,"relay_speedtest":true,"clients":true,"manage_clients":true}`) {
 		t.Fatalf("features: %s", body)
 	}
 

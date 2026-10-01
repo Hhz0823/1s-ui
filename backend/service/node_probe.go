@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -64,6 +65,31 @@ func ParseNodeLink(link string) (map[string]interface{}, NodeLinkInfo, error) {
 	return outbound, info, nil
 }
 
+// nodeFromOutbound copies a sing-box outbound object for a check.
+func nodeFromOutbound(source map[string]interface{}) (map[string]interface{}, NodeLinkInfo, error) {
+	raw, err := json.Marshal(source)
+	if err != nil {
+		return nil, NodeLinkInfo{}, err
+	}
+	var outbound map[string]interface{}
+	if err := json.Unmarshal(raw, &outbound); err != nil {
+		return nil, NodeLinkInfo{}, err
+	}
+	info := NodeLinkInfo{}
+	info.Name, _ = outbound["tag"].(string)
+	info.Protocol, _ = outbound["type"].(string)
+	info.Host, _ = outbound["server"].(string)
+	info.Port = linkPort(outbound["server_port"])
+	switch info.Protocol {
+	case "", "direct", "block", "dns", "selector", "urltest":
+		return nil, NodeLinkInfo{}, common.NewError("not a proxy node")
+	}
+	if info.Host == "" {
+		return nil, NodeLinkInfo{}, common.NewError("the node has no server address")
+	}
+	return outbound, info, nil
+}
+
 // linkPort reads a port number from a parsed outbound.
 func linkPort(value interface{}) int {
 	switch number := value.(type) {
@@ -119,7 +145,14 @@ func runNodeProbes(specs []proxyprobe.Spec, indexes []int, results []proxyprobe.
 			results[i] = proxyprobe.Result{Time: now, Stage: proxyprobe.StageConfig, Error: err.Error()}
 			continue
 		}
-		outbound, info, err := ParseNodeLink(spec.Link)
+		var outbound map[string]interface{}
+		var info NodeLinkInfo
+		var err error
+		if len(spec.Outbound) > 0 {
+			outbound, info, err = nodeFromOutbound(spec.Outbound)
+		} else {
+			outbound, info, err = ParseNodeLink(spec.Link)
+		}
 		if err == nil {
 			err = core.ValidateOutbound(outbound)
 		}

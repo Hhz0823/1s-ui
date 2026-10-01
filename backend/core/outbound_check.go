@@ -85,6 +85,12 @@ func CheckWarp(ctx context.Context, tag string, link string) (result CheckWarpRe
 	return
 }
 
+// OutboundDialer returns a running outbound or endpoint, for requests that
+// must leave through it (such as a subscription fetched through the proxy).
+func OutboundDialer(tag string) (N.Dialer, error) {
+	return checkDialer(tag)
+}
+
 func checkDialer(tag string) (N.Dialer, error) {
 	if outbound_manager == nil {
 		return nil, errors.New("core not running")

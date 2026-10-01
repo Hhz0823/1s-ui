@@ -85,6 +85,7 @@ func registerMonitorRoutes(g *gin.RouterGroup) {
 		result, err := monitor.RelaySpeedtest(c.Param("job"))
 		jsonObj(c, result, err)
 	})
+	registerMonitorClientRoutes(group, &monitor)
 
 	group.GET("/proxies", func(c *gin.Context) {
 		result, err := proxies.List()

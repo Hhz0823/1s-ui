@@ -84,6 +84,7 @@ var defaultValueMap = map[string]string{
 	monitorAppProxiesKey:   "true",
 	monitorAppSpeedtestKey: "true",
 	speedtestPortKey:       "5201",
+	monitorAppClientKey:    "true",
 	controllerModeKey:      controllerModeAuto,
 }
 
@@ -134,6 +135,8 @@ func (s *SettingService) GetAllSetting() (*map[string]string, error) {
 	delete(allSetting, speedtestPortKey)
 	delete(allSetting, controllerModeKey)
 	delete(allSetting, sdwanConfigKey)
+	delete(allSetting, proxyClientSettingsKey)
+	delete(allSetting, monitorAppClientKey)
 	for key, value := range s.GetDeploymentStatus() {
 		allSetting[key] = value
 	}
@@ -511,7 +514,8 @@ func (s *SettingService) Save(tx *gorm.DB, data json.RawMessage) error {
 		if strings.HasPrefix(key, "deployment") || strings.HasPrefix(key, "frontendApply") ||
 			key == "apiListen" || key == "frontendEntryManagedBy" || key == "frontendGatewayConfigPath" || key == "frontendRuntimeConfigPath" ||
 			key == controllerModeKey || key == agentEnrollmentKey || key == monitorKeyHash || key == sdwanConfigKey ||
-			key == monitorAppProxiesKey || key == monitorAppSpeedtestKey || key == speedtestPortKey {
+			key == monitorAppProxiesKey || key == monitorAppSpeedtestKey || key == speedtestPortKey ||
+			key == proxyClientSettingsKey || key == monitorAppClientKey {
 			continue
 		}
 		// Secure file existence check

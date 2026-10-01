@@ -34,6 +34,8 @@ const (
 	monitorAppProxiesKey   = "monitorAppProxies"
 	monitorAppSpeedtestKey = "monitorAppSpeedtest"
 	speedtestPortKey       = "speedtestPort"
+	// The app may switch nodes and modes of the proxy client on home devices.
+	monitorAppClientKey = "monitorAppClient"
 )
 
 const (
@@ -68,6 +70,10 @@ type MonitorFeatures struct {
 	// from a relay server.
 	NodeMonitors   bool `json:"node_monitors"`
 	RelaySpeedtest bool `json:"relay_speedtest"`
+	// The proxy client on this panel and its servers can be read, and
+	// with ManageClients switched (node, mode, tests, subscription update).
+	Clients       bool `json:"clients"`
+	ManageClients bool `json:"manage_clients"`
 }
 
 // MonitorAppSettings are the key's extra permissions and the speed test port.
@@ -75,6 +81,7 @@ type MonitorAppSettings struct {
 	Proxies       bool `json:"proxies"`
 	Speedtest     bool `json:"speedtest"`
 	SpeedtestPort int  `json:"speedtest_port"`
+	Client        bool `json:"client"`
 }
 
 type MonitorKeyStatus struct {
@@ -113,6 +120,7 @@ func (s *MonitorService) Overview() (*MonitorOverview, error) {
 			Nodes: true, ProxyMonitors: true, ManageProxies: settings.Proxies,
 			Speedtest: settings.Speedtest, SpeedtestPort: settings.SpeedtestPort,
 			NodeMonitors: true, RelaySpeedtest: settings.Speedtest,
+			Clients: true, ManageClients: settings.Client,
 		},
 		Servers: make([]MonitorNode, 0, len(nodes)+1),
 	}
@@ -307,9 +315,12 @@ func (s *SettingService) GetMonitorKeyStatus() MonitorKeyStatus {
 }
 
 func (s *SettingService) GetMonitorAppSettings() MonitorAppSettings {
-	settings := MonitorAppSettings{Proxies: true, Speedtest: true, SpeedtestPort: speedtest.DefaultPort}
+	settings := MonitorAppSettings{Proxies: true, Speedtest: true, SpeedtestPort: speedtest.DefaultPort, Client: true}
 	if value, err := s.getString(monitorAppProxiesKey); err == nil {
 		settings.Proxies = value != "false"
+	}
+	if value, err := s.getString(monitorAppClientKey); err == nil {
+		settings.Client = value != "false"
 	}
 	if value, err := s.getString(monitorAppSpeedtestKey); err == nil {
 		settings.Speedtest = value != "false"
@@ -328,6 +339,9 @@ func (s *SettingService) SetMonitorAppSettings(value MonitorAppSettings) error {
 		return err
 	}
 	if err := s.setString(monitorAppSpeedtestKey, strconv.FormatBool(value.Speedtest)); err != nil {
+		return err
+	}
+	if err := s.setString(monitorAppClientKey, strconv.FormatBool(value.Client)); err != nil {
 		return err
 	}
 	return s.setInt(speedtestPortKey, value.SpeedtestPort)

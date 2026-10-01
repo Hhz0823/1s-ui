@@ -570,7 +570,9 @@ func validAgentRPCMethod(method string) bool {
 		agent.RPCMethodProxyProbe,
 		agent.RPCMethodSpeedtestStart,
 		agent.RPCMethodNodeLink,
-		agent.RPCMethodSpeedtestRun:
+		agent.RPCMethodSpeedtestRun,
+		agent.RPCMethodClientGet,
+		agent.RPCMethodClientCall:
 		return true
 	default:
 		return false
@@ -583,7 +585,7 @@ func validAgentRPCMethod(method string) bool {
 func agentRPCMonitoring(method string) bool {
 	switch method {
 	case agent.RPCMethodCapabilities, agent.RPCMethodPortTraffic, agent.RPCMethodProxyProbe, agent.RPCMethodSpeedtestStart,
-		agent.RPCMethodSpeedtestRun:
+		agent.RPCMethodSpeedtestRun, agent.RPCMethodClientGet:
 		return true
 	default:
 		return false
@@ -601,6 +603,9 @@ func agentRPCTimeout(method string) time.Duration {
 		return 90 * time.Second
 	case agent.RPCMethodSpeedtestRun:
 		return 75 * time.Second
+	case agent.RPCMethodClientCall:
+		// Latency tests of every node and subscription downloads.
+		return 4 * time.Minute
 	default:
 		return agentCommandTimeout
 	}
@@ -609,7 +614,7 @@ func agentRPCTimeout(method string) time.Duration {
 func agentRPCMutatesConfig(method string) bool {
 	switch method {
 	case agent.RPCMethodInboundSave, agent.RPCMethodInboundQuickAdd, agent.RPCMethodRelayCreate, agent.RPCMethodRelayDelete,
-		agent.RPCMethodSdwanProvision, agent.RPCMethodSdwanRemove, agent.RPCMethodSdwanTune:
+		agent.RPCMethodSdwanProvision, agent.RPCMethodSdwanRemove, agent.RPCMethodSdwanTune, agent.RPCMethodClientCall:
 		return true
 	default:
 		return false

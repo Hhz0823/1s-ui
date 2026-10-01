@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -248,7 +249,7 @@ func TestParseLink(t *testing.T) {
 	} {
 		spec, name, err := ParseLink(text)
 		want.spec.Target = DefaultTarget
-		if err != nil || spec != want.spec || name != want.name {
+		if err != nil || !reflect.DeepEqual(spec, want.spec) || name != want.name {
 			t.Fatalf("%q: %+v %q %v", text, spec, name, err)
 		}
 	}

@@ -95,7 +95,7 @@ func (a *APP) Start() error {
 	}
 
 	// Low-memory / safe install path: keep panel UI up without loading cores.
-	if config.IsSkipCore() {
+	if config.IsSkipCore() && !service.ProxyClientWantsCore() {
 		logger.Warning("SUI_SKIP_CORE is enabled: sing-box/Xray will not auto-start. Start cores from the panel when ready.")
 		return nil
 	}

@@ -142,6 +142,8 @@ func InitDB(dbPath string) error {
 		&model.SdwanMember{},
 		&model.ProxyMonitor{},
 		&model.ProxyMonitorResult{},
+		&model.ProxyClientSubscription{},
+		&model.ProxyClientNode{},
 	)
 	if err != nil {
 		return err

@@ -61,6 +61,8 @@ const (
 	// This server can run speed tests against another one (speedtest.run),
 	// so a home relay can measure its line to a VPS.
 	CapabilitySpeedtestClientV1 = "speedtest.client.v1"
+	// The panel's PassWall-style proxy client (client.get, client.call).
+	CapabilityProxyClientV1 = "client.v1"
 )
 
 const (
@@ -83,6 +85,8 @@ const (
 	RPCMethodSpeedtestStart  = "speedtest.start"
 	RPCMethodNodeLink        = "nodes.link"
 	RPCMethodSpeedtestRun    = "speedtest.run"
+	RPCMethodClientGet       = "client.get"
+	RPCMethodClientCall      = "client.call"
 )
 
 // Command types the panel may send to an online agent.
