@@ -270,7 +270,11 @@ func shadowsocksLink(
 	} else {
 		pass, _ = userConfig["shadowsocks"]["password"].(string)
 	}
-	userPass = append(userPass, pass)
+	// A 2022 inbound without users of this key size is single-user: its
+	// link carries the server key alone, never an empty user key.
+	if pass != "" || len(userPass) == 0 {
+		userPass = append(userPass, pass)
+	}
 
 	// SIP002 userinfo must be URL-safe base64. Standard base64 can contain "/",
 	// which ends the authority and makes v2rayN/Shadowrocket reject the link.

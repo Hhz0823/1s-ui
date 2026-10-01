@@ -68,7 +68,7 @@ var (
 	proxyClientRuleSetDir    = func() string { return filepath.Join(config.GetDBFolderPath(), "rulesets") }
 	proxyClientRuleSetClient = &http.Client{
 		Timeout:   40 * time.Second,
-		Transport: &http.Transport{TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}, TLSHandshakeTimeout: 10 * time.Second},
+		Transport: &http.Transport{Proxy: http.ProxyFromEnvironment, TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12}, TLSHandshakeTimeout: 10 * time.Second},
 	}
 )
 

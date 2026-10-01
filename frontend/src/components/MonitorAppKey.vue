@@ -34,6 +34,8 @@
         :loading="savingSettings" @update:model-value="saveSettings" />
       <v-switch v-model="appSettings.speedtest" :label="$t('monitorApp.allowSpeedtest')" color="primary" density="compact" hide-details
         :loading="savingSettings" @update:model-value="saveSettings" />
+      <v-switch v-model="appSettings.client" :label="$t('monitorApp.allowClient')" color="primary" density="compact" hide-details
+        :loading="savingSettings" @update:model-value="saveSettings" />
       <v-text-field v-model.number="appSettings.speedtest_port" type="number" min="1" max="65535" :label="$t('monitorApp.speedtestPort')"
         :hint="$t('monitorApp.speedtestPortHint')" persistent-hint class="mt-3" style="max-width: 360px" dir="ltr" @change="saveSettings" />
     </v-card-text>
@@ -57,10 +59,10 @@ import { i18n } from '@/locales'
 import { backendBaseUrl, fetchBackendObject } from '@/utils/backend'
 import { copyText } from '@/utils/clipboard'
 
-type KeyStatus = { enabled: boolean, created_at: number, proxies: boolean, speedtest: boolean, speedtest_port: number }
-const status = ref<KeyStatus>({ enabled: false, created_at: 0, proxies: true, speedtest: true, speedtest_port: 5201 })
+type KeyStatus = { enabled: boolean, created_at: number, proxies: boolean, speedtest: boolean, speedtest_port: number, client: boolean }
+const status = ref<KeyStatus>({ enabled: false, created_at: 0, proxies: true, speedtest: true, speedtest_port: 5201, client: true })
 // What the key may do besides reading: manage proxy monitors, start speed tests.
-const appSettings = ref({ proxies: true, speedtest: true, speedtest_port: 5201 })
+const appSettings = ref({ proxies: true, speedtest: true, speedtest_port: 5201, client: true })
 const savingSettings = ref(false)
 const loading = ref(false)
 const key = ref('')
@@ -78,7 +80,7 @@ const encodeBindCode = (url: string, value: string) => {
 
 const applyStatus = (value: KeyStatus) => {
   status.value = value
-  appSettings.value = { proxies: value.proxies, speedtest: value.speedtest, speedtest_port: value.speedtest_port }
+  appSettings.value = { proxies: value.proxies, speedtest: value.speedtest, speedtest_port: value.speedtest_port, client: value.client !== false }
 }
 
 const load = async () => {

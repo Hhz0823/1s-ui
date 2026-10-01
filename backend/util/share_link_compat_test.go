@@ -355,3 +355,23 @@ func TestNormalizeSingBoxOutboundKeepsEmbeddedCertificate(t *testing.T) {
 		t.Fatalf("empty transport should be removed: %#v", outbound)
 	}
 }
+
+// A 2022 inbound whose users carry no key of its size is single-user: the
+// link must hold the server key alone, never "method:server:" with an empty
+// user key, which no client can use.
+func TestShadowsocks2022SingleUserLinkHasNoEmptyUserKey(t *testing.T) {
+	const serverPSK = "EVFx4BzsbMO3FGb2xGB6lA=="
+	links := shadowsocksLink(
+		map[string]map[string]interface{}{"shadowsocks": {"password": serverPSK}},
+		map[string]interface{}{"method": "2022-blake3-aes-128-gcm", "password": serverPSK},
+		[]map[string]interface{}{{"server": "192.0.2.2", "server_port": float64(24288), "remark": "ss"}},
+	)
+	userInfo := strings.TrimPrefix(strings.SplitN(links[0], "@", 2)[0], "ss://")
+	decoded, err := base64.RawURLEncoding.DecodeString(userInfo)
+	if err != nil || string(decoded) != "2022-blake3-aes-128-gcm:"+serverPSK {
+		t.Fatalf("userinfo %q (%v)", decoded, err)
+	}
+	if outbound := mustOutbound(t, links[0]); outbound["password"] != serverPSK {
+		t.Fatalf("password %q", outbound["password"])
+	}
+}

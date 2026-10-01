@@ -27,12 +27,13 @@
         <header>
           <span class="pm-dot" :class="'pm-dot--' + item.status" />
           <strong class="pm-name">{{ item.name }}</strong>
-          <v-chip size="x-small" variant="tonal" label>{{ protocol(item.type) }}</v-chip>
+          <v-chip size="x-small" variant="tonal" label>{{ protocol(item) }}</v-chip>
           <span class="pm-latency" :class="'text-' + statusColor(item.status)">
             {{ item.last?.ok ? item.last.latency_ms + ' ms' : $t('proxyMonitor.status.' + item.status) }}
           </span>
         </header>
         <div class="pm-meta" dir="auto">{{ item.host }}:{{ item.port }} · {{ checkedBy(item) }} · {{ every(item.interval) }}</div>
+        <div v-if="item.node_inbound_id" class="pm-meta" dir="auto">{{ nodeSource(item) }}</div>
         <div class="pm-strip">
           <span v-for="(point, index) in strip(item)" :key="index" :class="point ? (point.ok ? 'ok' : 'fail') : ''"
             :style="point && point.ok ? { height: barHeight(item, point.latency_ms) } : undefined" :title="pointTitle(point)" />
@@ -57,10 +58,35 @@
       <v-card>
         <v-card-title>{{ editor.form.id ? $t('proxyMonitor.edit') : $t('proxyMonitor.add') }}</v-card-title>
         <v-card-text>
-          <v-text-field v-model="editor.form.link" :label="$t('proxyMonitor.link')" :hint="$t('proxyMonitor.linkHint')" persistent-hint
-            placeholder="socks5://user:pass@203.0.113.5:1080" class="mb-3" />
+          <v-btn-toggle v-model="editor.kind" mandatory density="compact" color="primary" variant="outlined" class="mb-4 pm-kind">
+            <v-btn value="proxy" prepend-icon="mdi-swap-horizontal">{{ $t('proxyMonitor.kind.proxy') }}</v-btn>
+            <v-btn value="link" prepend-icon="mdi-link-variant">{{ $t('proxyMonitor.kind.link') }}</v-btn>
+            <v-btn value="inbound" prepend-icon="mdi-server-network">{{ $t('proxyMonitor.kind.inbound') }}</v-btn>
+          </v-btn-toggle>
+          <template v-if="editor.kind === 'link'">
+            <v-textarea v-model="editor.form.link" :label="$t('proxyMonitor.nodeLink')" :hint="$t('proxyMonitor.nodeLinkHint')" persistent-hint
+              :placeholder="editor.form.id ? $t('proxyMonitor.keepLink') : 'vless://… / vmess://… / hy2://…'" persistent-placeholder
+              rows="2" auto-grow dir="ltr" class="mb-3" />
+          </template>
+          <template v-else-if="editor.kind === 'inbound'">
+            <v-row dense>
+              <v-col cols="12" sm="5">
+                <v-select v-model="editor.form.node_server_id" :items="serverOptions" item-title="title" item-value="value"
+                  :label="$t('proxyMonitor.nodeServer')" @update:model-value="loadInbounds" />
+              </v-col>
+              <v-col cols="12" sm="7">
+                <v-select v-model="editor.form.node_inbound_id" :items="inboundOptions" item-title="title" item-value="value"
+                  :label="$t('proxyMonitor.nodeInbound')" :loading="editor.loadingInbounds" :no-data-text="editor.inboundError || $t('noData')" />
+              </v-col>
+            </v-row>
+            <div class="text-caption text-medium-emphasis mb-3">{{ $t('proxyMonitor.nodeInboundHint') }}</div>
+          </template>
+          <template v-else>
+            <v-text-field v-model="editor.form.link" :label="$t('proxyMonitor.link')" :hint="$t('proxyMonitor.linkHint')" persistent-hint
+              placeholder="socks5://user:pass@203.0.113.5:1080" class="mb-3" />
+          </template>
           <v-text-field v-model="editor.form.name" :label="$t('proxyMonitor.name')" />
-          <template v-if="!editor.form.link.trim()">
+          <template v-if="editor.kind === 'proxy' && !editor.form.link.trim()">
             <v-btn-toggle v-model="editor.form.type" mandatory density="compact" color="primary" variant="outlined" class="mb-4">
               <v-btn value="socks5">SOCKS5</v-btn>
               <v-btn value="http">HTTP</v-btn>
@@ -169,6 +195,10 @@ type Monitor = {
   id: number
   name: string
   type: string
+  protocol?: string
+  node_server_id?: number
+  node_inbound_id?: number
+  node_server_name?: string
   host: string
   port: number
   username: string
@@ -204,11 +234,12 @@ let timer: number | undefined
 
 const emptyForm = () => ({
   id: 0, name: '', link: '', type: 'socks5', host: '', port: 1080, username: '',
-  target: '', server_id: 0, interval: 60, enabled: true,
+  target: '', server_id: 0, interval: 60, enabled: true, node_server_id: 0, node_inbound_id: null as number | null,
 })
 const editor = reactive({
-  visible: false, form: emptyForm(), password: '', hadPassword: false,
+  visible: false, kind: 'proxy' as 'proxy' | 'link' | 'inbound', form: emptyForm(), password: '', hadPassword: false,
   testing: false, saving: false, error: '', result: null as Probe | null,
+  inbounds: [] as { id: number, tag: string, type: string, port: number }[], loadingInbounds: false, inboundError: '',
 })
 const detail = reactive({ visible: false, item: null as Monitor | null, data: null as Detail | null, range: 86400, loading: false })
 
@@ -219,6 +250,9 @@ const ranges = computed(() => [
   { value: 259200, title: t('proxyMonitor.range.threeDays') },
 ])
 const intervalOptions = computed(() => [30, 60, 300, 600, 1800, 3600].map(value => ({ value, title: every(value) })))
+const inboundOptions = computed(() => editor.inbounds.map(inbound => ({
+  value: inbound.id, title: `${inbound.tag} · ${protocolName(inbound.type)} · ${inbound.port}`,
+})))
 const serverOptions = computed(() => [
   { value: 0, title: t('proxyMonitor.panelHost') },
   ...servers.value.map(server => ({ value: server.id, title: server.name + (server.online ? '' : ` (${t('agent.offline')})`) })),
@@ -249,7 +283,15 @@ const loadServers = async () => {
 
 const count = (status: string) => items.value.filter(item => item.status === status).length
 const statusColor = (status: string) => ({ up: 'success', down: 'error', unknown: 'warning' } as Record<string, string>)[status] || 'medium-emphasis'
-const protocol = (type: string) => type === 'socks5' ? 'SOCKS5' : type.toUpperCase()
+const protocolNames: Record<string, string> = {
+  vless: 'VLESS', vmess: 'VMess', trojan: 'Trojan', shadowsocks: 'SS', hysteria: 'Hysteria', hysteria2: 'Hysteria2',
+  tuic: 'TUIC', anytls: 'AnyTLS', naive: 'Naive', socks: 'SOCKS5', socks5: 'SOCKS5', http: 'HTTP', shadowtls: 'ShadowTLS',
+}
+const protocolName = (type: string) => protocolNames[type] || type.toUpperCase()
+const protocol = (item: Monitor) => protocolName(item.type === 'node' ? item.protocol || 'node' : item.type)
+const nodeSource = (item: Monitor) => t('proxyMonitor.nodeFrom', {
+  name: item.node_server_id ? (item.node_server_name || '#' + item.node_server_id) : t('proxyMonitor.panelHost'),
+})
 const every = (seconds: number) => seconds >= 3600 && seconds % 3600 === 0
   ? t('proxyMonitor.everyHours', { n: seconds / 3600 })
   : seconds >= 60 && seconds % 60 === 0 ? t('proxyMonitor.everyMinutes', { n: seconds / 60 }) : t('proxyMonitor.everySeconds', { n: seconds })
@@ -276,7 +318,7 @@ const pointTitle = (point: Monitor['recent'][number] | null) => point
 // One line for a failed check: the step that failed, then the detail.
 const reason = (probe: Probe) => {
   const stage = probe.stage || ''
-  const known = ['server', 'config', 'connect', 'auth', 'tunnel', 'tls', 'http'].includes(stage)
+  const known = ['server', 'config', 'connect', 'handshake', 'auth', 'tunnel', 'tls', 'http'].includes(stage)
   const title = known ? t('proxyMonitor.stage.' + stage) : t('failed')
   return probe.error ? `${title}: ${probe.error}` : title
 }
@@ -291,22 +333,56 @@ const resultLine = (probe: Probe) => [
 const openEditor = (item?: Monitor) => {
   editor.form = item
     ? { id: item.id, name: item.name, link: '', type: item.type, host: item.host, port: item.port, username: item.username,
-      target: item.target, server_id: item.server_id, interval: item.interval, enabled: item.enabled }
+      target: item.target, server_id: item.server_id, interval: item.interval, enabled: item.enabled,
+      node_server_id: item.node_server_id || 0, node_inbound_id: item.node_inbound_id || null }
     : emptyForm()
+  editor.kind = item?.type === 'node' ? (item.node_inbound_id ? 'inbound' : 'link') : 'proxy'
   editor.password = ''
   editor.hadPassword = !!item?.has_password
   editor.error = ''
   editor.result = null
+  editor.inbounds = []
   editor.visible = true
   void loadServers()
+  if (editor.kind === 'inbound') void loadInbounds()
 }
 
-// An empty password field keeps the stored password of an edited monitor.
-const payload = () => ({
-  ...editor.form,
-  port: Number(editor.form.port) || 0,
-  password: editor.password || (editor.hadPassword ? null : ''),
-})
+// The inbounds of the server picked as the node's source.
+const loadInbounds = async () => {
+  const server = editor.form.node_server_id
+  editor.loadingInbounds = true
+  editor.inboundError = ''
+  try {
+    const result = await fetchBackendObject<{ items: { id: number, tag: string, type: string, port: number, supported: boolean }[] }>(
+      server ? `api/agents/${server}/port-traffic` : 'api/port-traffic')
+    if (editor.form.node_server_id !== server) return
+    editor.inbounds = (result?.items || []).filter(item => item.id > 0 && item.port > 0)
+    if (!editor.inbounds.some(item => item.id === editor.form.node_inbound_id)) editor.form.node_inbound_id = null
+  } catch (error: any) {
+    editor.inbounds = []
+    editor.inboundError = error?.message || t('failed')
+  } finally {
+    editor.loadingInbounds = false
+  }
+}
+
+// An empty password field keeps the stored password of an edited monitor;
+// an empty link keeps the stored node.
+const payload = () => {
+  const common = {
+    id: editor.form.id, name: editor.form.name, target: editor.form.target, server_id: editor.form.server_id,
+    interval: editor.form.interval, enabled: editor.form.enabled,
+  }
+  if (editor.kind === 'inbound') {
+    return { ...common, type: 'node', node_server_id: editor.form.node_server_id, node_inbound_id: editor.form.node_inbound_id || 0 }
+  }
+  if (editor.kind === 'link') return { ...common, type: 'node', link: editor.form.link.trim() }
+  return {
+    ...common, link: editor.form.link, type: editor.form.type === 'node' ? 'socks5' : editor.form.type,
+    host: editor.form.host, port: Number(editor.form.port) || 0, username: editor.form.username,
+    password: editor.password || (editor.hadPassword ? null : ''),
+  }
+}
 
 const test = async () => {
   editor.testing = true
@@ -448,6 +524,7 @@ onBeforeUnmount(() => {
 .pm-card footer { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .78rem; color: rgba(var(--v-theme-on-surface), .62); }
 .pm-reason { margin-top: 4px; font-size: .78rem; overflow-wrap: anywhere; }
 .pm-card-actions { display: flex; justify-content: flex-end; margin-top: 4px; }
+.pm-kind { flex-wrap: wrap; height: auto !important; }
 .pm-chart { width: 100%; height: 120px; display: block; }
 .pm-chart__line { fill: none; stroke: rgb(var(--v-theme-primary)); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .pm-chart__area { fill: rgba(var(--v-theme-primary), .14); stroke: none; }

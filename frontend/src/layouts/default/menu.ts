@@ -30,6 +30,7 @@ export const allMenuGroups: MenuGroup[] = [
       { title: 'pages.inbounds', icon: 'mdi-arrow-down-bold-circle-outline', path: '/inbounds' },
       { title: 'pages.clients', icon: 'mdi-account-group-outline', path: '/clients' },
       { title: 'pages.outbounds', icon: 'mdi-arrow-up-bold-circle-outline', path: '/outbounds' },
+      { title: 'pages.proxyClient', icon: 'mdi-router-network', path: '/proxy-client' },
       { title: 'pages.endpoints', icon: 'mdi-access-point-network', path: '/endpoints' },
     ],
   },

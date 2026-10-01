@@ -103,6 +103,11 @@ const routes = [
         component: () => import('@/views/ProxyMonitors.vue'),
       },
       {
+        path: '/proxy-client',
+        name: 'pages.proxyClient',
+        component: () => import('@/views/ProxyClient.vue'),
+      },
+      {
         path: '/agents/:id',
         name: 'agent.detail',
         component: () => import('@/views/AgentDetail.vue'),

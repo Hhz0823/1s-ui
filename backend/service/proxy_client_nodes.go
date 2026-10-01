@@ -211,13 +211,14 @@ func (s *ProxyClientService) updateSubscription(id uint) error {
 // proxy when the subscription asks for it and the proxy is running.
 func fetchProxyClientSubscription(subscription model.ProxyClientSubscription) ([]byte, http.Header, error) {
 	transport := &http.Transport{
-		Proxy:               nil,
+		Proxy:               http.ProxyFromEnvironment,
 		TLSHandshakeTimeout: 15 * time.Second,
 		TLSClientConfig:     &tls.Config{MinVersion: tls.VersionTLS12},
 	}
 	if subscription.ProxyUpdate && corePtr != nil && corePtr.HasOutbound(proxyClientProxyTag) {
 		dialer, err := core.OutboundDialer(proxyClientProxyTag)
 		if err == nil {
+			transport.Proxy = nil
 			transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
 				return dialer.DialContext(ctx, network, M.ParseSocksaddr(address))
 			}
