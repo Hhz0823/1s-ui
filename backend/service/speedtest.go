@@ -61,30 +61,40 @@ func (s *MonitorService) StartSpeedtest(serverID uint) (*SpeedtestTarget, error)
 	return &target, nil
 }
 
-// speedtestHosts keeps public addresses and host names, without repeats.
+// speedtestHosts orders the addresses a phone can try: host names and public
+// addresses first, then private ones for a phone on the same network.
+// Loopback, link-local and other non-routable addresses are dropped.
 func speedtestHosts(candidates []string) []string {
-	hosts := []string{}
+	var public, private []string
 	seen := map[string]bool{}
 	for _, candidate := range candidates {
 		candidate = strings.Trim(strings.TrimSpace(candidate), "[]")
 		if candidate == "" || seen[candidate] {
 			continue
 		}
-		if ip, err := netip.ParseAddr(candidate); err == nil && !publicAddress(ip) {
-			continue
-		}
 		seen[candidate] = true
-		hosts = append(hosts, candidate)
+		ip, err := netip.ParseAddr(candidate)
+		switch {
+		case err != nil || publicAddress(ip):
+			public = append(public, candidate)
+		case reachableAddress(ip):
+			private = append(private, candidate)
+		}
 	}
-	return hosts
+	return append(append([]string{}, public...), private...)
 }
 
 func publicAddress(ip netip.Addr) bool {
 	ip = ip.Unmap()
-	return ip.IsGlobalUnicast() && !ip.IsPrivate() && !(ip.Is4() && ip.As4()[0] == 100 && ip.As4()[1]&0xc0 == 64)
+	return reachableAddress(ip) && !ip.IsPrivate() && !(ip.Is4() && ip.As4()[0] == 100 && ip.As4()[1]&0xc0 == 64)
 }
 
-// localAddresses lists this host's public interface addresses, IPv4 first.
+func reachableAddress(ip netip.Addr) bool {
+	return ip.Unmap().IsGlobalUnicast()
+}
+
+// localAddresses lists this host's interface addresses for speed tests:
+// public IPv4, public IPv6, then private ones.
 func localAddresses() []string {
 	addresses, err := net.InterfaceAddrs()
 	if err != nil {
@@ -93,7 +103,7 @@ func localAddresses() []string {
 	var v4, v6 []string
 	for _, address := range addresses {
 		prefix, err := netip.ParsePrefix(address.String())
-		if err != nil || !publicAddress(prefix.Addr()) {
+		if err != nil || !reachableAddress(prefix.Addr()) {
 			continue
 		}
 		if prefix.Addr().Is4() {
@@ -104,5 +114,5 @@ func localAddresses() []string {
 	}
 	sort.Strings(v4)
 	sort.Strings(v6)
-	return append(append([]string{}, v4...), v6...)
+	return speedtestHosts(append(v4, v6...))
 }

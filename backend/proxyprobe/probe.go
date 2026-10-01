@@ -204,13 +204,22 @@ func Run(ctx context.Context, spec Spec) Result {
 	}
 	request += "\r\n"
 	requestSent := time.Now()
+	// With an absolute URL the proxy itself answers first, so a dead
+	// connection here means it is not an HTTP proxy.
+	readStage := StageHTTP
+	if forward {
+		readStage = StageTunnel
+	}
 	if _, err := io.WriteString(stream, request); err != nil {
-		return failed(result, StageHTTP, err)
+		return failed(result, readStage, err)
 	}
 	responseReader := bufio.NewReader(stream)
 	response, err := http.ReadResponse(responseReader, &http.Request{Method: http.MethodGet})
 	if err != nil {
-		return failed(result, StageHTTP, err)
+		if forward {
+			err = fmt.Errorf("no HTTP proxy reply (is it a SOCKS5 proxy?): %s", describe(err))
+		}
+		return failed(result, readStage, err)
 	}
 	defer response.Body.Close()
 	now := time.Now()

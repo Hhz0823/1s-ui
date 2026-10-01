@@ -234,3 +234,11 @@ func TestProxyMonitorsCheckRealProxiesOnSchedule(t *testing.T) {
 		t.Fatal("deleting a monitor kept its checks")
 	}
 }
+
+func TestSpeedtestHostsPutPublicAddressesFirst(t *testing.T) {
+	got := speedtestHosts([]string{"192.168.1.20", "127.0.0.1", "[2001:db8::1]", "speed.example.com", "203.0.113.4", "fe80::1", "", "203.0.113.4", "100.64.1.1", "10.0.0.5"})
+	want := []string{"2001:db8::1", "speed.example.com", "203.0.113.4", "192.168.1.20", "100.64.1.1", "10.0.0.5"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("hosts = %v, want %v", got, want)
+	}
+}

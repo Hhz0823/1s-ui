@@ -133,6 +133,7 @@ func TestProbeThroughRealSOCKS5AndHTTPProxies(t *testing.T) {
 		"target refuses":        {Spec{Type: "socks5", Host: "127.0.0.1", Port: openPort, Target: fmt.Sprintf("https://127.0.0.1:%d/", freePort(t))}, StageTunnel, ""},
 		"target error page":     {Spec{Type: "socks5", Host: "127.0.0.1", Port: openPort, Target: target.URL + "/forbidden"}, StageHTTP, "403"},
 		"http proxy as socks5":  {Spec{Type: "socks5", Host: "127.0.0.1", Port: httpPort, Target: traceURL}, StageTunnel, "is it an HTTP proxy"},
+		"socks5 proxy as http":  {Spec{Type: "http", Host: "127.0.0.1", Port: socksPort, Target: plain.URL + "/x"}, StageTunnel, "is it a SOCKS5 proxy"},
 		"web server as proxy":   {Spec{Type: "http", Host: "127.0.0.1", Port: portOf(t, plain.URL), Target: traceURL}, StageTunnel, "405"},
 	} {
 		started := time.Now()
