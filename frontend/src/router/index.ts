@@ -98,6 +98,11 @@ const routes = [
         component: () => import('@/views/Agents.vue'),
       },
       {
+        path: '/proxy-monitors',
+        name: 'pages.proxyMonitors',
+        component: () => import('@/views/ProxyMonitors.vue'),
+      },
+      {
         path: '/agents/:id',
         name: 'agent.detail',
         component: () => import('@/views/AgentDetail.vue'),
@@ -130,7 +135,7 @@ const refreshData = () => {
 }
 
 const monitorRouteAllowed = (path: string) =>
-  path === '/' || path === '/agents' || /^\/agents\/[^/]+$/.test(path) || path === '/settings' || path === '/admins'
+  path === '/' || path === '/agents' || /^\/agents\/[^/]+$/.test(path) || path === '/proxy-monitors' || path === '/settings' || path === '/admins'
 
 const stopDataInterval = () => {
   if (!intervalId) return
