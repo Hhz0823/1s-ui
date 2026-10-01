@@ -379,7 +379,11 @@ func (s *SettingService) GetTimeLocation() (*time.Location, error) {
 	if err != nil {
 		defaultLocation := defaultValueMap["timeLocation"]
 		logger.Errorf("location <%v> not exist, using default location: %v", l, defaultLocation)
-		return time.LoadLocation(defaultLocation)
+		if location, err = time.LoadLocation(defaultLocation); err != nil {
+			// Without any zone data the panel still starts, in UTC.
+			logger.Error("no time zone data, using UTC: ", err)
+			return time.UTC, nil
+		}
 	}
 	return location, nil
 }

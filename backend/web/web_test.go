@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Hhz0823/1s-ui/api"
@@ -99,5 +101,53 @@ func TestRoutePathsDeduplicatesRootLegacyAlias(t *testing.T) {
 	paths := routePaths("/", "api")
 	if len(paths) != 1 || paths[0] != "/api" {
 		t.Fatalf("routePaths = %#v", paths)
+	}
+}
+
+// With SUI_FRONTEND_DIR (OpenWrt), the panel serves the web UI itself.
+func TestServesFrontendFromDirectory(t *testing.T) {
+	initWebTestDB(t)
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "assets"), 0o755)
+	os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>ui</html>"), 0o644)
+	os.WriteFile(filepath.Join(dir, "assets", "app.js"), []byte("console.log(1)"), 0o644)
+	t.Setenv("SUI_FRONTEND_DIR", dir)
+	server := NewServer()
+	engine, err := server.initRouter()
+	if err != nil {
+		t.Fatal(err)
+	}
+	get := func(target string) *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, target, nil))
+		return recorder
+	}
+	for target, want := range map[string]string{"/app/": "<html>ui</html>", "/app/proxy-client": "<html>ui</html>", "/app/assets/app.js": "console.log(1)"} {
+		if response := get(target); response.Code != http.StatusOK || response.Body.String() != want {
+			t.Fatalf("%s: %d %q", target, response.Code, response.Body.String())
+		}
+	}
+	if response := get("/app/assets/app.js"); !strings.Contains(response.Header().Get("Cache-Control"), "immutable") {
+		t.Fatalf("assets are not cached: %q", response.Header().Get("Cache-Control"))
+	}
+	if response := get("/.well-known/1s-ui/config.js"); response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"basePath":"/app/"`) {
+		t.Fatalf("config.js: %d %q", response.Code, response.Body.String())
+	}
+	if response := get("/"); response.Code != http.StatusFound || response.Header().Get("Location") != "/app/" {
+		t.Fatalf("root: %d %q", response.Code, response.Header().Get("Location"))
+	}
+	if response := get("/app"); response.Code != http.StatusPermanentRedirect || response.Header().Get("Location") != "/app/" {
+		t.Fatalf("bare path: %d %q", response.Code, response.Header().Get("Location"))
+	}
+	// API paths never get the UI page, and nothing outside the UI directory
+	// is served.
+	for _, target := range []string{"/app/api/a/b/c/d", "/app/apiv2/x/y/z/w", "/app/agent/v1/a/b/c", "/other"} {
+		response := get(target)
+		if response.Code < 400 || strings.Contains(response.Body.String(), "<html>") || response.Header().Get("Content-Type") != "application/json; charset=utf-8" {
+			t.Fatalf("%s: %d %q", target, response.Code, response.Body.String())
+		}
+	}
+	if response := get("/app/../../etc/passwd"); strings.Contains(response.Body.String(), "root:") {
+		t.Fatal("served a file outside the UI directory")
 	}
 }

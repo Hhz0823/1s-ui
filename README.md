@@ -11,7 +11,7 @@
   [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8)](backend/go.mod)
   [![Vue](https://img.shields.io/badge/Vue-3-42b883)](frontend/package.json)
 
-  **[Linux v1.7.0](https://github.com/Hhz0823/1s-ui/releases/tag/v1.7.0)** · **[OpenWrt Lite v1.5.7](https://github.com/Hhz0823/1s-ui/releases/tag/v1.5.7)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
+  **[Linux v1.7.0](https://github.com/Hhz0823/1s-ui/releases/tag/v1.7.0)** · **[OpenWrt 软路由](docs/openwrt-lite.md)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
 </div>
 
 > 1S-UI 基于 [alireza0/s-ui](https://github.com/alireza0/s-ui) 二次开发，仅用于学习、研究与技术交流。请遵守当地法律法规。
@@ -130,22 +130,34 @@ bash <(curl -Ls https://ghfast.top/https://raw.githubusercontent.com/Hhz0823/1s-
 
 > 执行前必须先在主面板点击 **添加子服务器**。连接窗口有效 5 分钟且只能成功使用一次，不会永久开放匿名 Agent 注册。
 
-### 飞牛 NAS（fnOS）等只装服务端的设备
+### 飞牛 NAS / OpenWrt 用密钥绑定主控
 
-飞牛 NAS 不需要安装完整面板，只安装 `sui-agent` 并用 **面板地址 + 接入密钥** 绑定主控：
+主面板打开 **服务器监控 → 添加子服务器**，展开 **飞牛 NAS / OpenWrt / 面板地址 + 密钥接入**，点击 **生成接入密钥**（只显示一次，可重复用于多台设备），再按设备类型复制命令：
 
-1. 主面板打开 **服务器监控 → 添加子服务器**，展开 **飞牛 NAS / 面板地址 + 密钥接入**，点击 **生成接入密钥**。密钥只显示一次，可重复用于多台设备。
-2. 在飞牛 NAS 的 **设置 → SSH** 开启 SSH，用管理员账号登录，粘贴面板给出的命令（按提示输入管理员密码）：
+| 设备类型 | 安装内容 | 适合 |
+| --- | --- | --- |
+| **1S-UI 客户端** | 完整 1S-UI（Web 面板 + 轻量 sing-box）并绑定主控 | 飞牛 NAS、家里的 Linux：当[代理客户端](#代理客户端节点监测与中转测速)（类似 v2rayN），也当节点监测和测速的中转端 |
+| **OpenWrt 软路由** | 单进程精简版，约 50 MB 内存 | 软路由：类似 PassWall 的透明代理，也当中转端，见 [OpenWrt 软路由](#openwrt-软路由) |
+| **仅监控 Agent** | 只装 `sui-agent` | 只需要监控和远程管理的服务器 |
+
+飞牛 NAS 在 **设置 → SSH** 开启 SSH，用管理员账号登录后粘贴面板给出的命令（按提示输入管理员密码），例如：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-agent.sh -o /tmp/1s-ui-agent.sh \
-  && sudo bash /tmp/1s-ui-agent.sh --panel 'https://主控面板地址/app/' --key '接入密钥' [--name '飞牛NAS']
+curl -fsSL https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh -o /tmp/1s-ui.sh \
+  && sudo bash /tmp/1s-ui.sh --panel 'https://主控面板地址/app/' --key '接入密钥' [--name '飞牛NAS']
+```
+
+OpenWrt 用 SSH 以 root 登录后粘贴：
+
+```sh
+wget -O /tmp/1s-ui-openwrt.sh https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-openwrt.sh \
+  && sh /tmp/1s-ui-openwrt.sh --panel 'https://主控面板地址/app/' --key '接入密钥'
 ```
 
 - 必须同时提供面板地址和密钥，主控校验密钥通过后才签发这台设备自己的 Agent Token；密钥错误、已重新生成或已停用时不会绑定。
 - 重新运行命令会用新的绑定替换旧绑定。重新生成或停用密钥只影响之后的新接入，已接入的设备不受影响。
 - 同样适用于其它带 systemd 的 Linux 设备；root 用户也可直接用面板里的 root 安装命令。
-- 中国大陆的设备使用面板给出的 **中国大陆** 版命令：安装脚本和 Agent 都经加速镜像下载（`--mirror cn`）。
+- 中国大陆的设备使用面板给出的 **中国大陆** 版命令：脚本和安装包都经加速镜像下载（`--mirror cn`），并按 SHA256SUMS 校验。
 
 ### 安装后的访问地址
 
@@ -209,7 +221,7 @@ s-ui update
 - WebSocket 长连接、控制面 RTT、批量命令和交互式 PTY；仅监控角色可从后端彻底关闭这些权限。
 - 子服务器只输入主控公网地址即可绑定，主控为每台机器自动签发独立 Token。
 
-代理层以 **sing-box 为默认内核**，并允许每条入站独立选择 **Xray-core**。当前开发优先级是 Linux（Ubuntu / Debian）；Windows 暂停维护，OpenWrt Lite 暂停在 v1.5.7 且仅使用 sing-box。
+代理层以 **sing-box 为默认内核**，并允许每条入站独立选择 **Xray-core**。当前开发优先级是 Linux（Ubuntu / Debian）与 OpenWrt 软路由（单进程精简版，仅 sing-box）；Windows 暂停维护。
 
 低配策略以“系统不因安装或启动面板发生 OOM/重启”为第一优先级：
 
@@ -398,6 +410,13 @@ flowchart LR
 - **代理监测**：添加 SOCKS5 / HTTP 代理（可直接粘贴 `socks5://`、`http://`、v2rayN 的 `socks://` 链接或 `IP:端口:用户名:密码`），选择由主控还是哪台子服务器检测；面板按间隔连接、登录、建立隧道并访问测试网址，记录各步耗时、出口 IP 和国家，失败时说明是连不上、认证失败、代理类型不对还是目标不通。App 和网页「总览 → 代理监测」都能查看和管理，App 可在代理不可用 / 恢复时通知。
 - **监控密钥权限**：密钥除了查看，默认还能管理代理监测和发起测速；可在「设置 → 前端与后端 → 手机监控 App」分别关闭，并修改测速端口。密钥仍不能登录面板、不能读取节点密码和密钥、不能修改节点。「仅监控」主控同样可以检测代理和测速。
 
+### 代理客户端、节点监测与中转测速
+
+- **代理客户端（类似 v2rayN / PassWall）**：**客户端代理** 页面把本机变成代理客户端：导入订阅（显示剩余流量和到期时间）或粘贴分享链接，测延迟，手动选节点或从一组节点中自动选最快的；三种模式（绕过中国大陆、仅 GFW 列表、全局），TUN 透明代理（本机和局域网设备不用设置代理，在 OpenWrt 上接管整个局域网），SOCKS5 + HTTP 端口（默认 7890，局域网可用），分流 DNS（大陆域名走国内 DNS，其余走 DoH），可指定设备或域名走 / 不走代理。运行在面板自己的 sing-box 里，不额外起进程，适合小内存的 NAS 和软路由。
+- **远程管理客户端设备**：主控的 **客户端代理** 页面可以选择任意一台绑定的客户端设备（飞牛 NAS、OpenWrt 等），远程切换模式和节点、测延迟、更新订阅、开关代理。
+- **节点监测**：**代理监测** 除了 SOCKS5 / HTTP，现在可以监测所有协议的节点（VLESS、VMess、Trojan、Shadowsocks、Hysteria2、TUIC、AnyTLS、Naive）：粘贴分享链接，或直接选择某台服务器的入站（节点改过端口或密码后，主控会自动从该服务器取回最新链接，页面和 App 都不显示链接和密钥）；由主控或任意一台子服务器 / 客户端设备检测，记录握手、出口 IP、延迟和失败原因。
+- **中转测速**：服务器详情页 **中转测速** 从一台设备（例如家里的飞牛 NAS 或 OpenWrt）测到另一台服务器的 TCP / UDP 延迟、下载和上传，测出家宽到 VPS 的真实线路质量。
+
 ### v1.7.0 更新重点
 
 v1.6.4 未单独发布，其修复一并包含在 v1.7.0 中。
@@ -406,7 +425,7 @@ v1.6.4 未单独发布，其修复一并包含在 v1.7.0 中。
 - **精简主控制端**：1 核 512MB 起的低配 VPS 也能当主控，群控功能完整，本机代理和路由照常可用，只用 sing-box 内核；2 核 2GiB 及以上不受影响。面板首屏脚本从 2.3 MB 降到约 0.6 MB，静态文件 gzip 压缩并长期缓存（已安装的面板重新运行一次安装命令即可启用新的网关配置）。
 - **端口流量限制**：入站可设置每月流量上限（上传 + 下载）、重置日和客户端 IP 数上限，达到上限后停止转发，到重置日或手动重置后恢复；端口流量页显示本月用量、下次重置日期和在线 IP 数。仅对 sing-box 入站生效，与已有的限速一致。
 - **中国大陆加速下载**：安装脚本、`s-ui` 菜单、面板在线更新和子服务器安装命令都有加速线路（ghfast.top、gh-proxy.com、ghproxy.net），GitHub 连不上或太慢时自动切换，也可用 `--mirror cn` 或 **设置 → 下载线路** 手动选择；发布附带 SHA256SUMS 用于校验。
-- **飞牛 NAS 安装服务端**：主面板生成接入密钥，飞牛 NAS 用 **面板地址 + 密钥** 一条命令绑定主控，并提供中国大陆加速版命令，详见[飞牛 NAS](#飞牛-nasfnos等只装服务端的设备)。
+- **飞牛 NAS 安装服务端**：主面板生成接入密钥，飞牛 NAS 用 **面板地址 + 密钥** 一条命令绑定主控，并提供中国大陆加速版命令，详见[飞牛 NAS / OpenWrt 用密钥绑定主控](#飞牛-nas--openwrt-用密钥绑定主控)。
 - **更多主题与样式**：主题增至 28 个（新增宝塔暗色、GitHub Light、Solarized、Catppuccin、Tokyo Night、Gruvbox、Rose Pine 等），以预览卡片选择；可设置跟随系统时的浅色 / 深色主题、强调色和圆角风格。
 - **安卓监控 App**：面板生成只读监控密钥，App 扫码绑定后实时查看所有服务器，可在离线、恢复和资源过高时通知，APK 随 Release 发布，详见[安卓监控 App](#安卓监控-app)。
 - **在线更新同步更新网页界面**：面板内更新会一起安装同版本的网页界面；界面与面板版本不一致时（例如用 v1.6.3 及更早的更新器升级后），面板启动后自动换成匹配的界面。
@@ -489,6 +508,7 @@ v1.6.4 未单独发布，其修复一并包含在 v1.7.0 中。
 
 ### Highlights
 
+- Proxy client, node monitors and relays: the **Proxy client** page turns a panel into a v2rayN / PassWall-style client (subscriptions with remaining traffic, latency tests, a chosen or the fastest node, bypass-mainland-China / GFW-list / global modes, a TUN transparent proxy for the LAN, a SOCKS5 + HTTP port, split DNS), running inside the panel's own sing-box. A controller manages the client of any bound device remotely. Node monitors check nodes of every protocol from a share link or straight from a server's inbound, and relay speed tests measure TCP / UDP latency and throughput from one device (a home NAS or router) to another server. A fnOS NAS or other Linux box installs the full client with the controller's address and enrollment key, and OpenWrt gets a one-process build (about 50 MB of memory) with the same features; see [docs/openwrt-lite.md](docs/openwrt-lite.md).
 - Android app and proxy monitors: the app shows the servers of every bound panel on one home page, each server's nodes (protocol, port, TLS / REALITY, transport, users, traffic — never credentials) and a phone-to-server speed test (TCP and UDP latency, TCP download/upload, UDP download/upload at a chosen rate with loss and jitter, through a short-lived token-protected port, 5201 by default). Proxy monitors check SOCKS5 / HTTP proxies on a schedule from the controller or any managed server (useful when a landing proxy only accepts its relay's IP), recording each step's time, the exit IP and why a check failed; they are managed from the web UI and the app, which can also alert when a proxy goes down.
 - v1.7.0: Komari-style server monitor (grid/table views, groups, 1h to 30-day history, price/expiry/monthly traffic badges, TCP/UDP counts), a lite controller for 1 vCPU / 512MB hosts (sing-box only), per-port monthly traffic caps with a reset day and client IP limits, a mainland China download line for install, update and agent install, fnOS NAS agent install with the panel address and an enrollment key, 28 themes with accent color and corner options, and an Android monitor app bound with a read-only key.
 - Central fleet view with online state, live/history CPU, memory, disk, load, process, network, RTT, P95, loss, and per-port traffic.
@@ -534,7 +554,7 @@ With the full reverse-proxy profile, use `http://server-ip/app/` or `https://you
 
 Linux のインストールは上記「快速部署」にある 1 つのコマンドのみを使用します。初回 Web ウィザードで管理者、役割、コントローラー接続を設定します。
 
-Linux が主なサポート対象です。Windows は保守停止中、OpenWrt Lite は sing-box 専用 v1.5.7 を継続します。
+Linux と OpenWrt（sing-box 専用の単一プロセス軽量版）が主なサポート対象です。Windows は保守停止中です。
 
 ## 한국어
 
@@ -591,17 +611,21 @@ services:
     entrypoint: ./entrypoint.sh
 ```
 
-## OpenWrt Lite
+## OpenWrt 软路由
 
-OpenWrt Lite 暂停在 v1.5.7，仅包含 sing-box。当前开发优先更新 Linux，不更新 OpenWrt 插件。
+OpenWrt 版是给软路由和小内存设备的单进程精简版：面板、sing-box、Agent 和 Web 界面在同一个进程里，约 50 MB 内存，Go 堆上限为内存的四分之一（48–256 MiB）；只用 sing-box 内核。
 
-```bash
-opkg install ./s-ui-lite_1.5.7-1_x86_64.ipk
-/etc/init.d/s-ui-lite enable
-/etc/init.d/s-ui-lite start
+- **类似 PassWall / v2rayN 的代理客户端**：订阅和分享链接、延迟测试、手动选择或自动选最快节点，绕过中国大陆 / 仅 GFW 列表 / 全局三种模式，TUN 透明代理整个局域网（fw4 无需额外规则，绕过大陆模式下大陆 IP 不进 sing-box），SOCKS5 + HTTP 端口（7890），经 dnsmasq 的防污染 DNS，指定设备或域名走 / 不走代理。
+- **主控的中转端**：在路由器上检测节点和测速，主控和安卓 App 看到的就是家里网络的真实情况。
+- **远程管理**：绑定主控后，可在主控的 **客户端代理** 页面选择这台路由器，切换模式、节点、订阅和代理开关。
+
+用 SSH 以 root 登录路由器后执行（绑定主控的命令在主控面板里生成，见[飞牛 NAS / OpenWrt 用密钥绑定主控](#飞牛-nas--openwrt-用密钥绑定主控)）：
+
+```sh
+wget -O /tmp/1s-ui-openwrt.sh https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-openwrt.sh && sh /tmp/1s-ui-openwrt.sh
 ```
 
-详见 [docs/openwrt-lite.md](docs/openwrt-lite.md)。
+装好后打开 `http://路由器IP:2095/` 创建管理员。支持 OpenWrt 21.02 及以上（opkg 或 apk）、iStoreOS、ImmortalWrt，x86_64、ARM64、ARMv7、MIPS、RISC-V，建议 256 MB 以上内存。卸载用 `sh /tmp/1s-ui-openwrt.sh --uninstall`（加 `--purge` 同时删除配置）。OpenWrt 安装包（`.ipk` 与 `.tar.gz`）自 v1.7.0 之后的版本起随 Release 发布，详见 [docs/openwrt-lite.md](docs/openwrt-lite.md)。
 
 ## 源码构建
 

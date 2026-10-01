@@ -178,10 +178,16 @@ jobs:
     with:
       tag: ${{ github.event.inputs.tag || github.ref_name }}
 
+  build-openwrt:
+    uses: ./.github/workflows/openwrt-lite.yml
+    with:
+      tag: ${{ github.event.inputs.tag || github.ref_name }}
+      publish: false
+
   publish-linux:
     name: 发布 Linux 产物
-    needs: [build-linux, build-frontend, build-android]
-    # The Android app is optional: a failed APK build must not hold back the panel release.
+    needs: [build-linux, build-frontend, build-android, build-openwrt]
+    # The Android app and the OpenWrt packages are optional: a failed build must not hold back the panel release.
     if: ${{ !cancelled() && needs.build-linux.result == 'success' && needs.build-frontend.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
@@ -234,10 +240,22 @@ jobs:
           name: s-ui-android
           path: release-assets
 
-      # 面板在 api.github.com 不可达时，经加速镜像下载也能按它校验
+      # 个别架构构建失败时，其余架构照常发布
+      - name: 下载 OpenWrt 安装包
+        if: ${{ needs.build-openwrt.result == 'success' || needs.build-openwrt.result == 'failure' }}
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          pattern: s-ui-lite-*
+          path: release-assets
+          merge-multiple: true
+
+      # 面板在 api.github.com 不可达时，经加速镜像下载也能按它校验；install-openwrt.sh 也按它校验 ipk
       - name: 生成 SHA256SUMS
         working-directory: release-assets
-        run: sha256sum -- *.tar.gz > SHA256SUMS && cat SHA256SUMS
+        run: |
+          shopt -s nullglob
+          sha256sum -- *.tar.gz *.ipk > SHA256SUMS && cat SHA256SUMS
 
       - name: 发布到当前仓库 Release
         uses: softprops/action-gh-release@v3

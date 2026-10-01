@@ -81,7 +81,11 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 		api.NewAgentHandler(engine.Group(route))
 	}
 
+	ui := serveFrontend(engine, webPath)
 	engine.NoRoute(func(c *gin.Context) {
+		if ui != nil && ui(c) {
+			return
+		}
 		c.JSON(http.StatusNotFound, api.Msg{Success: false, Msg: "not found"})
 	})
 	return engine, nil

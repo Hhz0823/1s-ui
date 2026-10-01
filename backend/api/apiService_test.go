@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Hhz0823/1s-ui/config"
 	"github.com/Hhz0823/1s-ui/database"
 	"github.com/Hhz0823/1s-ui/logger"
 	"github.com/Hhz0823/1s-ui/service"
@@ -68,6 +69,34 @@ func TestChinaAgentKeyCommandsUseMirror(t *testing.T) {
 	nas := chinaAgentKeySudoInstallCommand("https://p/app/", "k")
 	if !strings.HasPrefix(nas, "curl -fsSL https://ghfast.top/"+agentInstallerURL+" -o ") || !strings.HasSuffix(nas, " --mirror cn") || !strings.Contains(nas, " --key 'k'") {
 		t.Fatalf("China NAS command = %q", nas)
+	}
+}
+
+func TestClientAndOpenWrtKeyCommands(t *testing.T) {
+	version := shellQuote(config.GetVersion())
+	client := clientKeyInstallCommand("https://p/app/", "k")
+	if client != "bash <(curl -Ls "+panelInstallerURL+") --panel 'https://p/app/' --key 'k' "+version {
+		t.Fatalf("client key command = %q", client)
+	}
+	if china := chinaCommand(client); !strings.HasPrefix(china, "bash <(curl -Ls https://ghfast.top/"+panelInstallerURL+") --mirror cn --panel ") {
+		t.Fatalf("China client key command = %q", china)
+	}
+	nas := clientKeySudoInstallCommand("https://p/app/", "k")
+	if nas != "curl -fsSL "+panelInstallerURL+" -o /tmp/1s-ui.sh && sudo bash /tmp/1s-ui.sh --panel 'https://p/app/' --key 'k' "+version {
+		t.Fatalf("client NAS command = %q", nas)
+	}
+	cnNas := chinaClientKeySudoInstallCommand("https://p/app/", "k")
+	if !strings.HasPrefix(cnNas, "curl -fsSL https://ghfast.top/"+panelInstallerURL+" -o /tmp/1s-ui.sh && sudo bash /tmp/1s-ui.sh --panel ") || !strings.HasSuffix(cnNas, " --mirror cn") {
+		t.Fatalf("China client NAS command = %q", cnNas)
+	}
+	openwrt := openwrtKeyInstallCommand("https://p/app/", "k", "", "")
+	if openwrt != "wget -O /tmp/1s-ui-openwrt.sh "+openwrtInstallerURL+" && sh /tmp/1s-ui-openwrt.sh --panel 'https://p/app/' --key 'k' --version "+version {
+		t.Fatalf("OpenWrt key command = %q", openwrt)
+	}
+	mirror, line := chinaMirror()
+	cnOpenwrt := openwrtKeyInstallCommand("https://p/app/", "k", mirror, line)
+	if !strings.HasPrefix(cnOpenwrt, "wget -O /tmp/1s-ui-openwrt.sh https://ghfast.top/"+openwrtInstallerURL+" && sh ") || !strings.HasSuffix(cnOpenwrt, " --mirror cn") {
+		t.Fatalf("China OpenWrt key command = %q", cnOpenwrt)
 	}
 }
 

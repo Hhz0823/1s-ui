@@ -638,6 +638,7 @@ func (a *ApiService) CreateAgentEnrollmentKey(c *gin.Context) {
 	}
 	c.Header("Cache-Control", "no-store")
 	panelURL := panelURLForRequest(c, webPath)
+	mirror, line := chinaMirror()
 	jsonObj(c, map[string]interface{}{
 		"configured":     true,
 		"panel_url":      panelURL,
@@ -646,6 +647,13 @@ func (a *ApiService) CreateAgentEnrollmentKey(c *gin.Context) {
 		"nas_command":    agentKeySudoInstallCommand(panelURL, key),
 		"cn_command":     chinaCommand(agentKeyInstallCommand(panelURL, key)),
 		"cn_nas_command": chinaAgentKeySudoInstallCommand(panelURL, key),
+		// The full 1S-UI as a client device of this controller (fnOS, Linux).
+		"client_command":        clientKeyInstallCommand(panelURL, key),
+		"client_nas_command":    clientKeySudoInstallCommand(panelURL, key),
+		"cn_client_command":     chinaCommand(clientKeyInstallCommand(panelURL, key)),
+		"cn_client_nas_command": chinaClientKeySudoInstallCommand(panelURL, key),
+		"openwrt_command":       openwrtKeyInstallCommand(panelURL, key, "", ""),
+		"cn_openwrt_command":    openwrtKeyInstallCommand(panelURL, key, mirror, line),
 	}, nil)
 }
 
@@ -761,10 +769,22 @@ func chinaCommand(command string) string {
 	return command[:index] + mirror + command[index:scriptEnd] + ") --mirror " + line + command[scriptEnd+1:]
 }
 
-const agentInstallerURL = "https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-agent.sh"
+const (
+	agentInstallerURL   = "https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-agent.sh"
+	panelInstallerURL   = "https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh"
+	openwrtInstallerURL = "https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-openwrt.sh"
+)
 
+// agentKeyArgs binds with "panel address + key"; install-agent.sh and
+// install-openwrt.sh take the release in --version.
 func agentKeyArgs(panelURL, key string) string {
 	return " --panel " + shellQuote(panelURL) + " --key " + shellQuote(key) + " --version " + shellQuote(config.GetVersion())
+}
+
+// clientKeyArgs is agentKeyArgs for install.sh, which takes the release as
+// its last argument.
+func clientKeyArgs(panelURL, key string) string {
+	return " --panel " + shellQuote(panelURL) + " --key " + shellQuote(key) + " " + shellQuote(config.GetVersion())
 }
 
 // agentKeyInstallCommand is for a root shell.
@@ -772,17 +792,49 @@ func agentKeyInstallCommand(panelURL, key string) string {
 	return "bash <(curl -fsSL " + agentInstallerURL + ")" + agentKeyArgs(panelURL, key)
 }
 
-// agentKeySudoInstallCommand works from a normal admin login such as fnOS SSH,
-// where "sudo bash <(...)" cannot read the process substitution.
+// sudoScriptCommand saves an installer and runs it with sudo. It works from a
+// normal admin login such as fnOS SSH, where "sudo bash <(...)" cannot read
+// the process substitution.
+func sudoScriptCommand(url, file, args string) string {
+	return "curl -fsSL " + url + " -o " + file + " && sudo bash " + file + args
+}
+
 func agentKeySudoInstallCommand(panelURL, key string) string {
-	return "curl -fsSL " + agentInstallerURL + " -o /tmp/1s-ui-agent.sh && sudo bash /tmp/1s-ui-agent.sh" + agentKeyArgs(panelURL, key)
+	return sudoScriptCommand(agentInstallerURL, "/tmp/1s-ui-agent.sh", agentKeyArgs(panelURL, key))
 }
 
 // chinaAgentKeySudoInstallCommand is agentKeySudoInstallCommand through the
 // mainland China download line.
 func chinaAgentKeySudoInstallCommand(panelURL, key string) string {
 	mirror, line := chinaMirror()
-	return "curl -fsSL " + mirror + agentInstallerURL + " -o /tmp/1s-ui-agent.sh && sudo bash /tmp/1s-ui-agent.sh" + agentKeyArgs(panelURL, key) + " --mirror " + line
+	return sudoScriptCommand(mirror+agentInstallerURL, "/tmp/1s-ui-agent.sh", agentKeyArgs(panelURL, key)+" --mirror "+line)
+}
+
+// clientKeyInstallCommand installs the full 1S-UI bound to this controller:
+// a client that proxies like v2rayN and relays node checks and speed tests.
+func clientKeyInstallCommand(panelURL, key string) string {
+	return "bash <(curl -Ls " + panelInstallerURL + ")" + clientKeyArgs(panelURL, key)
+}
+
+func clientKeySudoInstallCommand(panelURL, key string) string {
+	return sudoScriptCommand(panelInstallerURL, "/tmp/1s-ui.sh", clientKeyArgs(panelURL, key))
+}
+
+func chinaClientKeySudoInstallCommand(panelURL, key string) string {
+	mirror, line := chinaMirror()
+	return sudoScriptCommand(mirror+panelInstallerURL, "/tmp/1s-ui.sh", clientKeyArgs(panelURL, key)+" --mirror "+line)
+}
+
+// openwrtKeyInstallCommand installs the one-process OpenWrt build bound to
+// this controller. OpenWrt ships wget (uclient-fetch) and BusyBox ash, not
+// curl and bash. In mainland China the script comes through mirror and
+// downloads the release through line.
+func openwrtKeyInstallCommand(panelURL, key, mirror, line string) string {
+	args := agentKeyArgs(panelURL, key)
+	if line != "" {
+		args += " --mirror " + line
+	}
+	return "wget -O /tmp/1s-ui-openwrt.sh " + mirror + openwrtInstallerURL + " && sh /tmp/1s-ui-openwrt.sh" + args
 }
 
 func managedPanelInstallCommand(_ string) string {

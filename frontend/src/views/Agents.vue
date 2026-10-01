@@ -47,14 +47,12 @@
                 <v-text-field :model-value="enrollKey.key" :label="$t('agent.keyValue')" readonly dir="ltr" density="compact" class="mb-2" hide-details>
                   <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enrollKey.key)" /></template>
                 </v-text-field>
-                <v-textarea :model-value="enrollKey.nas_command" :label="$t('agent.keyNasCommand')" :hint="$t('agent.keyNasCommandHint')" persistent-hint readonly dir="ltr" rows="3" auto-grow class="mb-3">
-                  <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enrollKey.nas_command)" /></template>
-                </v-textarea>
-                <v-textarea :model-value="enrollKey.command" :label="$t('agent.keyRootCommand')" readonly dir="ltr" rows="2" auto-grow hide-details class="mb-3">
-                  <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enrollKey.command)" /></template>
-                </v-textarea>
-                <v-textarea v-if="enrollKey.cn_nas_command" :model-value="enrollKey.cn_nas_command" :label="$t('agent.keyCnNasCommand')" readonly dir="ltr" rows="3" auto-grow hide-details class="mb-3">
-                  <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(enrollKey.cn_nas_command)" /></template>
+                <v-chip-group v-model="keyKind" mandatory column selected-class="text-primary" class="mt-1">
+                  <v-chip v-for="kind in keyKinds" :key="kind.value" :value="kind.value" :prepend-icon="kind.icon" variant="outlined" filter>{{ $t(kind.title) }}</v-chip>
+                </v-chip-group>
+                <p class="text-body-2 text-medium-emphasis mb-3">{{ $t(keyKindHint) }}</p>
+                <v-textarea v-for="item in keyCommands" :key="item.label" :model-value="item.value" :label="$t(item.label)" :hint="item.hint ? $t(item.hint) : ''" :persistent-hint="!!item.hint" :hide-details="!item.hint" readonly dir="ltr" rows="2" auto-grow class="mb-3">
+                  <template #append-inner><v-btn icon="mdi-content-copy" size="small" variant="text" :title="$t('copyToClipboard')" @click.stop="copy(item.value)" /></template>
                 </v-textarea>
               </template>
               <v-alert v-else-if="enrollKey.configured" type="info" variant="tonal" density="compact" class="my-2">{{ $t('agent.keyActive') }}</v-alert>
@@ -466,7 +464,44 @@ const defaultMeta = (): AgentNodeMeta => ({
   sort_weight: 0, traffic_limit: 0, traffic_limit_type: 'sum', traffic_reset_day: 1,
 })
 const enroll = reactive({ visible: false, apiLoading: false, pairURL: '', pairExpiresAt: 0, command: '', managedCommand: '', cnManagedCommand: '' })
-const enrollKey = reactive({ loading: false, configured: false, panel_url: '', key: '', command: '', nas_command: '', cn_command: '', cn_nas_command: '' })
+const emptyKeyCommands = () => ({
+  command: '', nas_command: '', cn_command: '', cn_nas_command: '',
+  client_command: '', client_nas_command: '', cn_client_command: '', cn_client_nas_command: '',
+  openwrt_command: '', cn_openwrt_command: '',
+})
+type KeyCommandName = keyof ReturnType<typeof emptyKeyCommands>
+const enrollKey = reactive({ loading: false, configured: false, panel_url: '', key: '', ...emptyKeyCommands() })
+// One key binds three kinds of device: the full 1S-UI as a client (fnOS or
+// another Linux box), the one-process OpenWrt build, or only the agent.
+type KeyKind = 'client' | 'openwrt' | 'agent'
+const keyKind = ref<KeyKind>('client')
+const keyKinds: { value: KeyKind, title: string, icon: string }[] = [
+  { value: 'client', title: 'agent.keyKindClient', icon: 'mdi-nas' },
+  { value: 'openwrt', title: 'agent.keyKindOpenwrt', icon: 'mdi-router-wireless' },
+  { value: 'agent', title: 'agent.keyKindAgent', icon: 'mdi-server' },
+]
+const keyKindHint = computed(() => ({ client: 'agent.keyClientHint', openwrt: 'agent.keyOpenwrtHint', agent: 'agent.keyAgentHint' })[keyKind.value])
+const keyCommandList: Record<KeyKind, { name: KeyCommandName, label: string, hint?: string }[]> = {
+  client: [
+    { name: 'client_nas_command', label: 'agent.keyNasCommand', hint: 'agent.keyNasCommandHint' },
+    { name: 'client_command', label: 'agent.keyRootCommand' },
+    { name: 'cn_client_nas_command', label: 'agent.keyCnNasCommand' },
+    { name: 'cn_client_command', label: 'agent.keyCnRootCommand' },
+  ],
+  openwrt: [
+    { name: 'openwrt_command', label: 'agent.keyOpenwrtCommand', hint: 'agent.keyOpenwrtCommandHint' },
+    { name: 'cn_openwrt_command', label: 'agent.keyCnOpenwrtCommand' },
+  ],
+  agent: [
+    { name: 'nas_command', label: 'agent.keyNasCommand', hint: 'agent.keyNasCommandHint' },
+    { name: 'command', label: 'agent.keyRootCommand' },
+    { name: 'cn_nas_command', label: 'agent.keyCnNasCommand' },
+    { name: 'cn_command', label: 'agent.keyCnRootCommand' },
+  ],
+}
+const keyCommands = computed(() => keyCommandList[keyKind.value]
+  .map(item => ({ ...item, value: enrollKey[item.name] }))
+  .filter(item => item.value))
 const connect = reactive({ visible: false, loading: false, url: '', insecure: false })
 const edit = reactive({ visible: false, loading: false, id: 0, name: '', publicHost: '', meta: defaultMeta(), expireDate: '', trafficLimitGiB: 0 })
 const removeDialog = reactive<{ visible: boolean, loading: boolean, node?: AgentNode }>({ visible: false, loading: false })
@@ -626,7 +661,7 @@ const openEnrollment = () => {
   void loadEnrollmentKey()
 }
 const loadEnrollmentKey = async () => {
-  Object.assign(enrollKey, { key: '', command: '', nas_command: '', cn_command: '', cn_nas_command: '' })
+  Object.assign(enrollKey, { key: '', ...emptyKeyCommands() })
   try {
     const result = await api('api/agents/enrollment-key')
     Object.assign(enrollKey, { configured: !!result?.configured, panel_url: result?.panel_url || '' })
@@ -637,14 +672,13 @@ const createEnrollmentKey = async () => {
   enrollKey.loading = true
   try {
     const result = await api('api/agents/enrollment-key', { method: 'POST', body: '{}' })
+    const commands = emptyKeyCommands()
+    for (const name of Object.keys(commands) as KeyCommandName[]) commands[name] = String(result[name] || '')
     Object.assign(enrollKey, {
       configured: true,
       panel_url: result.panel_url || enrollKey.panel_url,
       key: result.key || '',
-      command: result.command || '',
-      nas_command: result.nas_command || '',
-      cn_command: result.cn_command || '',
-      cn_nas_command: result.cn_nas_command || '',
+      ...commands,
     })
   } catch (error: any) { push.error({ message: error?.message || i18n.global.t('agent.createFailed') }) }
   finally { enrollKey.loading = false }
@@ -654,7 +688,7 @@ const revokeEnrollmentKey = async () => {
   enrollKey.loading = true
   try {
     await api('api/agents/enrollment-key/revoke', { method: 'POST', body: '{}' })
-    Object.assign(enrollKey, { configured: false, key: '', command: '', nas_command: '', cn_command: '', cn_nas_command: '' })
+    Object.assign(enrollKey, { configured: false, key: '', ...emptyKeyCommands() })
   } catch (error: any) { push.error({ message: error?.message || i18n.global.t('agent.createFailed') }) }
   finally { enrollKey.loading = false }
 }
