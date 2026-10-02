@@ -38,14 +38,15 @@ shows. It looks like this:
 
 ```sh
 wget -O /tmp/1s-ui-openwrt.sh https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-openwrt.sh \
-  && sh /tmp/1s-ui-openwrt.sh --panel 'https://controller.example.com/app/' --key 'KEY' --version 'v1.7.0'
+  && sh /tmp/1s-ui-openwrt.sh --panel 'https://controller.example.com/app/' --key 'KEY' --version '1.7.1'
 ```
 
 In mainland China, use the controller's mainland China command, which
 downloads the script and the release through a GitHub mirror
 (`--mirror cn`). Without `--mirror`, the installer uses GitHub and switches to
-the mirrors when GitHub is unreachable. Every download is checked against the
-release's `SHA256SUMS`.
+the mirrors when GitHub is unreachable. Downloads are checked against the
+release's `SHA256SUMS`. The OpenWrt packages are published with the releases
+after v1.7.0.
 
 Then open `http://router-ip:2095/` and create the administrator.
 
@@ -78,8 +79,9 @@ rules; OpenWrt's fw4 needs no extra configuration. Mainland China addresses
 are excluded from the TUN routes in the "bypass mainland China" mode, so that
 traffic never enters the proxy.
 
-With **Take over LAN DNS** on, the client writes
-`/tmp/dnsmasq.d/1s-ui-client.conf` pointing dnsmasq at its local DNS server
+With **Take over LAN DNS** on, the client writes `1s-ui-client.conf` into
+dnsmasq's runtime directory (`/tmp/dnsmasq.d`, or `/tmp/dnsmasq.cfg*.d` on
+newer releases), pointing dnsmasq at its local DNS server
 (127.0.0.1:5335), which resolves mainland China domains through the direct DNS
 server and everything else through the remote one. Stopping the service
 removes the file and restarts dnsmasq, so the LAN keeps working.

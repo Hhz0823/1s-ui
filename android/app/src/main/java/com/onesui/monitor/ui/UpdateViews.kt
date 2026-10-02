@@ -20,11 +20,17 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.onesui.monitor.data.MonitorController
 import com.onesui.monitor.data.UiState
 import com.onesui.monitor.data.UpdateState
+
+/** Opens [url] in the browser; a phone without one keeps the app running. */
+private fun UriHandler.openSafely(url: String) {
+    runCatching { openUri(url) }
+}
 
 /** A panel or server version, with the release it can update to. */
 fun versionText(version: String, update: UpdateState): String {
@@ -48,8 +54,8 @@ fun UpdateBanner(state: UiState, vm: MonitorController) {
                 style = MaterialTheme.typography.bodySmall,
             )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { uri.openUri(latest.apkUrl) }) { Text("下载") }
-                TextButton(onClick = { uri.openUri(latest.mirrorApkUrl) }) { Text("加速下载") }
+                TextButton(onClick = { uri.openSafely(latest.apkUrl) }) { Text("下载") }
+                TextButton(onClick = { uri.openSafely(latest.mirrorApkUrl) }) { Text("加速下载") }
                 TextButton(onClick = vm::dismissUpdate) { Text("忽略") }
             }
         }
@@ -79,10 +85,10 @@ fun UpdateSection(state: UiState, vm: MonitorController) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = vm::checkUpdates, enabled = !update.checking) { Text("检查更新") }
             if (latest != null && update.appUpdate) {
-                Button(onClick = { uri.openUri(latest.apkUrl) }) { Text("下载新版") }
-                OutlinedButton(onClick = { uri.openUri(latest.mirrorApkUrl) }) { Text("加速下载") }
+                Button(onClick = { uri.openSafely(latest.apkUrl) }) { Text("下载新版") }
+                OutlinedButton(onClick = { uri.openSafely(latest.mirrorApkUrl) }) { Text("加速下载") }
             }
-            if (latest != null) TextButton(onClick = { uri.openUri(latest.pageUrl) }) { Text("更新说明") }
+            if (latest != null) TextButton(onClick = { uri.openSafely(latest.pageUrl) }) { Text("更新说明") }
         }
         Text(
             "GitHub 下载慢或打不开时用「加速下载」。安装时提示签名不一致，需要先卸载旧版。面板可在面板「设置 → 服务端面板」里检测更新。",

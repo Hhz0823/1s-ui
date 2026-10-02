@@ -253,7 +253,7 @@ fi
 
 if [ -n "$panel" ]; then
 	[ -n "$name" ] || name=$(uci -q get system.@system[0].hostname 2>/dev/null || cat /proc/sys/kernel/hostname)
-	name=$(printf '%s' "$name" | tr -d '\r\n"\\' | cut -c1-80)
+	name=$(printf '%s' "$name" | tr -d '\000-\037"\\' | cut -c1-80)
 	[ -n "$name" ] || name=openwrt
 	say "Connecting to the 1S-UI controller…"
 	response=$(post "${panel%/}/agent/v1/enroll" "{\"code\":\"$key\",\"name\":\"$name\"}") ||
