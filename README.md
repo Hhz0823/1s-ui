@@ -11,7 +11,7 @@
   [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8)](backend/go.mod)
   [![Vue](https://img.shields.io/badge/Vue-3-42b883)](frontend/package.json)
 
-  **[Linux v1.7.0](https://github.com/Hhz0823/1s-ui/releases/tag/v1.7.0)** · **[OpenWrt 软路由](docs/openwrt-lite.md)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
+  **[Linux v1.7.1](https://github.com/Hhz0823/1s-ui/releases/tag/v1.7.1)** · **[OpenWrt 软路由](docs/openwrt-lite.md)** · **[Issues](https://github.com/Hhz0823/1s-ui/issues)**
 </div>
 
 > 1S-UI 基于 [alireza0/s-ui](https://github.com/alireza0/s-ui) 二次开发，仅用于学习、研究与技术交流。请遵守当地法律法规。
@@ -193,7 +193,7 @@ s-ui update
 入站、证书、Xray 二进制和运行配置不会被删除。网页界面（`s-ui-frontend.tar.gz`）会随面板一起更新；
 网页界面与面板版本不一致时（例如旧版更新器只替换了程序），面板启动后会自动下载并安装与自身版本
 一致的界面，浏览器会重新检查界面文件，不再显示缓存的旧界面。在线更新不可用时，可在服务器上重新运行上面的安装命令
-升级，数据同样保留；命令末尾加版本号可安装指定版本，例如 `v1.7.0`。v1.6.3 及更早版本自带的
+升级，数据同样保留；命令末尾加版本号可安装指定版本，例如 `v1.7.1`。v1.6.3 及更早版本自带的
 `s-ui update` 会从旧的 master 分支下载过时的安装脚本，请改用安装命令。
 
 **服务器连不上 GitHub（例如 api.github.com 超时）时**，面板更新和 Xray-core 安装会自动换用其他通道：
@@ -420,6 +420,14 @@ flowchart LR
 - **节点监测**：**代理监测** 除了 SOCKS5 / HTTP，现在可以监测所有协议的节点（VLESS、VMess、Trojan、Shadowsocks、Hysteria2、TUIC、AnyTLS、Naive）：粘贴分享链接，或直接选择某台服务器的入站（节点改过端口或密码后，主控会自动从该服务器取回最新链接，页面和 App 都不显示链接和密钥）；由主控或任意一台子服务器 / 客户端设备检测，记录握手、出口 IP、延迟和失败原因。
 - **中转测速**：服务器详情页 **中转测速** 从一台设备（例如家里的飞牛 NAS 或 OpenWrt）测到另一台服务器的 TCP / UDP 延迟、下载和上传，测出家宽到 VPS 的真实线路质量。
 
+### v1.7.1 更新重点
+
+- **客户端代理（类似 PassWall / v2rayN）**：面板可当代理客户端，支持订阅、测速、自动选择、绕过大陆 / 仅 GFW 列表 / 全局、TUN 透明代理局域网和分流 DNS；主控和安卓 App 可远程切换节点与模式，详见[代理客户端、节点监测与中转测速](#代理客户端节点监测与中转测速)。
+- **飞牛 NAS / OpenWrt 当客户端**：主控生成密钥后一条命令安装并绑定；OpenWrt 单进程精简版约 50 MB 内存，11 个架构的安装包随 Release 发布，详见[飞牛 NAS / OpenWrt 用密钥绑定主控](#飞牛-nas--openwrt-用密钥绑定主控)与 [OpenWrt 软路由](#openwrt-软路由)。
+- **节点监测与中转测速**：监测所有协议的节点（分享链接或服务器入站），可交给家里的 NAS / 软路由检测；从一台服务器测到另一台的 TCP / UDP 延迟和速度。
+- **安卓 App**：所有面板合并显示、节点与测速、客户端页、节点监测、中转测速和检查更新，详见[安卓 App 群控、代理监测与测速](#安卓-app-群控代理监测与测速)。
+- **修复**：Shadowsocks 2022（AES-128）一键节点与单用户入站的链接和订阅；日志缓冲区的并发写入。
+
 ### v1.7.0 更新重点
 
 v1.6.4 未单独发布，其修复一并包含在 v1.7.0 中。
@@ -511,7 +519,7 @@ v1.6.4 未单独发布，其修复一并包含在 v1.7.0 中。
 
 ### Highlights
 
-- Proxy client, node monitors and relays: the **Proxy client** page turns a panel into a v2rayN / PassWall-style client (subscriptions with remaining traffic, latency tests, a chosen or the fastest node, bypass-mainland-China / GFW-list / global modes, a TUN transparent proxy for the LAN, a SOCKS5 + HTTP port, split DNS), running inside the panel's own sing-box. A controller manages the client of any bound device remotely. Node monitors check nodes of every protocol from a share link or straight from a server's inbound, and relay speed tests measure TCP / UDP latency and throughput from one device (a home NAS or router) to another server. A fnOS NAS or other Linux box installs the full client with the controller's address and enrollment key, and OpenWrt gets a one-process build (about 50 MB of memory) with the same features; see [docs/openwrt-lite.md](docs/openwrt-lite.md).
+- v1.7.1 — proxy client, node monitors and relays: the **Proxy client** page turns a panel into a v2rayN / PassWall-style client (subscriptions with remaining traffic, latency tests, a chosen or the fastest node, bypass-mainland-China / GFW-list / global modes, a TUN transparent proxy for the LAN, a SOCKS5 + HTTP port, split DNS), running inside the panel's own sing-box. A controller manages the client of any bound device remotely. Node monitors check nodes of every protocol from a share link or straight from a server's inbound, and relay speed tests measure TCP / UDP latency and throughput from one device (a home NAS or router) to another server. A fnOS NAS or other Linux box installs the full client with the controller's address and enrollment key, and OpenWrt gets a one-process build (about 50 MB of memory) with the same features; see [docs/openwrt-lite.md](docs/openwrt-lite.md).
 - Android app and proxy monitors: the app shows the servers of every bound panel on one home page, each server's nodes (protocol, port, TLS / REALITY, transport, users, traffic — never credentials) and a phone-to-server speed test (TCP and UDP latency, TCP download/upload, UDP download/upload at a chosen rate with loss and jitter, through a short-lived token-protected port, 5201 by default). Proxy monitors check SOCKS5 / HTTP proxies on a schedule from the controller or any managed server (useful when a landing proxy only accepts its relay's IP), recording each step's time, the exit IP and why a check failed; they are managed from the web UI and the app, which can also alert when a proxy goes down.
 - v1.7.0: Komari-style server monitor (grid/table views, groups, 1h to 30-day history, price/expiry/monthly traffic badges, TCP/UDP counts), a lite controller for 1 vCPU / 512MB hosts (sing-box only), per-port monthly traffic caps with a reset day and client IP limits, a mainland China download line for install, update and agent install, fnOS NAS agent install with the panel address and an enrollment key, 28 themes with accent color and corner options, and an Android monitor app bound with a read-only key.
 - Central fleet view with online state, live/history CPU, memory, disk, load, process, network, RTT, P95, loss, and per-port traffic.
@@ -628,7 +636,7 @@ OpenWrt 版是给软路由和小内存设备的单进程精简版：面板、sin
 wget -O /tmp/1s-ui-openwrt.sh https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-openwrt.sh && sh /tmp/1s-ui-openwrt.sh
 ```
 
-装好后打开 `http://路由器IP:2095/` 创建管理员。支持 OpenWrt 21.02 及以上（opkg 或 apk）、iStoreOS、ImmortalWrt，x86_64、ARM64、ARMv7、MIPS、RISC-V，建议 256 MB 以上内存。卸载用 `sh /tmp/1s-ui-openwrt.sh --uninstall`（加 `--purge` 同时删除配置）。OpenWrt 安装包（`.ipk` 与 `.tar.gz`）自 v1.7.0 之后的版本起随 Release 发布，详见 [docs/openwrt-lite.md](docs/openwrt-lite.md)。
+装好后打开 `http://路由器IP:2095/` 创建管理员。支持 OpenWrt 21.02 及以上（opkg 或 apk）、iStoreOS、ImmortalWrt，x86_64、ARM64、ARMv7、MIPS、RISC-V，建议 256 MB 以上内存。卸载用 `sh /tmp/1s-ui-openwrt.sh --uninstall`（加 `--purge` 同时删除配置）。OpenWrt 安装包（`.ipk` 与 `.tar.gz`）自 v1.7.1 起随 Release 发布，详见 [docs/openwrt-lite.md](docs/openwrt-lite.md)。
 
 ## 源码构建
 

@@ -6,7 +6,7 @@ on:
       tag:
         description: "发布标签"
         required: true
-        default: "v1.7.0"
+        default: "v1.7.1"
         type: string
       publish:
         description: "上传到该标签的 Release"

@@ -45,8 +45,8 @@ In mainland China, use the controller's mainland China command, which
 downloads the script and the release through a GitHub mirror
 (`--mirror cn`). Without `--mirror`, the installer uses GitHub and switches to
 the mirrors when GitHub is unreachable. Downloads are checked against the
-release's `SHA256SUMS`. The OpenWrt packages are published with the releases
-after v1.7.0.
+release's `SHA256SUMS`. The OpenWrt packages are published with every release
+from v1.7.1 on.
 
 Then open `http://router-ip:2095/` and create the administrator.
 
