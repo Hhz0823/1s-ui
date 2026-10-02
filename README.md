@@ -1,8 +1,8 @@
 <div align="center">
   <img src="frontend/src/assets/logo.svg" width="92" alt="1S-UI logo">
   <h1>1S-UI</h1>
-  <p><strong>Linux multi-server control plane for sing-box / Xray-core.</strong></p>
-  <p>面向 Ubuntu / Debian 的代理服务器群控面板：一个主控集中纳管多台 VPS，统一监控、远程管理入站、批量创建节点与配置 IPv6 中转。</p>
+  <p><strong>Multi-server control plane and proxy client for sing-box / Xray-core on Linux and OpenWrt.</strong></p>
+  <p>代理服务器群控面板：一个主控集中纳管多台 VPS、飞牛 NAS 和 OpenWrt 软路由，统一监控、远程管理入站、批量创建节点与配置 IPv6 中转；家里的设备装上后还能当 PassWall / v2rayN 式代理客户端，并作为节点监测和测速的中转端。</p>
 
   [![Release](https://img.shields.io/github/v/release/Hhz0823/1s-ui?label=Linux%20Release)](https://github.com/Hhz0823/1s-ui/releases/latest)
   [![Security](https://github.com/Hhz0823/1s-ui/actions/workflows/security.yml/badge.svg)](https://github.com/Hhz0823/1s-ui/actions/workflows/security.yml)
@@ -19,7 +19,7 @@
 
 **语言 Languages:** [简体中文](#简体中文) · [English](#english) · [日本語](#日本語) · [한국어](#한국어) · [Tiếng Việt](#tiếng-việt) · [فارسی](#فارسی)
 
-**导航:** [页面截图](#页面截图) · [面板界面](#面板界面宝塔--1panel-风格) · [群控架构](#群控架构) · [快速部署](#快速部署) · [功能矩阵](#功能矩阵) · [群控与远程管理](#群控与远程管理) · [一键中转](#一键中转) · [SD-WAN 智能组网](#sd-wan-智能组网) · [客户端导入](#客户端导入兼容性) · [安全](#安全与权限)
+**导航:** [页面截图](#页面截图) · [面板界面](#面板界面宝塔--1panel-风格) · [群控架构](#群控架构) · [快速部署](#快速部署) · [飞牛 NAS / OpenWrt](#飞牛-nas--openwrt-用密钥绑定主控) · [功能矩阵](#功能矩阵) · [群控与远程管理](#群控与远程管理) · [代理客户端与节点监测](#代理客户端节点监测与中转测速) · [安卓 App](#安卓-app-群控代理监测与测速) · [一键中转](#一键中转) · [SD-WAN 智能组网](#sd-wan-智能组网) · [客户端导入](#客户端导入兼容性) · [OpenWrt 软路由](#openwrt-软路由) · [安全](#安全与权限)
 
 ---
 
@@ -30,6 +30,10 @@
 | 宝塔绿主页 BaoTa Home | 1Panel 暗色主页 1Panel Dark Home |
 | --- | --- |
 | ![BaoTa style home dashboard](docs/screenshots/dashboard-panel.jpg) | ![1Panel dark home dashboard](docs/screenshots/dashboard-onepanel-dark.jpg) |
+
+| 客户端代理 Proxy Client | 代理与节点监测 Proxy & Node Monitors |
+| --- | --- |
+| ![Proxy client of a home NAS managed from the controller](docs/screenshots/proxy-client-panel.jpg) | ![Proxy and node monitors checked from a home NAS](docs/screenshots/monitors-panel.jpg) |
 
 | 入站列表 Inbound List | 路由规则 Routing Rules |
 | --- | --- |
@@ -63,6 +67,8 @@
 | **仅监控主控** | 只看服务器状态 | 在线状态、CPU、内存、磁盘、负载、进程、网络、RTT、P95、丢包和端口流量 | 至少 2 核 2GiB；后端拒绝远程控制 |
 | **精简主控制端** | 低配 VPS 当主控 | 与完整主控制端相同的群控能力；本机入站、出站、路由和订阅照常可用 | 1 核 512MB 起（低于 2 核 2GiB 时自动启用）；只用 sing-box，Xray-core 保持关闭 |
 | **受管客户端** | 被主控纳管，同时保留本机面板 | 完整 Web UI、sing-box 默认内核、可选 Xray、本机节点与主动出站 Agent | 目标 1 核 512MiB |
+| **客户端设备** | 飞牛 NAS、家里的 Linux | 受管客户端的全部能力，另有 [代理客户端](#代理客户端节点监测与中转测速)（类似 v2rayN），可当节点监测和测速的中转端，主控和 App 远程切换节点 | 与受管客户端相同；用主控的接入密钥一条命令安装 |
+| **OpenWrt 软路由** | 软路由透明代理 | 类似 PassWall 的透明代理（订阅、分流、防污染 DNS），节点监测与测速中转，主控和 App 远程管理 | 单进程约 50 MB 内存；只用 sing-box，见 [OpenWrt 软路由](#openwrt-软路由) |
 
 ```mermaid
 flowchart LR
@@ -79,6 +85,7 @@ flowchart LR
 - 远程入站操作由子服务器本机面板校验并应用，主控不会直接写入远端 SQLite。
 - 主控可随时切换为仅监控角色，远程终端、命令、入站和中转权限会在后端统一关闭。
 - 单机用户无需启用群控角色，仍可把 1S-UI 作为完整的本地代理管理面板使用。
+- 飞牛 NAS、OpenWrt 等家里的设备绑定主控后，既是代理客户端，也是看「家里网络能不能用」的检测点：节点监测和中转测速都可以交给它们执行。
 
 ---
 
@@ -166,6 +173,7 @@ wget -O /tmp/1s-ui-openwrt.sh https://raw.githubusercontent.com/Hhz0823/1s-ui/ma
 | 默认客户端，未启用反代 | `http://服务器IP:2095/app/` |
 | 全面服务端，未填写域名 | `http://服务器IP/app/` |
 | 全面服务端，Caddy + 域名 | `https://你的域名/app/` |
+| OpenWrt 软路由 | `http://路由器IP:2095/app/`（访问 `http://路由器IP:2095/` 会自动跳转） |
 
 全面服务端启用公网反向代理后，nginx 前端网关默认只监听 `127.0.0.1:2095`。公网应访问 80/443 的 `/app/`，公网 `IP:2095` 不可访问属于预期安全行为；Go 后端始终使用独立内部监听。
 
@@ -214,12 +222,13 @@ s-ui update
 
 群控层提供：
 
-- 一个主控集中管理多台 Ubuntu / Debian 服务器，并允许修改便于识别的服务器名称。
+- 一个主控集中管理多台 Ubuntu / Debian 服务器、飞牛 NAS 和 OpenWrt 软路由，并允许修改便于识别的服务器名称。
 - 实时与历史 CPU、内存、磁盘、负载、进程、网络流量和延迟指标。
 - 直接进入指定服务器的入站列表，远程新增、编辑、删除、启停和快速创建节点。
 - 在受管服务器远程创建 1–100 条节点、IPv6 出口中转或上游 SOCKS5 中转。
 - WebSocket 长连接、控制面 RTT、批量命令和交互式 PTY；仅监控角色可从后端彻底关闭这些权限。
-- 子服务器只输入主控公网地址即可绑定，主控为每台机器自动签发独立 Token。
+- 子服务器只输入主控公网地址即可绑定，主控为每台机器自动签发独立 Token；飞牛 NAS、OpenWrt 用主控生成的接入密钥一条命令安装并绑定。
+- 家里的设备当 PassWall / v2rayN 式代理客户端，主控和安卓 App 可远程切换节点与模式，并能让它们检测节点、测到 VPS 的线路。
 
 代理层以 **sing-box 为默认内核**，并允许每条入站独立选择 **Xray-core**。当前开发优先级是 Linux（Ubuntu / Debian）与 OpenWrt 软路由（单进程精简版，仅 sing-box）；Windows 暂停维护。
 
@@ -251,8 +260,11 @@ s-ui update
 | SD-WAN 智能组网 | 多台受管服务器合并为一个入口：每台服务器同时部署 VLESS Reality（TCP）与 Hysteria2（QUIC）上行，按实时延迟选择最快线路，故障约 5 秒内自动切换；内置网络检测与一键调优 |
 | 出站导入 | 支持 SOCKS5/SOCKS4、HTTP(S)、Hysteria2 端口跳跃与 `user:pass` 认证、VMess、VLESS、Trojan、Shadowsocks、TUIC、AnyTLS、Naive 链接 |
 | 界面 | 默认宝塔 / 1Panel 风格面板（分组侧栏、面包屑、工具栏 + 表格列表）；28 个主题预览选择、跟随系统的浅色 / 深色主题、强调色、圆角风格；可选玻璃、实色、清透、自定义背景、菜单布局和紧凑密度 |
-| 手机监控 | 安卓 App 用监控密钥绑定一个或多个面板，首页集中显示所有服务器（Komari 风格），查看节点摘要，手机到服务器的 TCP / UDP 测速与延迟；离线、资源过高、代理不可用时提醒 |
-| 代理监测 | 定时检测 SOCKS5 / HTTP 代理是否可用、延迟多少、出口 IP 在哪，可由主控或任一子服务器发起（适合只允许中转 IP 连接的落地代理），保留 3 天历史 |
+| 代理客户端 | 类似 PassWall / v2rayN：订阅（显示剩余流量与到期）、分享链接、测延迟、手动或自动选最快节点；绕过中国大陆 / 仅 GFW 列表 / 全局；TUN 透明代理局域网、SOCKS5 + HTTP 端口、分流 DNS；主控和 App 远程管理任一设备 |
+| 代理与节点监测 | 定时检测 SOCKS5 / HTTP 代理和 VLESS、VMess、Trojan、Shadowsocks、Hysteria2、TUIC、AnyTLS、Naive 节点（分享链接或直接选服务器入站）是否可用、延迟多少、出口 IP 在哪；可由主控、任一子服务器或家里的 NAS / 软路由发起，保留 3 天历史 |
+| 测速 | 手机或另一台服务器（主控、家里的 NAS / 软路由）到服务器的 TCP / UDP 延迟、丢包、抖动和上下行速度 |
+| 手机监控 | 安卓 App 用监控密钥绑定一个或多个面板，首页集中显示所有服务器（Komari 风格），查看节点摘要、测速、代理与节点监测，管理客户端设备的代理；离线、资源过高、代理或节点不可用时提醒；自动检查新版本 |
+| OpenWrt | 单进程精简版（面板、sing-box、Agent 与 Web 界面同一进程，约 50 MB 内存），11 个架构的 `.ipk` / `.tar.gz` 随 Release 发布 |
 | 下载线路 | 安装、在线更新和子服务器安装支持中国大陆加速镜像，GitHub 不可用或太慢时自动切换 |
 | 反向代理 | 在服务端面板查看和管理 Caddy / Nginx 状态、域名与配置应用 |
 
@@ -515,12 +527,12 @@ v1.6.4 未单独发布，其修复一并包含在 v1.7.0 中。
 
 ## English
 
-1S-UI is a Linux multi-server control panel for centrally operating a fleet of sing-box / Xray-core proxy servers. One controller provides monitoring and remote management, while every managed child keeps its own complete Web UI and continues running independently if the controller is unavailable.
+1S-UI is a multi-server control panel for centrally operating a fleet of sing-box / Xray-core proxy servers on Linux, together with home devices such as a fnOS NAS or an OpenWrt router. One controller provides monitoring and remote management, while every managed device keeps its own complete Web UI and continues running independently if the controller is unavailable. Home devices also work as a v2rayN / PassWall-style proxy client and as relays that check nodes and run speed tests from the home network.
 
 ### Highlights
 
 - v1.7.1 — proxy client, node monitors and relays: the **Proxy client** page turns a panel into a v2rayN / PassWall-style client (subscriptions with remaining traffic, latency tests, a chosen or the fastest node, bypass-mainland-China / GFW-list / global modes, a TUN transparent proxy for the LAN, a SOCKS5 + HTTP port, split DNS), running inside the panel's own sing-box. A controller manages the client of any bound device remotely. Node monitors check nodes of every protocol from a share link or straight from a server's inbound, and relay speed tests measure TCP / UDP latency and throughput from one device (a home NAS or router) to another server. A fnOS NAS or other Linux box installs the full client with the controller's address and enrollment key, and OpenWrt gets a one-process build (about 50 MB of memory) with the same features; see [docs/openwrt-lite.md](docs/openwrt-lite.md).
-- Android app and proxy monitors: the app shows the servers of every bound panel on one home page, each server's nodes (protocol, port, TLS / REALITY, transport, users, traffic — never credentials) and a phone-to-server speed test (TCP and UDP latency, TCP download/upload, UDP download/upload at a chosen rate with loss and jitter, through a short-lived token-protected port, 5201 by default). Proxy monitors check SOCKS5 / HTTP proxies on a schedule from the controller or any managed server (useful when a landing proxy only accepts its relay's IP), recording each step's time, the exit IP and why a check failed; they are managed from the web UI and the app, which can also alert when a proxy goes down.
+- Android app: the servers of every bound panel on one home page, each server's nodes (protocol, port, TLS / REALITY, transport, users, traffic — never credentials) and a speed test from the phone or from another server (TCP and UDP latency, TCP download/upload, UDP download/upload at a chosen rate with loss and jitter, through a short-lived token-protected port, 5201 by default). A clients tab switches the proxy client of a NAS or router (on/off, routing mode, node, latency tests, subscription updates, exit IP); monitors cover SOCKS5 / HTTP proxies and nodes of every protocol, checked from the controller or any managed server, with alerts when one goes down; the app checks for new releases and offers the APK from GitHub or a mirror.
 - v1.7.0: Komari-style server monitor (grid/table views, groups, 1h to 30-day history, price/expiry/monthly traffic badges, TCP/UDP counts), a lite controller for 1 vCPU / 512MB hosts (sing-box only), per-port monthly traffic caps with a reset day and client IP limits, a mainland China download line for install, update and agent install, fnOS NAS agent install with the panel address and an enrollment key, 28 themes with accent color and corner options, and an Android monitor app bound with a read-only key.
 - Central fleet view with online state, live/history CPU, memory, disk, load, process, network, RTT, P95, loss, and per-port traffic.
 - Per-user traffic and bandwidth ranking for preset or custom periods, including upload/download totals, average rate, sampled peak, search, and sorting.
@@ -548,10 +560,12 @@ v1.6.4 未单独发布，其修复一并包含在 v1.7.0 中。
 | Full controller | 2 vCPU / 2GB | Fleet monitoring, remote control, optional Xray, and reverse proxy |
 | Lite controller | 1 vCPU / 512MB | Same fleet features as the full controller; sing-box is the only core |
 | Monitoring controller | 2 vCPU / 2GB | Fleet metrics and port traffic without remote-control capabilities |
+| Home client (fnOS NAS, Linux) | Same as a managed child | Managed child plus the proxy client; installed with the controller's address and enrollment key |
+| OpenWrt router | 256MB RAM recommended | One process of about 50 MB (panel, sing-box, agent and web UI); sing-box only |
 
 A controller below 2 vCPU / 2GB runs as a lite controller: every fleet feature stays, and sing-box is the only core. Managed child panels retain a full Web UI and start sing-box by default. A low-resource host may install both cores from Web settings, but below 1.5GiB only one runs at a time: starting Xray stops sing-box, and stopping or disabling Xray restores sing-box automatically.
 
-Use the single Linux command in [Quick Deploy](#快速部署) on both controllers and managed children. The first browser visit opens a guided setup for the administrator, role, and optional controller address; there is no default Web password. A controller can open an online child's local panel with a 60-second, single-use login grant over the existing Agent WebSocket. Panel `2095` `/app/`, subscription `2096` `/sub/`, database `/usr/local/s-ui/db`.
+Use the single Linux command in [Quick Deploy](#快速部署) on both controllers and managed children; a fnOS NAS or an OpenWrt router installs with the command the controller shows under **Server Monitor → Add child server → panel address + key** ([details](#飞牛-nas--openwrt-用密钥绑定主控), [OpenWrt guide](docs/openwrt-lite.md)). The first browser visit opens a guided setup for the administrator, role, and optional controller address; there is no default Web password. A controller can open an online child's local panel with a 60-second, single-use login grant over the existing Agent WebSocket. Panel `2095` `/app/`, subscription `2096` `/sub/`, database `/usr/local/s-ui/db`.
 
 With the full reverse-proxy profile, use `http://server-ip/app/` or `https://your-domain/app/`. Port `2095` is intentionally bound to localhost.
 
@@ -565,7 +579,9 @@ With the full reverse-proxy profile, use `http://server-ip/app/` or `https://you
 
 Linux のインストールは上記「快速部署」にある 1 つのコマンドのみを使用します。初回 Web ウィザードで管理者、役割、コントローラー接続を設定します。
 
-Linux と OpenWrt（sing-box 専用の単一プロセス軽量版）が主なサポート対象です。Windows は保守停止中です。
+v1.7.1 から、パネルを PassWall / v2rayN のようなプロキシクライアントとして使えます（購読、遅延テスト、自動選択、TUN 透過プロキシ、分流 DNS）。fnOS NAS や OpenWrt ルーターはコントローラーの登録キーを使ったコマンド 1 行で導入でき、ノード監視と速度測定の中継としても使えます。Android アプリからクライアント端末のノードやモードも切り替えられます。
+
+Linux と OpenWrt（sing-box 専用の単一プロセス軽量版、約 50 MB）が主なサポート対象です。Windows は保守停止中です。
 
 ## 한국어
 
@@ -575,6 +591,8 @@ Linux と OpenWrt（sing-box 専用の単一プロセス軽量版）が主なサ
 
 Linux 설치는 위의 빠른 배포 섹션에 있는 하나의 명령만 사용합니다. 첫 Web 마법사에서 관리자, 역할 및 컨트롤러 연결을 설정합니다.
 
+v1.7.1부터 패널을 PassWall / v2rayN 같은 프록시 클라이언트로 쓸 수 있습니다(구독, 지연 테스트, 자동 선택, TUN 투명 프록시, 분할 DNS). fnOS NAS와 OpenWrt 라우터는 컨트롤러의 등록 키로 명령 한 줄로 설치하며, 노드 모니터링과 속도 측정의 중계로도 사용할 수 있습니다. OpenWrt 버전은 약 50 MB 메모리를 쓰는 단일 프로세스 경량판입니다.
+
 ## Tiếng Việt
 
 1S-UI là bảng điều khiển tập trung cho nhiều máy chủ proxy Ubuntu/Debian. Một máy chủ điều khiển có thể theo dõi nhiều VPS, xem số liệu thời gian thực và lịch sử, lưu lượng theo cổng, quản lý inbound từ xa, tạo hàng loạt 1–100 node, cấu hình relay IPv6/SOCKS5, chạy lệnh và terminal PTY. Mỗi máy con vẫn giữ Web UI đầy đủ và sing-box cục bộ, nên các node hiện có tiếp tục hoạt động khi máy chủ điều khiển tạm thời ngoại tuyến.
@@ -583,6 +601,8 @@ Quản trị viên mở cửa sổ kết nối dùng một lần trong 5 phút t
 
 Linux chỉ dùng một lệnh trong phần triển khai nhanh ở trên. Trình hướng dẫn Web lần đầu cấu hình quản trị viên, vai trò và kết nối bộ điều khiển.
 
+Từ v1.7.1, bảng điều khiển có thể làm proxy client giống PassWall / v2rayN (subscription, đo độ trễ, tự chọn node nhanh nhất, proxy trong suốt TUN, DNS tách luồng). NAS fnOS và router OpenWrt được cài bằng một lệnh với khóa đăng ký của bộ điều khiển, đồng thời làm điểm trung chuyển để giám sát node và đo tốc độ. Bản OpenWrt chạy trong một tiến trình, dùng khoảng 50 MB bộ nhớ.
+
 ## فارسی
 
 1S-UI یک پنل کنترل متمرکز برای مدیریت گروهی سرورهای پروکسی Ubuntu و Debian است. از یک کنترلر اصلی می‌توان وضعیت چند VPS، شاخص‌های زنده و تاریخی، ترافیک پورت‌ها، inboundها، ساخت گروهی ۱ تا ۱۰۰ نود، رله IPv6/SOCKS5، فرمان‌ها و ترمینال PTY را مدیریت کرد. هر سرور فرزند رابط Web کامل و sing-box محلی خود را حفظ می‌کند؛ بنابراین با قطع موقت کنترلر، نودهای موجود مستقل به کار ادامه می‌دهند.
@@ -590,6 +610,8 @@ Linux chỉ dùng một lệnh trong phần triển khai nhanh ở trên. Trình
 مدیر در پنل اصلی یک پنجره اتصال پنج‌دقیقه‌ای و یک‌بارمصرف باز می‌کند؛ سرور فرزند فقط نشانی عمومی پنل را وارد می‌کند و Agent Token اختصاصی دریافت می‌کند. هسته پیش‌فرض sing-box است و برای هر inbound می‌توان Xray-core را انتخاب کرد.
 
 برای لینوکس فقط از یک فرمان بخش نصب سریع بالا استفاده کنید. راهنمای نخستین اجرای وب، مدیر، نقش و اتصال کنترل‌گر را تنظیم می‌کند.
+
+از نسخه 1.7.1، پنل می‌تواند مانند PassWall / v2rayN به‌عنوان کلاینت پروکسی کار کند (اشتراک، تست تأخیر، انتخاب خودکار، پروکسی شفاف TUN و DNS تفکیک‌شده). NAS با سیستم fnOS و روتر OpenWrt با کلید ثبت کنترل‌گر و یک فرمان نصب می‌شوند و برای پایش نودها و تست سرعت نیز به‌عنوان رله به کار می‌روند. نسخه OpenWrt یک فرایند واحد با حدود 50 مگابایت حافظه است.
 
 ---
 
@@ -662,11 +684,19 @@ go build -o ../sui-agent ./cmd/sui-agent
 (cd frontend && npm run build)
 ```
 
-正式 Release 使用 GitHub Actions 构建带 CGO、musl 和 Naive 支持的 Linux 多架构包；普通本地 `go build` 不等同于正式 Release 构建。
+OpenWrt 安装包用 `scripts/build-openwrt-lite.sh <架构>` 构建（交叉编译需要 musl 工具链），详见 [docs/openwrt-lite.md](docs/openwrt-lite.md)。
+
+正式 Release 使用 GitHub Actions 构建带 CGO、musl 和 Naive 支持的 Linux 多架构包、OpenWrt 安装包和安卓 APK；普通本地 `go build` 不等同于正式 Release 构建。
 
 ## 安卓监控 App
 
-在面板「设置 → 前端与后端 → 手机监控 App」生成监控密钥，用 App 扫码即可绑定。可以绑定多个面板，首页集中显示所有服务器；点进服务器查看实时状态、节点和测速；「代理监测」标签管理 SOCKS5 / HTTP 代理监测；后台在服务器离线、资源过高或代理不可用时通知。APK 随版本发布附在 Release 上，详见 [android/README.md](android/README.md)。
+在面板「设置 → 前端与后端 → 手机监控 App」生成监控密钥，用 App 扫码即可绑定。可以绑定多个面板，底部三个标签：
+
+- **服务器**：集中显示所有面板的服务器，点进去查看实时状态、历史曲线、节点和测速（从手机，或从另一台服务器测）。
+- **客户端**：飞牛 NAS、OpenWrt 等设备的代理开关、分流模式、当前节点和延迟，可以切换节点和模式、测延迟、更新订阅、检测出口 IP。
+- **监测**：SOCKS5 / HTTP 代理和各协议节点的可用率、延迟和出口 IP，可以添加、修改和立即检测。
+
+后台在服务器离线、资源过高或代理 / 节点不可用时通知；打开 App 时检查新版本，可直接下载或经加速镜像下载。APK 随版本发布附在 Release 上，详见 [android/README.md](android/README.md)。
 
 ## 目录结构
 
@@ -675,9 +705,12 @@ android/      安卓监控 App（Kotlin + Jetpack Compose，说明见 android/RE
 backend/      独立 Go 模块（main.go、go.mod 与全部 Go 包）
 docs/         文档与页面截图
 frontend/     独立 Vue 3 + Vuetify 静态应用
-packaging/    OpenWrt Lite 等平台安装文件
-scripts/      构建与安装安全测试
+packaging/    OpenWrt 服务脚本（procd）
+scripts/      构建（含 OpenWrt 安装包）与安装安全测试
 windows/      Windows 脚本（暂停维护）
+install.sh          Linux 安装（面板、受管客户端、飞牛 NAS 客户端）
+install-agent.sh    只装 Agent
+install-openwrt.sh  OpenWrt 安装
 ```
 
 ## 环境变量
@@ -696,8 +729,15 @@ windows/      Windows 脚本（暂停维护）
 | `SUI_XRAY_CONFIG` | `$SUI_BIN_FOLDER/xray.json` | Xray 配置路径 |
 | `SUI_DISABLE_XRAY` | `false` | 禁止启动 Xray 和创建 Xray 入站；低配默认设置 |
 | `SUI_XRAY_ON_DEMAND` | `false` | 保留 Xray 但禁止自动启动；低配从 Web 设置安装 Xray 时启用 |
+| `SUI_SKIP_CORE` | `false` | 启动时不自动启动内核，可稍后在面板里启动；开启客户端代理时仍会启动 sing-box |
+| `SUI_CONTROLLER_MODE` | `false` | 安装时直接设为主控制端（旧版 `--full` 兼容）；之后以面板设置为准 |
+| `SUI_CONTROL_SOCKET` | `/run/s-ui/control.sock` | 面板本地控制套接字，Agent 经它转发主控的请求 |
+| `SUI_AGENT_ENV_FILE` | `/etc/default/1s-ui-agent` | 主控连接信息（面板地址、Agent Token），权限 `0600` |
+| `SUI_AGENT_EMBEDDED` | `false` | 在面板进程内运行 Agent，省去单独的 `sui-agent` 进程；OpenWrt 使用 |
+| `SUI_FRONTEND_DIR` | 空 | 由后端直接托管网页界面的目录；OpenWrt 使用，Linux 安装由 nginx 托管 |
+| `GOMEMLIMIT` | 不限 | Go 堆的软上限；OpenWrt 按内存的四分之一自动设置（48–256 MiB） |
 
-数据库中的 `webListen/webPort/webPath/webDomain` 继续表示用户访问的前端入口。固定 API 路径为 `/api`、`/apiv2`、`/agent/v1`，并保留 `webPath` 下的旧别名。nginx 从 `/.well-known/1s-ui/config.js` 提供无缓存运行时配置；后端不托管 HTML、assets 或 SPA。
+数据库中的 `webListen/webPort/webPath/webDomain` 继续表示用户访问的前端入口。固定 API 路径为 `/api`、`/apiv2`、`/agent/v1`，并保留 `webPath` 下的旧别名。Linux 安装由 nginx 从 `/.well-known/1s-ui/config.js` 提供无缓存运行时配置并托管网页界面；只有设置了 `SUI_FRONTEND_DIR`（OpenWrt）时，后端才自己托管网页界面和这份配置。
 
 ## 安全与权限
 
@@ -708,7 +748,9 @@ windows/      Windows 脚本（暂停维护）
 5. 远程 Shell / PTY 权限等同 Agent 系统用户，通常是 root。
 6. 定期备份 `/usr/local/s-ui/db`，升级前保留可回滚副本。
 7. 不要为 IPv6 中转修改系统默认路由；使用面板内置的源地址绑定和验证流程。
-8. 手机监控密钥默认可以管理代理监测和发起测速；不需要时在「设置 → 前端与后端 → 手机监控 App」关闭。测速端口只在测速时打开、只回应持有本次令牌的客户端；代理检测不会连接本机回环、链路本地（含云厂商元数据）等地址。
+8. 手机监控密钥默认可以管理监测、发起测速和管理客户端代理；不需要时在「设置 → 前端与后端 → 手机监控 App」分别关闭。密钥读不到节点密码、订阅地址和代理端口密码。测速端口只在测速时打开、只回应持有本次令牌的客户端；代理与节点检测不会连接本机回环、链路本地（含云厂商元数据）等地址。
+9. 飞牛 NAS / OpenWrt 的接入密钥可重复使用：只发给需要接入的设备，泄露后在「服务器监控 → 添加子服务器」里重新生成或停用（已接入的设备不受影响）。
+10. 客户端代理的 SOCKS5 / HTTP 端口默认只接受局域网连接；改成对所有地址开放时必须设置用户名和密码。
 
 ## Credits
 
