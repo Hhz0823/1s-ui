@@ -58,6 +58,9 @@ CONTROLLER_URL=""
 AGENT_TOKEN=""
 CONNECT_URL=""
 AGENT_INSECURE=0
+PANEL_URL=""                 # --panel URL --key KEY: bind to a controller with its enrollment key
+ENROLL_KEY=""
+NODE_NAME=""
 PORT80_FREE=1
 PORT443_FREE=1
 PUBLIC_IP=""
@@ -111,6 +114,12 @@ usage() {
   完整 Web 面板 + sing-box + 休眠 Agent。首次进入 Web 后，向导会设置
   管理员、运行角色与可选主服务器连接；Agent 绑定主服务器后才启动。
 
+作为客户端绑定主控（飞牛 NAS、家里的 Linux 等，可做测速 / 监测中转和代理客户端）:
+  bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh) --panel 主控地址 --key 绑定密钥
+  飞牛 NAS 用普通管理员 SSH 登录时：
+  curl -fsSL https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh -o /tmp/1s-ui.sh && sudo bash /tmp/1s-ui.sh --panel 主控地址 --key 绑定密钥
+  OpenWrt 软路由请用 install-openwrt.sh。
+
 以下参数仅为旧版自动化兼容，新安装无需使用:
   --minimal, --simple, -m   等同默认客户端安装
   --managed-client          等同默认安装，但要求同时提供 --connect 或旧式连接参数
@@ -130,6 +139,8 @@ usage() {
   --controller URL      旧式中心面板 URL（需同时提供 --agent-token）
   --agent-token TOKEN   旧式 Agent 注册密钥（需同时提供 --controller）
   --connect URL         主面板生成的连接 API 或一次性连接地址（推荐）
+  --panel URL --key KEY 用主控「服务器监控」里的绑定密钥连接主控（与 install-agent.sh 相同）
+  --name NAME           在主控上显示的名称（默认主机名）
   --agent-insecure      Agent 连接中心时跳过 TLS 证书校验
   --start-core          安装后自动启动代理内核
   --skip-core           仅面板 Web，不自动启内核（更安全）
@@ -207,6 +218,19 @@ parse_args() {
         --connect)
             CONNECT_URL="${2:-}"
             CONFIGURE_AGENT=1
+            shift 2
+            ;;
+        --panel)
+            PANEL_URL="${2:-}"
+            shift 2
+            ;;
+        --key)
+            ENROLL_KEY="${2:-}"
+            CONFIGURE_AGENT=1
+            shift 2
+            ;;
+        --name)
+            NODE_NAME="${2:-}"
             shift 2
             ;;
         --agent-insecure)
@@ -424,6 +448,21 @@ resolve_install_profile() {
 
 validate_agent_connection() {
     [[ "$CONFIGURE_AGENT" -eq 1 ]] || return 0
+    if [[ -n "$ENROLL_KEY" ]]; then
+        if [[ -n "$CONNECT_URL" || -n "$AGENT_TOKEN" ]]; then
+            echo -e "${red}--key 不能与 --connect 或 --agent-token 同时使用。${plain}"
+            return 1
+        fi
+        if [[ ! "$PANEL_URL" =~ ^https?://[^[:space:]\'\"\\#]+$ ]]; then
+            echo -e "${red}--key 需要用 --panel 指定主控面板地址，例如 https://panel.example.com:2095/app/${plain}"
+            return 1
+        fi
+        if [[ ! "$ENROLL_KEY" =~ ^[A-Za-z0-9_-]{32,128}$ ]]; then
+            echo -e "${red}绑定密钥格式无效，请从主控面板重新复制。${plain}"
+            return 1
+        fi
+        CONNECT_URL="${PANEL_URL%/}/agent/v1/enroll#${ENROLL_KEY}"
+    fi
     if [[ -n "$CONNECT_URL" ]]; then
         local endpoint code
         endpoint="${CONNECT_URL%%#*}"
@@ -1381,7 +1420,8 @@ resolve_managed_connection() {
         echo -e "${red}主服务器连接 API 或一次性地址格式无效。${plain}"
         return 1
     fi
-    node_name=$(hostname 2>/dev/null | tr -d '\r\n' | sed 's/["\\]//g' | cut -c1-80)
+    node_name="${NODE_NAME:-$(hostname 2>/dev/null)}"
+    node_name=$(printf '%s' "$node_name" | tr -d '\r\n' | sed 's/["\\]//g' | cut -c1-80)
     [[ -n "$node_name" ]] || node_name="managed-server"
     local curl_args=(--fail --silent --show-error --max-time 20)
     [[ "$AGENT_INSECURE" -eq 1 ]] && curl_args+=(--insecure)

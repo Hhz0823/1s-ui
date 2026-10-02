@@ -569,7 +569,13 @@ func (s *LocalControlService) createRemoteQuickAddClient(request RemoteQuickAddR
 			configValue[key] = map[string]interface{}{"username": name, "password": password}
 		}
 	case "shadowsocks":
-		configValue["shadowsocks"] = map[string]interface{}{"name": name, "password": password}
+		// 2022-blake3-aes-128-gcm users take 16-byte keys, which the inbound
+		// reads from shadowsocks16 (Xray quick adds always use aes-256).
+		key := "shadowsocks"
+		if request.CoreType != model.CoreTypeXray && request.Method == "2022-blake3-aes-128-gcm" {
+			key = "shadowsocks16"
+		}
+		configValue[key] = map[string]interface{}{"name": name, "password": password}
 	case "vmess":
 		configValue["vmess"] = map[string]interface{}{"name": name, "uuid": uuidValue, "alterId": 0}
 	case "vless":

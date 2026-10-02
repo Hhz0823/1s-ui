@@ -27,6 +27,17 @@
           </v-col>
         </v-row>
       </template>
+      <v-divider class="my-3" />
+      <div class="text-subtitle-2">{{ $t('monitorApp.permissions') }}</div>
+      <div class="text-caption text-medium-emphasis mb-1" style="white-space: normal">{{ $t('monitorApp.permissionsHint') }}</div>
+      <v-switch v-model="appSettings.proxies" :label="$t('monitorApp.allowProxies')" color="primary" density="compact" hide-details
+        :loading="savingSettings" @update:model-value="saveSettings" />
+      <v-switch v-model="appSettings.speedtest" :label="$t('monitorApp.allowSpeedtest')" color="primary" density="compact" hide-details
+        :loading="savingSettings" @update:model-value="saveSettings" />
+      <v-switch v-model="appSettings.client" :label="$t('monitorApp.allowClient')" color="primary" density="compact" hide-details
+        :loading="savingSettings" @update:model-value="saveSettings" />
+      <v-text-field v-model.number="appSettings.speedtest_port" type="number" min="1" max="65535" :label="$t('monitorApp.speedtestPort')"
+        :hint="$t('monitorApp.speedtestPortHint')" persistent-hint class="mt-3" style="max-width: 360px" dir="ltr" @change="saveSettings" />
     </v-card-text>
     <v-card-actions>
       <v-btn color="primary" variant="flat" :loading="loading" @click="rotate">
@@ -45,10 +56,14 @@ import QrcodeVue from 'qrcode.vue'
 import { push } from 'notivue'
 import HttpUtils from '@/plugins/httputil'
 import { i18n } from '@/locales'
-import { backendBaseUrl } from '@/utils/backend'
+import { backendBaseUrl, fetchBackendObject } from '@/utils/backend'
 import { copyText } from '@/utils/clipboard'
 
-const status = ref<{ enabled: boolean, created_at: number }>({ enabled: false, created_at: 0 })
+type KeyStatus = { enabled: boolean, created_at: number, proxies: boolean, speedtest: boolean, speedtest_port: number, client: boolean }
+const status = ref<KeyStatus>({ enabled: false, created_at: 0, proxies: true, speedtest: true, speedtest_port: 5201, client: true })
+// What the key may do besides reading: manage proxy monitors, start speed tests.
+const appSettings = ref({ proxies: true, speedtest: true, speedtest_port: 5201, client: true })
+const savingSettings = ref(false)
 const loading = ref(false)
 const key = ref('')
 const bindCode = ref('')
@@ -63,9 +78,35 @@ const encodeBindCode = (url: string, value: string) => {
   return '1sui-monitor:' + btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
+const applyStatus = (value: KeyStatus) => {
+  status.value = value
+  appSettings.value = { proxies: value.proxies, speedtest: value.speedtest, speedtest_port: value.speedtest_port, client: value.client !== false }
+}
+
 const load = async () => {
   const msg = await HttpUtils.get('api/monitor-key')
-  if (msg.success) status.value = msg.obj
+  if (msg.success) applyStatus(msg.obj)
+}
+
+const saveSettings = async () => {
+  const port = Number(appSettings.value.speedtest_port)
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    push.error({ message: i18n.global.t('monitorApp.speedtestPortInvalid'), duration: 3000 })
+    return
+  }
+  savingSettings.value = true
+  try {
+    applyStatus(await fetchBackendObject<KeyStatus>('api/monitor-key/settings', {
+      method: 'POST',
+      body: JSON.stringify({ ...appSettings.value, speedtest_port: port }),
+    }))
+    push.success({ message: i18n.global.t('success'), duration: 2000 })
+  } catch (error: any) {
+    push.error({ message: error?.message || i18n.global.t('failed'), duration: 4000 })
+    await load()
+  } finally {
+    savingSettings.value = false
+  }
 }
 
 const rotate = async () => {
@@ -76,7 +117,7 @@ const rotate = async () => {
   if (!msg.success) return
   key.value = msg.obj.key
   bindCode.value = encodeBindCode(panelUrl, msg.obj.key)
-  status.value = { enabled: true, created_at: msg.obj.created_at }
+  status.value = { ...status.value, enabled: true, created_at: msg.obj.created_at }
 }
 
 const disable = async () => {
@@ -87,7 +128,7 @@ const disable = async () => {
   if (!msg.success) return
   key.value = ''
   bindCode.value = ''
-  status.value = { enabled: false, created_at: 0 }
+  status.value = { ...status.value, enabled: false, created_at: 0 }
 }
 
 const copy = async (value: string) => {

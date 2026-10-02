@@ -94,8 +94,15 @@ func (a *APP) Start() error {
 		return err
 	}
 
+	// OpenWrt: the agent runs in this process once the control socket is up.
+	if service.EmbeddedAgentEnabled() {
+		if err := service.StartEmbeddedAgent(); err != nil {
+			logger.Warning("embedded agent: ", err)
+		}
+	}
+
 	// Low-memory / safe install path: keep panel UI up without loading cores.
-	if config.IsSkipCore() {
+	if config.IsSkipCore() && !service.ProxyClientWantsCore() {
 		logger.Warning("SUI_SKIP_CORE is enabled: sing-box/Xray will not auto-start. Start cores from the panel when ready.")
 		return nil
 	}
@@ -112,6 +119,7 @@ func (a *APP) Start() error {
 }
 
 func (a *APP) Stop() {
+	service.StopEmbeddedAgent()
 	a.cronJob.Stop()
 	err := a.subServer.Stop()
 	if err != nil {

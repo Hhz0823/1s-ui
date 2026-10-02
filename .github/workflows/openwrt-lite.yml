@@ -6,8 +6,25 @@ on:
       tag:
         description: "发布标签"
         required: true
-        default: "v1.5.7"
+        default: "v1.7.1"
         type: string
+      publish:
+        description: "上传到该标签的 Release"
+        required: false
+        default: true
+        type: boolean
+  # 发布 S-UI 时调用：只构建，由 release.yml 连同其它产物一起发布并写入 SHA256SUMS
+  workflow_call:
+    inputs:
+      tag:
+        description: "发布标签，用于包的版本号"
+        required: true
+        type: string
+      publish:
+        description: "上传到该标签的 Release"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -70,25 +87,39 @@ jobs:
             echo "CGO_LDFLAGS=--sysroot=$SYSROOT -static" >> "$GITHUB_ENV"
           fi
 
-      - name: 构建 OpenWrt Lite ipk
-        run: scripts/build-openwrt-lite.sh ${{ matrix.openwrt }}
+      # install-openwrt.sh 按发布标签找 s-ui-lite_<版本>-1_<架构>.ipk，包的版本号要跟标签一致
+      - name: 构建 OpenWrt Lite ipk 与 tar.gz
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          TAG="${INPUT_TAG:-$REF_NAME}"
+          case "$TAG" in
+            v[0-9]*) export VERSION="${TAG#v}" ;;
+            [0-9]*) export VERSION="$TAG" ;;
+          esac
+          scripts/build-openwrt-lite.sh ${{ matrix.openwrt }}
 
       - name: 上传构建产物
         uses: actions/upload-artifact@v7
         with:
           name: s-ui-lite-${{ matrix.openwrt }}
-          path: dist/openwrt-lite/*.ipk
+          path: |
+            dist/openwrt-lite/*.ipk
+            dist/openwrt-lite/*.tar.gz
+          if-no-files-found: error
           retention-days: 1
 
   publish-openwrt-lite:
     name: 发布 OpenWrt Lite 产物
     needs: build-openwrt-lite
+    if: ${{ inputs.publish }}
     runs-on: ubuntu-latest
     steps:
       - name: 规范化发布标签
         id: vars
         env:
-          INPUT_TAG: ${{ github.event.inputs.tag }}
+          INPUT_TAG: ${{ inputs.tag }}
           REF_NAME: ${{ github.ref_name }}
         run: |
           TAG="${INPUT_TAG:-$REF_NAME}"
@@ -111,4 +142,6 @@ jobs:
           name: s-ui ${{ steps.vars.outputs.tag }}
           fail_on_unmatched_files: true
           overwrite_files: true
-          files: release-assets/*.ipk
+          files: |
+            release-assets/*.ipk
+            release-assets/*.tar.gz

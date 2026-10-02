@@ -48,7 +48,7 @@ targets=()
 while (($#)); do
 	case "$1" in
 		--skip-frontend)
-			echo "warning: --skip-frontend is obsolete; OpenWrt Lite is API-only" >&2
+			echo "warning: --skip-frontend is obsolete; the web UI ships separately as s-ui-frontend.tar.gz" >&2
 			;;
 		-h|--help)
 			usage
@@ -175,13 +175,16 @@ Section: net
 Priority: optional
 Depends: ca-bundle
 Installed-Size: ${installed_size}
-Description: 1S-UI OpenWrt Lite panel (sing-box only, Xray disabled)
+Description: 1S-UI for OpenWrt: panel, proxy client (TUN transparent proxy,
+ subscriptions, bypass China), node checks and speed tests, controlled from
+ a 1S-UI controller. sing-box only; the agent and web UI run in-process.
 EOF
 
 	cat > "$control_dir/postinst" <<'EOF'
 #!/bin/sh
 [ -n "$IPKG_INSTROOT" ] && exit 0
 /etc/init.d/s-ui-lite enable >/dev/null 2>&1 || true
+/etc/init.d/s-ui-lite restart >/dev/null 2>&1 || true
 exit 0
 EOF
 
@@ -229,9 +232,32 @@ make_ipk() {
 	echo "==> Wrote $ipk"
 }
 
+# make_tarball writes the same files for systems without opkg (OpenWrt
+# with apk, or installing by hand): install-openwrt.sh unpacks it.
+make_tarball() {
+	local target="$1"
+	local bin_path="$BUILD_DIR/bin/$target/sui"
+	local stage="$BUILD_DIR/tar/$OPENWRT_ARCH/s-ui-lite"
+	local tarball="$OUT_DIR/s-ui-openwrt-${OPENWRT_ARCH}.tar.gz"
+	rm -rf "$BUILD_DIR/tar/$OPENWRT_ARCH"
+	mkdir -p "$stage" "$OUT_DIR"
+	cp "$bin_path" "$stage/sui"
+	cp "$ROOT_DIR/packaging/openwrt-lite/files/s-ui-lite.init" "$stage/s-ui-lite.init"
+	chmod 0755 "$stage/sui" "$stage/s-ui-lite.init"
+	printf '%s\n' "$VERSION" > "$stage/VERSION"
+	local tar_args=()
+	while IFS= read -r arg; do
+		tar_args+=("$arg")
+	done < <(gnu_tar_args)
+	rm -f "$tarball"
+	(cd "$BUILD_DIR/tar/$OPENWRT_ARCH" && tar "${tar_args[@]}" -czf "$tarball" s-ui-lite)
+	echo "==> Wrote $tarball"
+}
+
 mkdir -p "$OUT_DIR" "$BUILD_DIR"
 
 for target in "${targets[@]}"; do
 	build_binary "$target"
 	make_ipk "$target"
+	make_tarball "$target"
 done

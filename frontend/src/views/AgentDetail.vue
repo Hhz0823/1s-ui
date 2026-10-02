@@ -64,9 +64,11 @@
           >{{ $t('agent.openPanel') }}</v-btn>
           <v-btn v-if="canControl" variant="tonal" prepend-icon="mdi-console" :disabled="!node?.controllable" @click="openTerminal">{{ $t('agent.terminal') }}</v-btn>
           <v-btn v-if="canControl" color="primary" prepend-icon="mdi-tune-vertical" :disabled="!node?.managed" @click="manageInbounds">{{ $t('agent.manageInbounds') }}</v-btn>
+          <v-btn variant="tonal" prepend-icon="mdi-speedometer" :disabled="!node?.online" @click="speedtestOpen = true">{{ $t('relaySpeedtest.button') }}</v-btn>
           <v-btn icon="mdi-refresh" variant="tonal" :loading="loading" :title="$t('actions.update')" @click="refreshAll" />
         </div>
       </header>
+      <RelaySpeedtest v-model="speedtestOpen" :server-id="nodeId" :server-name="node?.name || ('#' + nodeId)" />
 
       <v-progress-linear v-if="loading && !node" indeterminate />
       <v-alert v-else-if="errorMessage" type="error" variant="tonal">{{ errorMessage }}</v-alert>
@@ -225,6 +227,7 @@ import type { AgentMetricPoint, AgentNode } from '@/types/agents'
 import { fetchBackendObject as api, resolveBackendWebSocketUrl } from '@/utils/backend'
 import Data from '@/store/modules/data'
 import PortTraffic from '@/components/PortTraffic.vue'
+import RelaySpeedtest from '@/components/RelaySpeedtest.vue'
 import UsageBar from '@/components/monitor/UsageBar.vue'
 import PriceTags from '@/components/monitor/PriceTags.vue'
 import {
@@ -244,6 +247,7 @@ const loading = ref(false)
 const openingPanel = ref(false)
 const errorMessage = ref('')
 const tab = ref('load')
+const speedtestOpen = ref(false)
 const control = reactive({ loading: false, shell: '', interval: 15, lastOutput: '' })
 const term = reactive({ visible: false, connected: false, buffer: '' })
 const termEl = ref<HTMLElement | null>(null)

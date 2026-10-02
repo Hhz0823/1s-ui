@@ -95,6 +95,12 @@ func localRPCTimeout(method string) time.Duration {
 		return 10 * time.Minute
 	case RPCMethodSdwanProvision, RPCMethodSdwanRemove, RPCMethodSdwanTune:
 		return 3 * time.Minute
+	case RPCMethodProxyProbe:
+		return 90 * time.Second
+	case RPCMethodSpeedtestRun:
+		return 75 * time.Second
+	case RPCMethodClientCall:
+		return 4 * time.Minute
 	default:
 		return 45 * time.Second
 	}

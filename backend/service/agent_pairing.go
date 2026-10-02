@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Hhz0823/1s-ui/agent"
 	"github.com/Hhz0823/1s-ui/util/common"
 )
 
@@ -55,6 +56,9 @@ type pairingAPIResponse struct {
 func (s *AgentService) ConnectLocalController(rawLink string, insecure bool, publicURL string) (*LocalAgentConnection, error) {
 	if runtime.GOOS != "linux" {
 		return nil, common.NewError("connecting this panel as a managed server requires Linux")
+	}
+	if EmbeddedAgentEnabled() {
+		return s.connectEmbeddedAgent(rawLink, insecure, publicURL)
 	}
 	binaryPath := envOrDefault("SUI_AGENT_BINARY", defaultLocalAgentBinary)
 	if info, err := os.Stat(binaryPath); err != nil || info.IsDir() || info.Mode()&0o111 == 0 {
@@ -120,6 +124,9 @@ func (s *AgentService) GetLocalControllerStatus() (*LocalAgentConnectionStatus, 
 	if info, err := os.Stat(binaryPath); err == nil && !info.IsDir() && info.Mode()&0o111 != 0 {
 		status.Installed = true
 	}
+	if EmbeddedAgentEnabled() {
+		status.Installed = true
+	}
 	envPath := envOrDefault("SUI_AGENT_ENV_FILE", defaultLocalAgentEnvFile)
 	content, err := os.ReadFile(envPath)
 	if err != nil && !os.IsNotExist(err) {
@@ -137,7 +144,9 @@ func (s *AgentService) GetLocalControllerStatus() (*LocalAgentConnectionStatus, 
 			}
 		}
 	}
-	if status.Supported {
+	if EmbeddedAgentEnabled() {
+		status.Running = EmbeddedAgentRunning()
+	} else if status.Supported {
 		if _, err := exec.LookPath("systemctl"); err == nil {
 			status.Running = exec.Command("systemctl", "is-active", "--quiet", localAgentServiceName).Run() == nil
 		}
@@ -148,6 +157,13 @@ func (s *AgentService) GetLocalControllerStatus() (*LocalAgentConnectionStatus, 
 func (s *AgentService) DisconnectLocalController() (*LocalAgentConnectionStatus, error) {
 	if runtime.GOOS != "linux" {
 		return nil, common.NewError("disconnecting a managed server requires Linux")
+	}
+	if EmbeddedAgentEnabled() {
+		StopEmbeddedAgent()
+		if err := os.Remove(envOrDefault("SUI_AGENT_ENV_FILE", defaultLocalAgentEnvFile)); err != nil && !os.IsNotExist(err) {
+			return nil, common.NewErrorf("could not remove Agent connection: %v", err)
+		}
+		return s.GetLocalControllerStatus()
 	}
 	if _, err := exec.LookPath("systemctl"); err != nil {
 		return nil, common.NewError("systemd is required to disconnect this managed server")
@@ -369,4 +385,45 @@ func limitedOutput(output []byte, fallback error) string {
 		message = message[:512]
 	}
 	return message
+}
+
+// connectEmbeddedAgent pairs this panel with a controller and starts the
+// agent inside the panel process.
+func (s *AgentService) connectEmbeddedAgent(rawLink string, insecure bool, publicURL string) (*LocalAgentConnection, error) {
+	if strings.TrimSpace(publicURL) != "" {
+		normalizedURL, err := NormalizePanelURL(publicURL)
+		if err != nil {
+			return nil, err
+		}
+		publicURL = normalizedURL
+	}
+	connection, token, err := exchangeAgentPairing(context.Background(), rawLink, insecure, publicURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	values := map[string]string{
+		"SUI_AGENT_PANEL": connection.PanelURL, "SUI_AGENT_TOKEN": token, "SUI_AGENT_INTERVAL": "15s",
+		"SUI_AGENT_INSECURE": fmt.Sprint(insecure), "SUI_AGENT_PUBLIC_URL": publicURL,
+	}
+	cfg, err := embeddedAgentConfig(values)
+	if err != nil {
+		return nil, err
+	}
+	checkCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	if err := agent.SendOnce(checkCtx, cfg); err != nil {
+		return nil, common.NewErrorf("the controller accepted the connection API, but the Agent connection check failed: %v", err)
+	}
+	content := fmt.Sprintf(
+		"SUI_AGENT_PANEL=%s\nSUI_AGENT_TOKEN=%s\nSUI_AGENT_INTERVAL=15s\nSUI_AGENT_INSECURE=%t\nSUI_AGENT_PUBLIC_URL=%s\n",
+		connection.PanelURL, token, insecure, publicURL,
+	)
+	if err := writePrivateFile(envOrDefault("SUI_AGENT_ENV_FILE", defaultLocalAgentEnvFile), []byte(content)); err != nil {
+		return nil, common.NewErrorf("pairing succeeded but Agent configuration could not be saved: %v", err)
+	}
+	if err := StartEmbeddedAgent(); err != nil {
+		return nil, err
+	}
+	connection.PublicURL = publicURL
+	return connection, nil
 }

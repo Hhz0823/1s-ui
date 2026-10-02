@@ -42,11 +42,14 @@ import androidx.compose.ui.unit.dp
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.onesui.monitor.data.BindCode
+import com.onesui.monitor.data.BindResult
+import com.onesui.monitor.data.MonitorController
+import com.onesui.monitor.data.UiState
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BindScreen(state: UiState, vm: MonitorViewModel) {
+fun BindScreen(state: UiState, vm: MonitorController) {
     var name by rememberSaveable { mutableStateOf("") }
     var url by rememberSaveable { mutableStateOf("") }
     var key by rememberSaveable { mutableStateOf("") }

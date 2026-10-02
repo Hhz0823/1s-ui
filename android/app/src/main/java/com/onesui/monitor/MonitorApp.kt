@@ -15,7 +15,7 @@ class MonitorApp : Application() {
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL_ALERTS, "服务器告警", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "服务器离线、恢复和资源过高提醒"
+                description = "服务器离线、恢复、资源过高和代理不可用提醒"
             }
         )
         manager.createNotificationChannel(

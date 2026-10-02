@@ -19,6 +19,7 @@ export const allMenuGroups: MenuGroup[] = [
     items: [
       { title: 'pages.home', icon: 'mdi-view-dashboard-outline', path: '/' },
       { title: 'pages.agents', icon: 'mdi-server-network', path: '/agents' },
+      { title: 'pages.proxyMonitors', icon: 'mdi-shield-check-outline', path: '/proxy-monitors' },
       { title: 'pages.portTraffic', icon: 'mdi-chart-timeline-variant', path: '/port-traffic' },
       { title: 'pages.userTraffic', icon: 'mdi-trophy-outline', path: '/user-traffic' },
     ],
@@ -29,6 +30,7 @@ export const allMenuGroups: MenuGroup[] = [
       { title: 'pages.inbounds', icon: 'mdi-arrow-down-bold-circle-outline', path: '/inbounds' },
       { title: 'pages.clients', icon: 'mdi-account-group-outline', path: '/clients' },
       { title: 'pages.outbounds', icon: 'mdi-arrow-up-bold-circle-outline', path: '/outbounds' },
+      { title: 'pages.proxyClient', icon: 'mdi-router-network', path: '/proxy-client' },
       { title: 'pages.endpoints', icon: 'mdi-access-point-network', path: '/endpoints' },
     ],
   },
@@ -57,7 +59,7 @@ export const allMenuGroups: MenuGroup[] = [
   },
 ]
 
-const monitorPaths = new Set(['/', '/agents', '/admins', '/settings'])
+const monitorPaths = new Set(['/', '/agents', '/proxy-monitors', '/admins', '/settings'])
 
 // Monitoring-only controllers show the pages they can use.
 export const useMenuGroups = () => computed(() => {

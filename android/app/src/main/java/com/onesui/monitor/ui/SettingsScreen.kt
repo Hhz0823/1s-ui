@@ -40,12 +40,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.onesui.monitor.data.MonitorController
 import com.onesui.monitor.data.Panel
+import com.onesui.monitor.data.Screen
 import com.onesui.monitor.data.ThemeMode
+import com.onesui.monitor.data.UiState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun SettingsScreen(state: UiState, vm: MonitorViewModel) {
+fun SettingsScreen(state: UiState, vm: MonitorController) {
     val settings = state.settings
     var deleting by remember { mutableStateOf<Panel?>(null) }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -80,6 +83,14 @@ fun SettingsScreen(state: UiState, vm: MonitorViewModel) {
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            val version = state.data[panel.id]?.overview?.panelVersion.orEmpty()
+                            if (version.isNotBlank()) {
+                                Text(
+                                    "面板版本 " + versionText(version, state.update),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (state.update.outdated(version)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                         IconButton(onClick = { deleting = panel }) { Icon(Icons.Default.Delete, contentDescription = "解绑") }
                     }
@@ -121,7 +132,7 @@ fun SettingsScreen(state: UiState, vm: MonitorViewModel) {
                     }
                 }
                 Text(
-                    "开启后 App 关闭时也会定时检查所有面板，服务器离线、恢复或资源过高时发通知。部分手机需要在系统设置里允许本 App 后台运行、关闭电池优化。",
+                    "开启后 App 关闭时也会定时检查所有面板，服务器离线、恢复、资源过高或代理监测不可用时发通知。部分手机需要在系统设置里允许本 App 后台运行、关闭电池优化。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -131,10 +142,13 @@ fun SettingsScreen(state: UiState, vm: MonitorViewModel) {
                     vm.updateSettings { it.copy(alertIntervalSeconds = value) }
                 }
                 SwitchRow("离线 / 恢复提醒", settings.alertOffline) { value -> vm.updateSettings { it.copy(alertOffline = value) } }
+                SwitchRow("代理不可用 / 恢复提醒", settings.alertProxies) { value -> vm.updateSettings { it.copy(alertProxies = value) } }
                 ThresholdRow("CPU 过高", settings.cpuThreshold) { value -> vm.updateSettings { it.copy(cpuThreshold = value) } }
                 ThresholdRow("内存过高", settings.memThreshold) { value -> vm.updateSettings { it.copy(memThreshold = value) } }
                 ThresholdRow("磁盘快满", settings.diskThreshold) { value -> vm.updateSettings { it.copy(diskThreshold = value) } }
             }
+
+            UpdateSection(state, vm)
             Spacer(Modifier.height(16.dp))
         }
     }
@@ -147,24 +161,6 @@ fun SettingsScreen(state: UiState, vm: MonitorViewModel) {
             confirmButton = { TextButton(onClick = { vm.deletePanel(panel.id); deleting = null }) { Text("解绑") } },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text("取消") } },
         )
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
-@Composable
-private fun <T> ChoiceRow(options: List<T>, selected: T, label: (T) -> String, onSelect: (T) -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        options.forEach { option ->
-            FilterChip(selected = option == selected, onClick = { onSelect(option) }, label = { Text(label(option)) })
-        }
-    }
-}
-
-@Composable
-private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange)
     }
 }
 

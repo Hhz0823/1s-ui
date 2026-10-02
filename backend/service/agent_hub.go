@@ -485,7 +485,7 @@ func (s *AgentService) DispatchRPC(nodeID uint, method string, payload interface
 	if !status.Enabled {
 		return nil, common.NewError("controller mode is disabled")
 	}
-	if !status.CanControl && method != agent.RPCMethodCapabilities && method != agent.RPCMethodPortTraffic {
+	if !status.CanControl && !agentRPCMonitoring(method) {
 		return nil, common.NewError("controller monitor profile only allows read-only metrics")
 	}
 	agentHubMu.RLock()
@@ -525,7 +525,7 @@ func (s *AgentService) DispatchRPC(nodeID uint, method string, payload interface
 	select {
 	case response := <-resultCh:
 		response.ID = id
-		if agentRPCMutatesConfig(method) || !response.OK {
+		if agentRPCMutatesConfig(method) || (!response.OK && method != agent.RPCMethodProxyProbe) {
 			appendAgentCommandLog(nodeID, agentCommandLog{
 				ID: id, Type: "rpc/" + method, OK: response.OK, Error: response.Error,
 				CreatedAt: time.Now().Unix(), Actor: actor,
@@ -566,7 +566,26 @@ func validAgentRPCMethod(method string) bool {
 		agent.RPCMethodSdwanProvision,
 		agent.RPCMethodSdwanRemove,
 		agent.RPCMethodSdwanDiagnose,
-		agent.RPCMethodSdwanTune:
+		agent.RPCMethodSdwanTune,
+		agent.RPCMethodProxyProbe,
+		agent.RPCMethodSpeedtestStart,
+		agent.RPCMethodNodeLink,
+		agent.RPCMethodSpeedtestRun,
+		agent.RPCMethodClientGet,
+		agent.RPCMethodClientCall:
+		return true
+	default:
+		return false
+	}
+}
+
+// agentRPCMonitoring lists the methods a monitor-only controller may call:
+// reading metrics and node traffic, checking proxies and speed tests. None
+// of them reads secrets or changes configuration.
+func agentRPCMonitoring(method string) bool {
+	switch method {
+	case agent.RPCMethodCapabilities, agent.RPCMethodPortTraffic, agent.RPCMethodProxyProbe, agent.RPCMethodSpeedtestStart,
+		agent.RPCMethodSpeedtestRun, agent.RPCMethodClientGet:
 		return true
 	default:
 		return false
@@ -579,6 +598,14 @@ func agentRPCTimeout(method string) time.Duration {
 		return 10 * time.Minute
 	case agent.RPCMethodSdwanProvision, agent.RPCMethodSdwanRemove, agent.RPCMethodSdwanTune:
 		return 3 * time.Minute
+	case agent.RPCMethodProxyProbe:
+		// A full batch of slow checks: 32 probes, 8 at a time, 15 s each.
+		return 90 * time.Second
+	case agent.RPCMethodSpeedtestRun:
+		return 75 * time.Second
+	case agent.RPCMethodClientCall:
+		// Latency tests of every node and subscription downloads.
+		return 4 * time.Minute
 	default:
 		return agentCommandTimeout
 	}
@@ -587,7 +614,7 @@ func agentRPCTimeout(method string) time.Duration {
 func agentRPCMutatesConfig(method string) bool {
 	switch method {
 	case agent.RPCMethodInboundSave, agent.RPCMethodInboundQuickAdd, agent.RPCMethodRelayCreate, agent.RPCMethodRelayDelete,
-		agent.RPCMethodSdwanProvision, agent.RPCMethodSdwanRemove, agent.RPCMethodSdwanTune:
+		agent.RPCMethodSdwanProvision, agent.RPCMethodSdwanRemove, agent.RPCMethodSdwanTune, agent.RPCMethodClientCall:
 		return true
 	default:
 		return false

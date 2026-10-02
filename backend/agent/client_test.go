@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -99,5 +100,21 @@ func TestCPUPercentBetweenIgnoresIdleAndIOWait(t *testing.T) {
 
 	if got := cpuPercentBetween(previous, current); got != 0 {
 		t.Fatalf("cpuPercentBetween() = %v, want 0", got)
+	}
+}
+
+func TestEmbeddedAgentRestartsPanelCore(t *testing.T) {
+	restarts := 0
+	cfg := ClientConfig{Embedded: true, RestartCore: func() error { restarts++; return nil }}
+	result := handleCommand(context.Background(), cfg, Command{ID: "1", Type: CmdRestartSingBox})
+	if !result.OK || restarts != 1 {
+		t.Fatalf("embedded sing-box restart = %+v, restarts %d", result, restarts)
+	}
+	cfg.RestartCore = func() error { return errors.New("core busy") }
+	if result := handleCommand(context.Background(), cfg, Command{ID: "2", Type: CmdRestartSingBox}); result.OK || result.Error != "core busy" {
+		t.Fatalf("failed embedded restart = %+v", result)
+	}
+	if result := handleCommand(context.Background(), cfg, Command{ID: "3", Type: CmdPing}); !result.OK || result.Output != "pong" {
+		t.Fatalf("embedded ping = %+v", result)
 	}
 }

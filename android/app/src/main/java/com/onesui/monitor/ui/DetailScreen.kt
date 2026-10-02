@@ -1,6 +1,7 @@
 package com.onesui.monitor.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,8 +22,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -30,13 +34,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.onesui.monitor.data.DetailTab
 import com.onesui.monitor.data.Format
+import com.onesui.monitor.data.MonitorController
 import com.onesui.monitor.data.Server
+import com.onesui.monitor.data.UiState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DetailScreen(state: UiState, vm: MonitorViewModel) {
+fun DetailScreen(state: UiState, vm: MonitorController) {
     val server = state.detail
+    val features = state.features(state.detailPanelId)
     Scaffold(
         topBar = {
             TopAppBar(
@@ -46,7 +54,17 @@ fun DetailScreen(state: UiState, vm: MonitorViewModel) {
                             StatusDot(server.online)
                             Spacer(Modifier.width(8.dp))
                         }
-                        Text(server?.name ?: "服务器", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Column {
+                            Text(server?.name ?: "服务器", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (state.panels.size > 1) {
+                                Text(
+                                    state.detailPanel?.name.orEmpty(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                )
+                            }
+                        }
                     }
                 },
                 navigationIcon = {
@@ -59,113 +77,165 @@ fun DetailScreen(state: UiState, vm: MonitorViewModel) {
         },
     ) { padding ->
         if (server == null) return@Scaffold
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 12.dp, vertical = 4.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            state.detailError?.let {
-                Text("连接中断：$it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            }
-            Section("实时状态") {
-                UsageBar("CPU", server.cpuPercent, if (server.cpuCores > 0) "${server.cpuCores} 核" else "")
-                Spacer(Modifier.height(8.dp))
-                UsageBar("内存", server.memory.percent, "${Format.bytes(server.memory.used)} / ${Format.bytes(server.memory.total)}")
-                if (server.swap.total > 0) {
-                    Spacer(Modifier.height(8.dp))
-                    UsageBar("交换", server.swap.percent, "${Format.bytes(server.swap.used)} / ${Format.bytes(server.swap.total)}")
-                }
-                Spacer(Modifier.height(8.dp))
-                UsageBar("磁盘", server.disk.percent, "${Format.bytes(server.disk.used)} / ${Format.bytes(server.disk.total)}")
-                Spacer(Modifier.height(8.dp))
-                Row {
-                    LabelValue("↑ 上传速度", Format.rate(server.netRate.sent), Modifier.weight(1f))
-                    LabelValue("↓ 下载速度", Format.rate(server.netRate.recv), Modifier.weight(1f))
-                }
-                Row {
-                    LabelValue("↑ 总上传", Format.bytes(server.network.sent), Modifier.weight(1f))
-                    LabelValue("↓ 总下载", Format.bytes(server.network.recv), Modifier.weight(1f))
-                }
-                Row {
-                    LabelValue("负载", "%.2f / %.2f / %.2f".format(server.load1, server.load5, server.load15), Modifier.weight(1f))
-                    LabelValue("进程", if (server.processCount > 0) server.processCount.toString() else "-", Modifier.weight(1f))
-                }
-                if (server.tcpConns > 0 || server.udpConns > 0) {
-                    Row {
-                        LabelValue("TCP 连接", server.tcpConns.toString(), Modifier.weight(1f))
-                        LabelValue("UDP 连接", server.udpConns.toString(), Modifier.weight(1f))
-                    }
-                }
-            }
-
-            val history = server.history
-            if (history.size >= 2) {
-                val start = Format.time(history.first().time)
-                val end = Format.time(history.last().time)
-                Section("CPU / 内存") {
-                    LineChart(
-                        series = listOf(
-                            ChartSeries("CPU", MaterialTheme.colorScheme.primary, history.map { it.cpu }),
-                            ChartSeries("内存", StatusColors.online, history.map { it.mem }),
-                        ),
-                        maxValue = 100.0,
-                        formatValue = Format::percent,
-                        startLabel = start,
-                        endLabel = end,
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            TabRow(selectedTabIndex = state.detailTab.ordinal) {
+                DetailTab.entries.forEach { tab ->
+                    Tab(
+                        selected = state.detailTab == tab,
+                        onClick = { vm.selectDetailTab(tab) },
+                        text = {
+                            Text(
+                                when (tab) {
+                                    DetailTab.OVERVIEW -> "概览"
+                                    DetailTab.NODES -> "节点"
+                                    DetailTab.SPEED -> "测速"
+                                }
+                            )
+                        },
                     )
                 }
-                Section("网络速度") {
-                    LineChart(
-                        series = listOf(
-                            ChartSeries("上传", StatusColors.upload, history.map { it.netSentRate.toDouble() }),
-                            ChartSeries("下载", StatusColors.download, history.map { it.netRecvRate.toDouble() }),
-                        ),
-                        maxValue = null,
-                        formatValue = { Format.rate(it.toLong()) },
-                        startLabel = start,
-                        endLabel = end,
-                    )
-                }
-                Section("磁盘") {
-                    LineChart(
-                        series = listOf(ChartSeries("磁盘", StatusColors.warn, history.map { it.disk })),
-                        maxValue = 100.0,
-                        formatValue = Format::percent,
-                        startLabel = start,
-                        endLabel = end,
-                    )
-                }
-            } else {
-                Text(
-                    "历史曲线会在面板积累几分钟数据后出现。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
-
-            server.latency?.let { latency ->
-                Section("与面板的延迟") {
-                    Row {
-                        LabelValue("当前", latency.lastMs?.let { "$it ms" } ?: "超时", Modifier.weight(1f))
-                        LabelValue("平均", "%.0f ms".format(latency.averageMs), Modifier.weight(1f))
-                    }
-                    Row {
-                        LabelValue("P95", "${latency.p95Ms} ms", Modifier.weight(1f))
-                        LabelValue("丢包", "%.1f%%".format(latency.lossPct), Modifier.weight(1f))
-                    }
-                }
+            when (state.detailTab) {
+                DetailTab.OVERVIEW -> OverviewTab(state, vm, server)
+                DetailTab.NODES -> if (features.nodes) NodesTab(state, vm) else OutdatedPanel("查看节点")
+                DetailTab.SPEED -> if (features.speedtest) SpeedTab(state, vm) else OutdatedPanel("测速", features.proxyMonitors)
             }
-
-            Section("系统信息") { SystemInfo(server) }
         }
     }
 }
 
+/** A tab the bound panel cannot serve: too old, or turned off by the admin. */
 @Composable
-private fun SystemInfo(server: Server) {
+fun OutdatedPanel(feature: String, turnedOff: Boolean = false) {
+    Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+        Text(
+            if (turnedOff) "面板已关闭 App $feature，可在面板「设置 → 前端与后端 → 手机监控 App」里开启。"
+            else "面板版本过旧，不支持$feature，请先更新面板。",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun OverviewTab(state: UiState, vm: MonitorController, server: Server) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        state.detailError?.let {
+            Text("连接中断：$it", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+        Section("实时状态") {
+            UsageBar("CPU", server.cpuPercent, if (server.cpuCores > 0) "${server.cpuCores} 核" else "")
+            Spacer(Modifier.height(8.dp))
+            UsageBar("内存", server.memory.percent, "${Format.bytes(server.memory.used)} / ${Format.bytes(server.memory.total)}")
+            if (server.swap.total > 0) {
+                Spacer(Modifier.height(8.dp))
+                UsageBar("交换", server.swap.percent, "${Format.bytes(server.swap.used)} / ${Format.bytes(server.swap.total)}")
+            }
+            Spacer(Modifier.height(8.dp))
+            UsageBar("磁盘", server.disk.percent, "${Format.bytes(server.disk.used)} / ${Format.bytes(server.disk.total)}")
+            Spacer(Modifier.height(8.dp))
+            Row {
+                LabelValue("↑ 上传速度", Format.rate(server.netRate.sent), Modifier.weight(1f))
+                LabelValue("↓ 下载速度", Format.rate(server.netRate.recv), Modifier.weight(1f))
+            }
+            Row {
+                LabelValue("↑ 总上传", Format.bytes(server.network.sent), Modifier.weight(1f))
+                LabelValue("↓ 总下载", Format.bytes(server.network.recv), Modifier.weight(1f))
+            }
+            Row {
+                LabelValue("负载", "%.2f / %.2f / %.2f".format(server.load1, server.load5, server.load15), Modifier.weight(1f))
+                LabelValue("进程", if (server.processCount > 0) server.processCount.toString() else "-", Modifier.weight(1f))
+            }
+            if (server.tcpConns > 0 || server.udpConns > 0) {
+                Row {
+                    LabelValue("TCP 连接", server.tcpConns.toString(), Modifier.weight(1f))
+                    LabelValue("UDP 连接", server.udpConns.toString(), Modifier.weight(1f))
+                }
+            }
+        }
+
+        state.detailClient?.let { device ->
+            Section("客户端代理") {
+                val client = state.clientStates[device.key]?.state
+                Text(
+                    client?.summary ?: "这台设备的 1S-UI 可以当代理客户端（类似 v2rayN / PassWall）：查看它走哪个节点，切换节点和分流模式。",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(6.dp))
+                OutlinedButton(onClick = { vm.openClient(device) }) { Text("打开客户端代理") }
+            }
+        }
+
+        val history = server.history
+        if (history.size >= 2) {
+            val start = Format.time(history.first().time)
+            val end = Format.time(history.last().time)
+            Section("CPU / 内存") {
+                LineChart(
+                    series = listOf(
+                        ChartSeries("CPU", MaterialTheme.colorScheme.primary, history.map { it.cpu }),
+                        ChartSeries("内存", StatusColors.online, history.map { it.mem }),
+                    ),
+                    maxValue = 100.0,
+                    formatValue = Format::percent,
+                    startLabel = start,
+                    endLabel = end,
+                )
+            }
+            Section("网络速度") {
+                LineChart(
+                    series = listOf(
+                        ChartSeries("上传", StatusColors.upload, history.map { it.netSentRate.toDouble() }),
+                        ChartSeries("下载", StatusColors.download, history.map { it.netRecvRate.toDouble() }),
+                    ),
+                    maxValue = null,
+                    formatValue = { Format.rate(it.toLong()) },
+                    startLabel = start,
+                    endLabel = end,
+                )
+            }
+            Section("磁盘") {
+                LineChart(
+                    series = listOf(ChartSeries("磁盘", StatusColors.warn, history.map { it.disk })),
+                    maxValue = 100.0,
+                    formatValue = Format::percent,
+                    startLabel = start,
+                    endLabel = end,
+                )
+            }
+        } else {
+            Text(
+                "历史曲线会在面板积累几分钟数据后出现。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        server.latency?.let { latency ->
+            Section("与面板的延迟") {
+                Row {
+                    LabelValue("当前", latency.lastMs?.let { "$it ms" } ?: "超时", Modifier.weight(1f))
+                    LabelValue("平均", "%.0f ms".format(latency.averageMs), Modifier.weight(1f))
+                }
+                Row {
+                    LabelValue("P95", "${latency.p95Ms} ms", Modifier.weight(1f))
+                    LabelValue("丢包", "%.1f%%".format(latency.lossPct), Modifier.weight(1f))
+                }
+            }
+        }
+
+        Section("系统信息") { SystemInfo(server, versionText(server.version, state.update)) }
+    }
+}
+
+@Composable
+private fun SystemInfo(server: Server, version: String) {
     SelectionContainer {
         Column {
             Row {
@@ -192,7 +262,7 @@ private fun SystemInfo(server: Server) {
                 )
             }
             Row {
-                LabelValue("版本", server.version, Modifier.weight(1f))
+                LabelValue("版本", version, Modifier.weight(1f))
                 LabelValue("连接方式", if (server.local) "主控本机" else server.connMode.uppercase(), Modifier.weight(1f))
             }
             val ips = (listOf(server.publicHost, server.remoteIp) + server.ipv4 + server.ipv6).filter { it.isNotBlank() }.distinct()

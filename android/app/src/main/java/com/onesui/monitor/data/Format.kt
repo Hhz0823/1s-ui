@@ -20,6 +20,39 @@ object Format {
 
     fun rate(bytesPerSecond: Long): String = bytes(bytesPerSecond) + "/s"
 
+    /** Bits per second the way speed tests show it, e.g. "94.3 Mbps". */
+    fun bits(bitsPerSecond: Double): String {
+        val value = bitsPerSecond.coerceAtLeast(0.0)
+        return when {
+            value >= 1e9 -> String.format(Locale.US, "%.2f Gbps", value / 1e9)
+            value >= 1e6 -> String.format(Locale.US, if (value >= 1e8) "%.0f Mbps" else "%.1f Mbps", value / 1e6)
+            else -> String.format(Locale.US, "%.0f Kbps", value / 1e3)
+        }
+    }
+
+    /** A check interval in seconds, e.g. "30 秒", "5 分钟". */
+    fun interval(seconds: Int): String = when {
+        seconds >= 3_600 && seconds % 3_600 == 0 -> "${seconds / 3_600} 小时"
+        seconds >= 60 && seconds % 60 == 0 -> "${seconds / 60} 分钟"
+        else -> "$seconds 秒"
+    }
+
+    fun ms(value: Double): String = when {
+        value <= 0.0 -> "-"
+        value < 10 -> String.format(Locale.US, "%.1f ms", value)
+        else -> String.format(Locale.US, "%.0f ms", value)
+    }
+
+    /** "SOCKS5", "HTTP", "VLESS"…, and short names for the rest. */
+    fun protocol(type: String): String = when (type.lowercase(Locale.US)) {
+        "socks", "socks5" -> "SOCKS5"
+        "shadowsocks" -> "SS"
+        "hysteria2" -> "HY2"
+        "anytls" -> "AnyTLS"
+        "wireguard" -> "WG"
+        else -> type.uppercase(Locale.US)
+    }
+
     fun percent(value: Double): String = String.format(Locale.US, "%.1f%%", value.coerceIn(0.0, 100.0))
 
     fun uptime(seconds: Long): String {
@@ -47,6 +80,9 @@ object Format {
 
     fun time(unixSeconds: Long): String =
         SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(unixSeconds * 1000))
+
+    fun dateTime(unixSeconds: Long): String =
+        SimpleDateFormat("MM-dd HH:mm:ss", Locale.getDefault()).format(Date(unixSeconds * 1000))
 
     fun date(unixSeconds: Long): String =
         SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(unixSeconds * 1000))

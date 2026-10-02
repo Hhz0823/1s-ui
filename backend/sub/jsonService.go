@@ -151,13 +151,16 @@ func (j *JsonService) getOutbounds(clientConfig json.RawMessage, inbounds []*mod
 				inbPass, _ := inbOptions["password"].(string)
 				userPass = append(userPass, inbPass)
 			}
-			var pass string
+			key := "shadowsocks"
 			if method == "2022-blake3-aes-128-gcm" {
-				pass, _ = configs["shadowsocks16"].(map[string]interface{})["password"].(string)
-			} else {
-				pass, _ = configs["shadowsocks"].(map[string]interface{})["password"].(string)
+				key = "shadowsocks16"
 			}
-			userPass = append(userPass, pass)
+			userConfig, _ := configs[key].(map[string]interface{})
+			pass, _ := userConfig["password"].(string)
+			// Single-user 2022 inbounds take the server key alone.
+			if pass != "" || len(userPass) == 0 {
+				userPass = append(userPass, pass)
+			}
 			outbound["password"] = strings.Join(userPass, ":")
 		} else { // Other protocols
 			config, _ := configs[protocol].(map[string]interface{})

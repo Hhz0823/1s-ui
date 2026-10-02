@@ -57,3 +57,43 @@ object AlertEvaluator {
 
     private fun over(value: Double, threshold: Int) = threshold in 1..100 && value >= threshold
 }
+
+object ProxyAlertEvaluator {
+    /**
+     * Raises an alert when a proxy monitor goes down or comes back. "unknown"
+     * (the checking server was unreachable) and "paused" keep the last state,
+     * and a monitor seen for the first time only records it.
+     */
+    fun evaluate(
+        panel: Panel,
+        monitors: List<ProxyMonitor>,
+        previous: Map<String, Boolean>,
+    ): Pair<List<Alert>, Map<String, Boolean>> {
+        val alerts = mutableListOf<Alert>()
+        val next = mutableMapOf<String, Boolean>()
+        for (monitor in monitors) {
+            val key = "${panel.id}:proxy:${monitor.id}"
+            val before = previous[key]
+            val down = when (monitor.status) {
+                "up" -> false
+                "down" -> true
+                else -> {
+                    if (before != null) next[key] = before
+                    continue
+                }
+            }
+            next[key] = down
+            if (before == null || before == down) continue
+            val what = if (monitor.isNode) "节点" else "代理"
+            alerts += if (down) {
+                val reason = monitor.last?.let { Messages.probe(it, monitor.isNode) }.orEmpty()
+                Alert("$key:down", "$what ${monitor.name} 不可用", reason.ifBlank { "面板：${panel.name}" }, recovered = false)
+            } else {
+                val latency = monitor.last?.latencyMs?.let { " · ${it} ms" }.orEmpty()
+                Alert("$key:down", "$what ${monitor.name} 已恢复", "面板：${panel.name}$latency", recovered = true)
+            }
+        }
+        return alerts to next
+    }
+}
+

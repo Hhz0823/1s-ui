@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	stdnet "net"
@@ -38,6 +39,29 @@ type ClientConfig struct {
 	LocalSocket string
 	// PreferWS enables WebSocket control with HTTP heartbeats during reconnects.
 	PreferWS bool
+	// Embedded runs the agent inside the panel process (OpenWrt): a restart
+	// request reconnects instead of exiting the process, and RestartCore
+	// restarts the panel's own sing-box.
+	Embedded    bool
+	RestartCore func() error
+}
+
+// errRestartRequested ends a connection whose agent was asked to restart.
+var errRestartRequested = errors.New("agent restart requested")
+
+// handleCommand runs a control command. An agent inside the panel has no
+// separate sing-box process to signal, so it restarts the panel's core.
+func handleCommand(ctx context.Context, cfg ClientConfig, cmd Command) CommandResult {
+	if !cfg.Embedded || cmd.Type != CmdRestartSingBox || cfg.RestartCore == nil {
+		return HandleCommand(ctx, cmd)
+	}
+	start := time.Now()
+	result := CommandResult{ID: cmd.ID, Type: cmd.Type, OK: true, Output: "sing-box restarted"}
+	if err := cfg.RestartCore(); err != nil {
+		result.OK, result.Output, result.Error, result.Code = false, "", err.Error(), 1
+	}
+	result.Elapsed = time.Since(start).Milliseconds()
+	return result
 }
 
 var (
@@ -67,6 +91,9 @@ func Run(ctx context.Context, cfg ClientConfig) error {
 		err := runWebSocket(ctx, cfg)
 		if ctx.Err() != nil || err == nil {
 			return nil
+		}
+		if errors.Is(err, errRestartRequested) {
+			continue
 		}
 		fmt.Fprintf(os.Stderr, "agent websocket disconnected, retrying: %v\n", err)
 		if heartbeatErr := SendOnce(ctx, cfg); heartbeatErr != nil && ctx.Err() == nil {
@@ -239,7 +266,7 @@ func runWebSocket(ctx context.Context, cfg ClientConfig) error {
 					default:
 					}
 				}
-				result := HandleCommand(ctx, cmd)
+				result := handleCommand(ctx, cfg, cmd)
 				_ = write(map[string]interface{}{
 					"type":       MsgTypeCommandResult,
 					"id":         result.ID,
@@ -347,6 +374,9 @@ func runWebSocket(ctx context.Context, cfg ClientConfig) error {
 		case <-restartAgent:
 			// Allow the command_result frame to flush, then exit for systemd restart.
 			time.Sleep(300 * time.Millisecond)
+			if cfg.Embedded {
+				return errRestartRequested
+			}
 			os.Exit(0)
 			return nil
 		case <-reportNow:

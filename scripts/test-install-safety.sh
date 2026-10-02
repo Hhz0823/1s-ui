@@ -336,6 +336,30 @@ if validate_agent_connection >/dev/null; then
 fi
 CONNECT_URL=""
 
+# --panel URL --key KEY binds a full client (fnOS, home Linux) like install-agent.sh.
+INSTALL_KIND=""
+CONFIGURE_AGENT=0
+parse_args --panel 'https://panel.example.com:2095/app/' --key 'abcdefghijklmnopqrstuvwxyzABCDEFGH12345678' --name 'fnOS NAS'
+assert_eq 1 "$CONFIGURE_AGENT" "--key enables automatic binding"
+assert_eq "fnOS NAS" "$NODE_NAME" "--name sets the node name"
+validate_agent_connection >/dev/null || fail "a valid --panel/--key was rejected"
+assert_eq "https://panel.example.com:2095/app/agent/v1/enroll#abcdefghijklmnopqrstuvwxyzABCDEFGH12345678" "$CONNECT_URL" "--panel/--key connection API"
+CONNECT_URL=""
+PANEL_URL="panel.example.com"
+if validate_agent_connection >/dev/null; then
+    fail "--key accepted a panel address without a scheme"
+fi
+PANEL_URL="https://panel.example.com/app/"
+ENROLL_KEY="short"
+if validate_agent_connection >/dev/null; then
+    fail "--key accepted a malformed key"
+fi
+PANEL_URL=""
+ENROLL_KEY=""
+NODE_NAME=""
+CONNECT_URL=""
+CONFIGURE_AGENT=0
+
 AGENT_ENV_FILE="$tmp_dir/state/1s-ui-agent"
 AGENT_BINARY="$tmp_dir/state/sui-agent"
 AGENT_UNIT_FILE="$tmp_dir/state/s-ui-agent.service"

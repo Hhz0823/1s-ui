@@ -3,13 +3,17 @@ package logger
 import (
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/op/go-logging"
 )
 
 var (
-	logger    *logging.Logger
+	logger *logging.Logger
+	// bufferMu guards logBuffer: the cores and the agent hub log from many
+	// goroutines at once.
+	bufferMu  sync.Mutex
 	logBuffer []struct {
 		time  string
 		level logging.Level
@@ -99,6 +103,8 @@ func Errorf(format string, args ...interface{}) {
 
 func addToBuffer(level string, newLog string) {
 	t := time.Now()
+	bufferMu.Lock()
+	defer bufferMu.Unlock()
 	if len(logBuffer) >= 10240 {
 		logBuffer = logBuffer[1:]
 	}
@@ -118,6 +124,8 @@ func addToBuffer(level string, newLog string) {
 func GetLogs(c int, level string) []string {
 	var output []string
 	logLevel, _ := logging.LogLevel(level)
+	bufferMu.Lock()
+	defer bufferMu.Unlock()
 
 	for i := len(logBuffer) - 1; i >= 0 && len(output) <= c; i-- {
 		if logBuffer[i].level <= logLevel {

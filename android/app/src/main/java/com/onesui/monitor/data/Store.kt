@@ -6,26 +6,11 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
-enum class ThemeMode { SYSTEM, LIGHT, DARK }
-
-data class AppSettings(
-    val refreshSeconds: Int = 3,
-    val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val dynamicColor: Boolean = true,
-    val alertsEnabled: Boolean = false,
-    val alertIntervalSeconds: Int = 60,
-    val alertOffline: Boolean = true,
-    /** Percent thresholds; 0 turns that alert off. */
-    val cpuThreshold: Int = 90,
-    val memThreshold: Int = 90,
-    val diskThreshold: Int = 90,
-)
-
 /** Panels and settings live in private app storage; keys never leave the device except to their panel. */
-class Store(context: Context) {
+class Store(context: Context) : AppStore {
     private val prefs: SharedPreferences = context.applicationContext.getSharedPreferences("monitor", Context.MODE_PRIVATE)
 
-    fun panels(): List<Panel> {
+    override fun panels(): List<Panel> {
         val array = runCatching { JSONArray(prefs.getString(KEY_PANELS, "[]")) }.getOrElse { JSONArray() }
         return (0 until array.length()).mapNotNull { index ->
             val obj = array.optJSONObject(index) ?: return@mapNotNull null
@@ -39,21 +24,21 @@ class Store(context: Context) {
         }
     }
 
-    fun savePanel(panel: Panel) {
+    override fun savePanel(panel: Panel) {
         val list = panels().toMutableList()
         val index = list.indexOfFirst { it.id == panel.id }
         if (index >= 0) list[index] = panel else list.add(panel)
         writePanels(list)
     }
 
-    fun deletePanel(id: String) {
+    override fun deletePanel(id: String) {
         writePanels(panels().filterNot { it.id == id })
         if (selectedPanelId() == id) prefs.edit().remove(KEY_SELECTED).apply()
     }
 
-    fun selectedPanelId(): String? = prefs.getString(KEY_SELECTED, null)
+    override fun selectedPanelId(): String? = prefs.getString(KEY_SELECTED, null)
 
-    fun selectPanel(id: String) = prefs.edit().putString(KEY_SELECTED, id).apply()
+    override fun selectPanel(id: String) = prefs.edit().putString(KEY_SELECTED, id).apply()
 
     private fun writePanels(list: List<Panel>) {
         val array = JSONArray()
@@ -70,7 +55,7 @@ class Store(context: Context) {
         prefs.edit().putString(KEY_PANELS, array.toString()).apply()
     }
 
-    fun settings(): AppSettings = AppSettings(
+    override fun settings(): AppSettings = AppSettings(
         refreshSeconds = prefs.getInt("refresh_seconds", 3),
         themeMode = runCatching { ThemeMode.valueOf(prefs.getString("theme_mode", null) ?: "SYSTEM") }.getOrDefault(ThemeMode.SYSTEM),
         dynamicColor = prefs.getBoolean("dynamic_color", true),
@@ -80,9 +65,13 @@ class Store(context: Context) {
         cpuThreshold = prefs.getInt("cpu_threshold", 90),
         memThreshold = prefs.getInt("mem_threshold", 90),
         diskThreshold = prefs.getInt("disk_threshold", 90),
+        alertProxies = prefs.getBoolean("alert_proxies", true),
+        speedSeconds = prefs.getInt("speed_seconds", 10),
+        speedStreams = prefs.getInt("speed_streams", 4),
+        udpMbps = prefs.getInt("udp_mbps", 50),
     )
 
-    fun saveSettings(value: AppSettings) {
+    override fun saveSettings(value: AppSettings) {
         prefs.edit()
             .putInt("refresh_seconds", value.refreshSeconds)
             .putString("theme_mode", value.themeMode.name)
@@ -93,6 +82,10 @@ class Store(context: Context) {
             .putInt("cpu_threshold", value.cpuThreshold)
             .putInt("mem_threshold", value.memThreshold)
             .putInt("disk_threshold", value.diskThreshold)
+            .putBoolean("alert_proxies", value.alertProxies)
+            .putInt("speed_seconds", value.speedSeconds)
+            .putInt("speed_streams", value.speedStreams)
+            .putInt("udp_mbps", value.udpMbps)
             .apply()
     }
 

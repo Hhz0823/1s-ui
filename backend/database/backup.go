@@ -60,6 +60,9 @@ func GetDb(exclude string) ([]byte, error) {
 		&model.Client{},
 		&model.Changes{},
 		&model.RelayPool{},
+		&model.ProxyMonitor{},
+		&model.ProxyClientSubscription{},
+		&model.ProxyClientNode{},
 	)
 	if err != nil {
 		return nil, err
@@ -78,6 +81,9 @@ func GetDb(exclude string) ([]byte, error) {
 	var stats []model.Stats
 	var changes []model.Changes
 	var relayPools []model.RelayPool
+	var proxyMonitors []model.ProxyMonitor
+	var clientSubscriptions []model.ProxyClientSubscription
+	var clientNodes []model.ProxyClientNode
 
 	// Perform scans and handle errors
 	if err := db.Model(&model.Setting{}).Scan(&settings).Error; err != nil {
@@ -154,6 +160,30 @@ func GetDb(exclude string) ([]byte, error) {
 		return nil, err
 	} else if len(relayPools) > 0 {
 		if err := backupDb.Save(relayPools).Error; err != nil {
+			return nil, err
+		}
+	}
+	// Proxy monitors are settings; their check history stays out of backups.
+	if err := db.Model(&model.ProxyMonitor{}).Scan(&proxyMonitors).Error; err != nil {
+		return nil, err
+	} else if len(proxyMonitors) > 0 {
+		if err := backupDb.Save(proxyMonitors).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	// The proxy client's subscriptions and nodes (with their links).
+	if err := db.Model(&model.ProxyClientSubscription{}).Scan(&clientSubscriptions).Error; err != nil {
+		return nil, err
+	} else if len(clientSubscriptions) > 0 {
+		if err := backupDb.Save(clientSubscriptions).Error; err != nil {
+			return nil, err
+		}
+	}
+	if err := db.Model(&model.ProxyClientNode{}).Scan(&clientNodes).Error; err != nil {
+		return nil, err
+	} else if len(clientNodes) > 0 {
+		if err := backupDb.CreateInBatches(clientNodes, 100).Error; err != nil {
 			return nil, err
 		}
 	}

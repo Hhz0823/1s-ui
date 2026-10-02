@@ -45,43 +45,47 @@ var defaultConfig = `{
 }`
 
 var defaultValueMap = map[string]string{
-	"webListen":          "",
-	"webDomain":          "",
-	"webPort":            "2095",
-	"secret":             common.Random(32),
-	"webCertFile":        "",
-	"webKeyFile":         "",
-	"webPath":            "/app/",
-	"webURI":             "",
-	"sessionMaxAge":      "0",
-	"trafficAge":         "30",
-	"statsBucketSeconds": "60",
-	"timeLocation":       "Asia/Shanghai",
-	"subListen":          "",
-	"subPort":            "2096",
-	"subPath":            "/sub/",
-	"subDomain":          "",
-	"subCertFile":        "",
-	"subKeyFile":         "",
-	"subUpdates":         "12",
-	"subEncode":          "true",
-	"subShowInfo":        "false",
-	"subURI":             "",
-	"subJsonExt":         "",
-	"subClashExt":        "",
-	"subClashNoDefGrp":   "false",
-	"subClashSprtAll":    "false",
-	"globalReset":        "",
-	"globalResetLast":    "0",
-	"congestionAlgo":     "",
-	"qdisc":              "",
-	"githubMirror":       "",
-	"downloadLine":       downloadLineAuto,
-	"config":             defaultConfig,
-	"version":            config.GetVersion(),
-	agentEnrollmentKey:   "",
-	monitorKeyHash:       "",
-	controllerModeKey:    controllerModeAuto,
+	"webListen":            "",
+	"webDomain":            "",
+	"webPort":              "2095",
+	"secret":               common.Random(32),
+	"webCertFile":          "",
+	"webKeyFile":           "",
+	"webPath":              "/app/",
+	"webURI":               "",
+	"sessionMaxAge":        "0",
+	"trafficAge":           "30",
+	"statsBucketSeconds":   "60",
+	"timeLocation":         "Asia/Shanghai",
+	"subListen":            "",
+	"subPort":              "2096",
+	"subPath":              "/sub/",
+	"subDomain":            "",
+	"subCertFile":          "",
+	"subKeyFile":           "",
+	"subUpdates":           "12",
+	"subEncode":            "true",
+	"subShowInfo":          "false",
+	"subURI":               "",
+	"subJsonExt":           "",
+	"subClashExt":          "",
+	"subClashNoDefGrp":     "false",
+	"subClashSprtAll":      "false",
+	"globalReset":          "",
+	"globalResetLast":      "0",
+	"congestionAlgo":       "",
+	"qdisc":                "",
+	"githubMirror":         "",
+	"downloadLine":         downloadLineAuto,
+	"config":               defaultConfig,
+	"version":              config.GetVersion(),
+	agentEnrollmentKey:     "",
+	monitorKeyHash:         "",
+	monitorAppProxiesKey:   "true",
+	monitorAppSpeedtestKey: "true",
+	speedtestPortKey:       "5201",
+	monitorAppClientKey:    "true",
+	controllerModeKey:      controllerModeAuto,
 }
 
 type SettingService struct {
@@ -126,8 +130,13 @@ func (s *SettingService) GetAllSetting() (*map[string]string, error) {
 	delete(allSetting, "globalResetLast")
 	delete(allSetting, agentEnrollmentKey)
 	delete(allSetting, monitorKeyHash)
+	delete(allSetting, monitorAppProxiesKey)
+	delete(allSetting, monitorAppSpeedtestKey)
+	delete(allSetting, speedtestPortKey)
 	delete(allSetting, controllerModeKey)
 	delete(allSetting, sdwanConfigKey)
+	delete(allSetting, proxyClientSettingsKey)
+	delete(allSetting, monitorAppClientKey)
 	for key, value := range s.GetDeploymentStatus() {
 		allSetting[key] = value
 	}
@@ -370,7 +379,11 @@ func (s *SettingService) GetTimeLocation() (*time.Location, error) {
 	if err != nil {
 		defaultLocation := defaultValueMap["timeLocation"]
 		logger.Errorf("location <%v> not exist, using default location: %v", l, defaultLocation)
-		return time.LoadLocation(defaultLocation)
+		if location, err = time.LoadLocation(defaultLocation); err != nil {
+			// Without any zone data the panel still starts, in UTC.
+			logger.Error("no time zone data, using UTC: ", err)
+			return time.UTC, nil
+		}
 	}
 	return location, nil
 }
@@ -504,7 +517,9 @@ func (s *SettingService) Save(tx *gorm.DB, data json.RawMessage) error {
 	for key, obj := range settings {
 		if strings.HasPrefix(key, "deployment") || strings.HasPrefix(key, "frontendApply") ||
 			key == "apiListen" || key == "frontendEntryManagedBy" || key == "frontendGatewayConfigPath" || key == "frontendRuntimeConfigPath" ||
-			key == controllerModeKey || key == agentEnrollmentKey || key == monitorKeyHash || key == sdwanConfigKey {
+			key == controllerModeKey || key == agentEnrollmentKey || key == monitorKeyHash || key == sdwanConfigKey ||
+			key == monitorAppProxiesKey || key == monitorAppSpeedtestKey || key == speedtestPortKey ||
+			key == proxyClientSettingsKey || key == monitorAppClientKey {
 			continue
 		}
 		// Secure file existence check

@@ -135,6 +135,38 @@ func (s *Server) startControlSocket() error {
 			result, callErr = local.DiagnoseSdwanUplink()
 		case agent.RPCMethodSdwanTune:
 			result = service.ApplySdwanTuning()
+		case agent.RPCMethodProxyProbe:
+			var payload service.ProxyProbeRequest
+			callErr = decodeLocalRPCPayload(request.Payload, &payload)
+			if callErr == nil {
+				result, callErr = service.RunProxyProbes(payload)
+			}
+		case agent.RPCMethodSpeedtestStart:
+			var payload service.SpeedtestStartRequest
+			callErr = decodeLocalRPCPayload(request.Payload, &payload)
+			if callErr == nil {
+				result, callErr = service.StartLocalSpeedtest(payload.Port)
+			}
+		case agent.RPCMethodSpeedtestRun:
+			var payload service.SpeedtestRunRequest
+			callErr = decodeLocalRPCPayload(request.Payload, &payload)
+			if callErr == nil {
+				result, callErr = service.RunLocalSpeedtest(payload)
+			}
+		case agent.RPCMethodClientGet:
+			result, callErr = (&service.ProxyClientService{}).State()
+		case agent.RPCMethodClientCall:
+			var payload service.ProxyClientCall
+			callErr = decodeLocalRPCPayload(request.Payload, &payload)
+			if callErr == nil {
+				result, callErr = (&service.ProxyClientService{}).Call(payload)
+			}
+		case agent.RPCMethodNodeLink:
+			var payload service.NodeLinkRequest
+			callErr = decodeLocalRPCPayload(request.Payload, &payload)
+			if callErr == nil {
+				result, callErr = service.LocalNodeLink(payload.InboundId)
+			}
 		case agent.RPCMethodRelayExport:
 			var payload service.RemoteRelayExportRequest
 			callErr = decodeLocalRPCPayload(request.Payload, &payload)
