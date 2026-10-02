@@ -22,6 +22,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.Tab
@@ -95,7 +96,7 @@ fun DetailScreen(state: UiState, vm: MonitorController) {
                 }
             }
             when (state.detailTab) {
-                DetailTab.OVERVIEW -> OverviewTab(state, server)
+                DetailTab.OVERVIEW -> OverviewTab(state, vm, server)
                 DetailTab.NODES -> if (features.nodes) NodesTab(state, vm) else OutdatedPanel("查看节点")
                 DetailTab.SPEED -> if (features.speedtest) SpeedTab(state, vm) else OutdatedPanel("测速", features.proxyMonitors)
             }
@@ -117,7 +118,7 @@ fun OutdatedPanel(feature: String, turnedOff: Boolean = false) {
 }
 
 @Composable
-private fun OverviewTab(state: UiState, server: Server) {
+private fun OverviewTab(state: UiState, vm: MonitorController, server: Server) {
     Column(
         Modifier
             .fillMaxSize()
@@ -156,6 +157,18 @@ private fun OverviewTab(state: UiState, server: Server) {
                     LabelValue("TCP 连接", server.tcpConns.toString(), Modifier.weight(1f))
                     LabelValue("UDP 连接", server.udpConns.toString(), Modifier.weight(1f))
                 }
+            }
+        }
+
+        state.detailClient?.let { device ->
+            Section("客户端代理") {
+                val client = state.clientStates[device.key]?.state
+                Text(
+                    client?.summary ?: "这台设备的 1S-UI 可以当代理客户端（类似 v2rayN / PassWall）：查看它走哪个节点，切换节点和分流模式。",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(6.dp))
+                OutlinedButton(onClick = { vm.openClient(device) }) { Text("打开客户端代理") }
             }
         }
 
@@ -217,12 +230,12 @@ private fun OverviewTab(state: UiState, server: Server) {
             }
         }
 
-        Section("系统信息") { SystemInfo(server) }
+        Section("系统信息") { SystemInfo(server, versionText(server.version, state.update)) }
     }
 }
 
 @Composable
-private fun SystemInfo(server: Server) {
+private fun SystemInfo(server: Server, version: String) {
     SelectionContainer {
         Column {
             Row {
@@ -249,7 +262,7 @@ private fun SystemInfo(server: Server) {
                 )
             }
             Row {
-                LabelValue("版本", server.version, Modifier.weight(1f))
+                LabelValue("版本", version, Modifier.weight(1f))
                 LabelValue("连接方式", if (server.local) "主控本机" else server.connMode.uppercase(), Modifier.weight(1f))
             }
             val ips = (listOf(server.publicHost, server.remoteIp) + server.ipv4 + server.ipv6).filter { it.isNotBlank() }.distinct()

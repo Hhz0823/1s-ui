@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
@@ -29,7 +30,7 @@ import com.onesui.monitor.data.MonitorController
 import com.onesui.monitor.data.Screen
 import com.onesui.monitor.data.UiState
 
-/** The two home tabs: servers of every panel, and proxy monitors. */
+/** The home tabs: servers of every panel, client devices, and proxy and node monitors. */
 @Composable
 fun HomeBar(state: UiState, vm: MonitorController) {
     NavigationBar {
@@ -40,10 +41,16 @@ fun HomeBar(state: UiState, vm: MonitorController) {
             label = { Text("服务器") },
         )
         NavigationBarItem(
+            selected = state.screen == Screen.CLIENTS,
+            onClick = { vm.showHome(Screen.CLIENTS) },
+            icon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
+            label = { Text("客户端") },
+        )
+        NavigationBarItem(
             selected = state.screen == Screen.PROXIES,
             onClick = { vm.showHome(Screen.PROXIES) },
             icon = { Icon(Icons.Default.CheckCircle, contentDescription = null) },
-            label = { Text("代理监测") },
+            label = { Text("监测") },
         )
     }
 }

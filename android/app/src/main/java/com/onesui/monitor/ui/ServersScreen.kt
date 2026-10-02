@@ -111,6 +111,9 @@ fun ServersScreen(state: UiState, vm: MonitorController) {
                     )
                 }
             }
+            if (state.update.appUpdate && !state.update.dismissed) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "update") { UpdateBanner(state, vm) }
+            }
             item(span = { GridItemSpan(maxLineSpan) }) { SummaryCard(inScope.map { it.server }, state, loaded) }
             state.panelErrors.forEach { (panel, error) ->
                 item(span = { GridItemSpan(maxLineSpan) }, key = "error-${panel.id}") {
@@ -158,7 +161,7 @@ fun ServersScreen(state: UiState, vm: MonitorController) {
                 }
             }
             items(shown, key = { it.key }) { item ->
-                ServerCard(item.server, if (state.allPanels) item.panel.name else "") { vm.openServer(item) }
+                ServerCard(item.server, if (state.allPanels) item.panel.name else "", state.update.outdated(item.server.version)) { vm.openServer(item) }
             }
         }
     }
@@ -196,7 +199,7 @@ private fun SummaryCard(servers: List<Server>, state: UiState, loaded: Boolean) 
 }
 
 @Composable
-fun ServerCard(server: Server, panelName: String = "", onClick: () -> Unit) {
+fun ServerCard(server: Server, panelName: String = "", outdated: Boolean = false, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -217,6 +220,7 @@ fun ServerCard(server: Server, panelName: String = "", onClick: () -> Unit) {
                 )
                 if (panelName.isNotBlank()) Tag(panelName)
                 if (server.local) Tag("主控")
+                if (outdated) Tag("可更新")
                 Text(
                     if (server.online) Format.uptime(server.uptime) else Format.ago(server.lastSeen),
                     style = MaterialTheme.typography.labelSmall,

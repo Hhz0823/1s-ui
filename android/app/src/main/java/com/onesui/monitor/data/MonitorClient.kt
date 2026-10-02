@@ -7,6 +7,7 @@ import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.security.MessageDigest
 import java.security.cert.X509Certificate
 import javax.net.ssl.HostnameVerifier
@@ -55,11 +56,11 @@ class MonitorClient(private val panel: Panel) : MonitorApi {
     }
 
     override suspend fun testProxy(input: ProxyInput): ProbeResult = withContext(Dispatchers.IO) {
-        MonitorJson.parseProbe(objectOf(request("POST", "apiv2/monitor/proxies/test", input.toJson(), slow = true)))
+        MonitorJson.parseProbe(objectOf(request("POST", "apiv2/monitor/proxies/test", input.toJson(), SLOW)))
     }
 
     override suspend fun checkProxy(id: Long): ProbeResult = withContext(Dispatchers.IO) {
-        MonitorJson.parseProbe(objectOf(request("POST", "apiv2/monitor/proxies/$id/check", JSONObject(), slow = true)))
+        MonitorJson.parseProbe(objectOf(request("POST", "apiv2/monitor/proxies/$id/check", JSONObject(), SLOW)))
     }
 
     override suspend fun deleteProxy(id: Long) = withContext(Dispatchers.IO) {
@@ -68,18 +69,40 @@ class MonitorClient(private val panel: Panel) : MonitorApi {
     }
 
     override suspend fun startSpeedtest(id: Long): SpeedtestTarget = withContext(Dispatchers.IO) {
-        MonitorJson.parseSpeedtest(objectOf(request("POST", "apiv2/monitor/servers/$id/speedtest", JSONObject(), slow = true)))
+        MonitorJson.parseSpeedtest(objectOf(request("POST", "apiv2/monitor/servers/$id/speedtest", JSONObject(), SLOW)))
+    }
+
+    override suspend fun startRelaySpeedtest(id: Long, options: RelayOptions): RelayJob = withContext(Dispatchers.IO) {
+        MonitorJson.parseRelayJob(objectOf(request("POST", "apiv2/monitor/servers/$id/speedtest/relay", options.toJson(), SLOW)))
+    }
+
+    override suspend fun relaySpeedtest(jobId: String): RelayJob = withContext(Dispatchers.IO) {
+        MonitorJson.parseRelayJob(objectOf(request("GET", "apiv2/monitor/speedtests/" + URLEncoder.encode(jobId, "UTF-8"))))
+    }
+
+    override suspend fun clientState(id: Long): ClientState = withContext(Dispatchers.IO) {
+        ClientJson.parseState(objectOf(request("GET", "apiv2/monitor/servers/$id/client", readTimeout = SLOW)))
+    }
+
+    override suspend fun clientCall(id: Long, action: String, data: JSONObject): ClientState = withContext(Dispatchers.IO) {
+        // A latency test of a large subscription runs for minutes on the device.
+        val body = JSONObject().put("action", action).put("data", data)
+        ClientJson.parseState(objectOf(request("POST", "apiv2/monitor/servers/$id/client", body, CLIENT_CALL)))
+    }
+
+    override suspend fun clientExit(id: Long): ClientExit = withContext(Dispatchers.IO) {
+        ClientJson.parseExit(objectOf(request("POST", "apiv2/monitor/servers/$id/client", JSONObject().put("action", "exit"), SLOW)))
     }
 
     private fun objectOf(value: Any?): JSONObject =
         value as? JSONObject ?: throw MonitorError.Failed("面板返回为空")
 
     /** Sends one request and returns the response's "obj": an object, an array or null. */
-    private fun request(method: String, path: String, body: JSONObject? = null, slow: Boolean = false): Any? {
+    private fun request(method: String, path: String, body: JSONObject? = null, readTimeout: Int = 10_000): Any? {
         val connection = open(URL(panel.url + path))
         try {
             connection.requestMethod = method
-            if (slow) connection.readTimeout = 40_000
+            connection.readTimeout = readTimeout
             if (body != null) {
                 connection.doOutput = true
                 connection.setRequestProperty("Content-Type", "application/json")
@@ -101,7 +124,8 @@ class MonitorClient(private val panel: Panel) : MonitorApi {
             val msg = Messages.panel(raw)
             if (code == 403) throw MonitorError.Forbidden(msg.ifBlank { "面板不允许这个操作" })
             if (!json.optBoolean("success")) {
-                if (raw.contains("not found") && !raw.contains("proxy monitor")) throw MonitorError.NotSupported()
+                // The JSON 404 of a panel without this route.
+                if (raw.equals("not found", ignoreCase = true)) throw MonitorError.NotSupported()
                 throw MonitorError.Failed(msg.ifBlank { "HTTP $code" })
             }
             return json.opt("obj").takeUnless { it == JSONObject.NULL }
@@ -127,6 +151,9 @@ class MonitorClient(private val panel: Panel) : MonitorApi {
     }
 
     companion object {
+        private const val SLOW = 40_000
+        private const val CLIENT_CALL = 250_000
+
         fun fingerprint(cert: X509Certificate): String =
             MessageDigest.getInstance("SHA-256").digest(cert.encoded).joinToString(":") { "%02X".format(it) }
 

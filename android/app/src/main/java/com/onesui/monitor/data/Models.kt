@@ -73,7 +73,21 @@ data class Server(
     val expireAt: Long,
     val price: Double,
     val currency: String,
-)
+    /** What the server's panel can do ([Capability]); empty for the panel host and old panels. */
+    val capabilities: List<String> = emptyList(),
+) {
+    /** The panel host has every feature its panel reports; a managed server lists its own. */
+    fun can(capability: String): Boolean = local || capability in capabilities
+}
+
+/** Capabilities a managed server's panel reports, as named by the panel. */
+object Capability {
+    const val NODE_CHECKS = "probe.node.v1"
+    const val SPEEDTEST_CLIENT = "speedtest.client.v1"
+    const val PROXY_CLIENT = "client.v1"
+    /** The server can hand its inbounds' share links to the panel for node monitors. */
+    const val NODE_LINK = "nodes.link.v1"
+}
 
 /** What a panel lets its monitor key do; older panels report nothing. */
 data class Features(
@@ -82,6 +96,13 @@ data class Features(
     val manageProxies: Boolean = false,
     val speedtest: Boolean = false,
     val speedtestPort: Int = 0,
+    /** Monitors for nodes of any protocol, from a share link or a server's inbound. */
+    val nodeMonitors: Boolean = false,
+    /** Speed tests run from another server, such as a home NAS or router. */
+    val relaySpeedtest: Boolean = false,
+    /** The proxy client of the panel and its devices can be read, and with [manageClients] used. */
+    val clients: Boolean = false,
+    val manageClients: Boolean = false,
 )
 
 data class Overview(
@@ -156,7 +177,14 @@ data class ProxyMonitor(
     val avgLatency: Double,
     val checks: Int,
     val recent: List<ProbePoint>,
-)
+    /** For a node: its protocol, and the server and inbound it was picked from. */
+    val protocol: String = "",
+    val nodeServerId: Long = 0,
+    val nodeInboundId: Long = 0,
+    val nodeServerName: String = "",
+) {
+    val isNode: Boolean get() = type == "node"
+}
 
 data class ProxyBucket(val time: Long, val checks: Int, val failures: Int, val latencyMs: Double, val maxMs: Long)
 
@@ -184,6 +212,9 @@ data class ProxyInput(
     val serverId: Long = 0,
     val interval: Int = 60,
     val enabled: Boolean = true,
+    /** A node picked from a server's inbound; the panel reads its link itself. */
+    val nodeServerId: Long = 0,
+    val nodeInboundId: Long = 0,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("id", id)
@@ -198,6 +229,50 @@ data class ProxyInput(
         .put("server_id", serverId)
         .put("interval", interval)
         .put("enabled", enabled)
+        .put("node_server_id", nodeServerId)
+        .put("node_inbound_id", nodeInboundId)
+}
+
+/** What a relay speed test runs: from [relayId] (0 is the panel host) to the chosen server. */
+data class RelayOptions(
+    val relayId: Long,
+    val tests: List<String>,
+    val seconds: Int,
+    val streams: Int,
+    val udpMbps: Int,
+) {
+    fun toJson(): JSONObject = JSONObject()
+        .put("relay_id", relayId)
+        .put("tests", JSONArray(tests))
+        .put("seconds", seconds)
+        .put("streams", streams)
+        .put("udp_mbps", udpMbps)
+}
+
+/** One test of a relay speed test, measured by the relay. */
+data class RelayResult(
+    val test: String,
+    val host: String,
+    val ping: PingStats?,
+    val throughput: ThroughputStats?,
+    val udp: UdpStats?,
+    val error: String,
+)
+
+/** A relay speed test the panel runs in the background; the app polls it. */
+data class RelayJob(
+    val id: String,
+    val serverName: String,
+    val relayId: Long,
+    val relayName: String,
+    val status: String,
+    val tests: List<String>,
+    val current: String,
+    val host: String,
+    val results: List<RelayResult>,
+    val error: String,
+) {
+    val running: Boolean get() = status == "running"
 }
 
 /** A speed test session on one server. */
@@ -224,6 +299,10 @@ object MonitorJson {
                 manageProxies = features.optBoolean("manage_proxies"),
                 speedtest = features.optBoolean("speedtest"),
                 speedtestPort = features.optInt("speedtest_port"),
+                nodeMonitors = features.optBoolean("node_monitors"),
+                relaySpeedtest = features.optBoolean("relay_speedtest"),
+                clients = features.optBoolean("clients"),
+                manageClients = features.optBoolean("manage_clients"),
             ),
         )
     }
@@ -290,6 +369,10 @@ object MonitorJson {
         recent = obj.optJSONArray("recent").objects().map {
             ProbePoint(it.optLong("time"), it.optBoolean("ok"), it.optLong("latency_ms"))
         },
+        protocol = obj.optString("protocol"),
+        nodeServerId = obj.optLong("node_server_id"),
+        nodeInboundId = obj.optLong("node_inbound_id"),
+        nodeServerName = obj.optString("node_server_name"),
     )
 
     fun parseProxies(array: JSONArray?): List<ProxyMonitor> = array.objects().map(::parseProxy)
@@ -312,6 +395,55 @@ object MonitorJson {
         },
     )
 
+    fun parseRelayJob(obj: JSONObject) = RelayJob(
+        id = obj.optString("id"),
+        serverName = obj.optString("server_name"),
+        relayId = obj.optLong("relay_id"),
+        relayName = obj.optString("relay_name"),
+        status = obj.optString("status"),
+        tests = obj.optJSONArray("tests").strings(),
+        current = obj.optString("current"),
+        host = obj.optString("host"),
+        results = obj.optJSONArray("results").objects().map { result ->
+            RelayResult(
+                test = result.optString("test"),
+                host = result.optString("host"),
+                ping = result.optJSONObject("ping")?.let {
+                    PingStats(
+                        sent = it.optInt("sent"),
+                        received = it.optInt("received"),
+                        minMs = it.optDouble("min_ms", 0.0).finite(),
+                        avgMs = it.optDouble("avg_ms", 0.0).finite(),
+                        maxMs = it.optDouble("max_ms", 0.0).finite(),
+                        jitterMs = it.optDouble("jitter_ms", 0.0).finite(),
+                    )
+                },
+                throughput = result.optJSONObject("throughput")?.let {
+                    ThroughputStats(
+                        bytes = it.optLong("bytes"),
+                        seconds = it.optDouble("seconds", 0.0).finite(),
+                        bitsPerSecond = it.optDouble("bits_per_second", 0.0).finite(),
+                        streams = it.optInt("streams"),
+                    )
+                },
+                udp = result.optJSONObject("udp")?.let {
+                    UdpStats(
+                        targetMbps = it.optInt("target_mbps"),
+                        sentPackets = it.optLong("sent_packets"),
+                        receivedPackets = it.optLong("received_packets"),
+                        bytes = it.optLong("bytes"),
+                        seconds = it.optDouble("seconds", 0.0).finite(),
+                        bitsPerSecond = it.optDouble("bits_per_second", 0.0).finite(),
+                        jitterMs = it.optDouble("jitter_ms", 0.0).finite(),
+                        outOfOrder = it.optLong("out_of_order"),
+                    )
+                },
+                error = result.optString("error"),
+            )
+        },
+        error = obj.optString("error"),
+    )
+
     fun parseSpeedtest(obj: JSONObject) = SpeedtestTarget(
         token = obj.optString("token"),
         port = obj.optInt("port"),
@@ -323,6 +455,7 @@ object MonitorJson {
 
     fun parseServer(obj: JSONObject): Server {
         val report = obj.optJSONObject("report") ?: JSONObject()
+        val panel = report.optJSONObject("panel") ?: JSONObject()
         val load = report.optJSONObject("load") ?: JSONObject()
         val cores = report.optJSONObject("cores") ?: JSONObject()
         return Server(
@@ -369,6 +502,7 @@ object MonitorJson {
             expireAt = obj.optLong("expire_at"),
             price = obj.optDouble("price", 0.0).finite(),
             currency = obj.optString("currency"),
+            capabilities = panel.optJSONArray("capabilities").strings(),
         )
     }
 

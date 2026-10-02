@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.UUID
@@ -22,7 +24,10 @@ import kotlin.coroutines.cancellation.CancellationException
 /** Selection meaning every bound panel at once. */
 const val ALL_PANELS = "*"
 
-enum class Screen { SERVERS, PROXIES, DETAIL, PROXY_DETAIL, PROXY_EDIT, SETTINGS, BIND }
+enum class Screen { SERVERS, CLIENTS, PROXIES, DETAIL, CLIENT, PROXY_DETAIL, PROXY_EDIT, SETTINGS, BIND }
+
+/** The home tabs; Back on them leaves the app. */
+val HOME_SCREENS = setOf(Screen.SERVERS, Screen.CLIENTS, Screen.PROXIES)
 
 enum class DetailTab { OVERVIEW, NODES, SPEED }
 
@@ -41,6 +46,34 @@ data class PanelServer(val panel: Panel, val server: Server) {
 
 data class PanelProxy(val panel: Panel, val monitor: ProxyMonitor)
 
+/** A device whose proxy client the app can show: the panel host or a managed server. */
+data class ClientDevice(val panel: Panel, val server: Server, val manage: Boolean) {
+    val serverId: Long get() = if (server.local) 0 else server.id
+    val key: String get() = "${panel.id}:$serverId"
+}
+
+/** The last state read from one device's proxy client. */
+data class ClientView(val state: ClientState? = null, val error: String? = null, val loadedAt: Long = 0)
+
+/** The latest release, compared with this app and with each bound panel. */
+data class UpdateState(
+    val appVersion: String = "",
+    val checking: Boolean = false,
+    val latest: ReleaseInfo? = null,
+    val error: String? = null,
+    val checkedAt: Long = 0,
+    /** The banner was closed for this version. */
+    val dismissed: Boolean = false,
+) {
+    val appUpdate: Boolean get() = latest?.hasApk == true && Versions.isNewer(latest.version, appVersion)
+
+    /** Whether a panel or server running [version] is behind the latest release. */
+    fun outdated(version: String): Boolean = latest != null && Versions.isNewer(latest.version, version)
+}
+
+/** What a monitor checks: a SOCKS5 / HTTP proxy, a node's share link, or a node picked from a server. */
+enum class MonitorKind { PROXY, LINK, INBOUND }
+
 /** A TCP ping from the phone to one node's port. */
 data class NodePing(val ms: Double?, val error: String?)
 
@@ -58,6 +91,11 @@ data class SpeedState(
     val udpUp: UdpStats? = null,
     val errors: Map<SpeedPhase, String> = emptyMap(),
     val error: String? = null,
+    /** null tests from the phone; otherwise the server the test runs from (0 is the panel host). */
+    val relayId: Long? = null,
+    val relayName: String = "",
+    /** The test a relay is running now, while the app polls it. */
+    val relayCurrent: SpeedPhase? = null,
 )
 
 enum class SpeedSuite(val label: String, val phases: List<SpeedPhase>) {
@@ -75,7 +113,19 @@ data class ProxyEditState(
     val testResult: ProbeResult? = null,
     val error: String? = null,
     val returnTo: Screen = Screen.PROXIES,
-)
+    val kind: MonitorKind = MonitorKind.PROXY,
+    /** The inbounds of the server picked as the node's source. */
+    val inbounds: List<NodeItem>? = null,
+    val inboundsError: String? = null,
+) {
+    /** What is sent: the fields of the chosen kind only. */
+    val prepared: ProxyInput
+        get() = when (kind) {
+            MonitorKind.PROXY -> input.copy(type = if (input.type == "node") "socks5" else input.type, nodeServerId = 0, nodeInboundId = 0)
+            MonitorKind.LINK -> input.copy(type = "node", nodeServerId = 0, nodeInboundId = 0)
+            MonitorKind.INBOUND -> input.copy(type = "node", link = "")
+        }
+}
 
 data class UiState(
     val panels: List<Panel> = emptyList(),
@@ -105,6 +155,14 @@ data class UiState(
     val proxyError: String? = null,
     val proxyAction: String? = null,
     val editing: ProxyEditState? = null,
+    val clientKey: String? = null,
+    val clientReturnTo: Screen = Screen.CLIENTS,
+    val clientStates: Map<String, ClientView> = emptyMap(),
+    /** The running client action, then its outcome until dismissed. */
+    val clientAction: String? = null,
+    val clientBusy: Boolean = false,
+    val clientExit: ClientExit? = null,
+    val update: UpdateState = UpdateState(),
 ) {
     val allPanels: Boolean get() = panelId == ALL_PANELS
     val panel: Panel? get() = panels.firstOrNull { it.id == panelId }
@@ -120,6 +178,32 @@ data class UiState(
         get() = scopedPanels.flatMap { panel -> data[panel.id]?.proxies.orEmpty().map { PanelProxy(panel, it) } }
 
     fun features(panelId: String?): Features = data[panelId]?.overview?.features ?: Features()
+
+    /** Devices with a proxy client in the panels in scope: the panel hosts and updated servers. */
+    val clientDevices: List<ClientDevice>
+        get() = scopedPanels.flatMap { panel -> devicesOf(panel) }
+
+    private fun devicesOf(panel: Panel): List<ClientDevice> {
+        val features = features(panel.id)
+        if (!features.clients) return emptyList()
+        return data[panel.id]?.overview?.servers.orEmpty()
+            .filter { it.can(Capability.PROXY_CLIENT) }
+            .map { ClientDevice(panel, it, features.manageClients) }
+    }
+
+    /** The device whose client is open, in any bound panel. */
+    val openClient: ClientDevice?
+        get() = panels.flatMap { devicesOf(it) }.firstOrNull { it.key == clientKey }
+
+    /** The client device of the open server, when it has one. */
+    val detailClient: ClientDevice?
+        get() = detailPanel?.let { panel -> devicesOf(panel).firstOrNull { it.key == "${panel.id}:${if (detailLocal) 0 else detailId}" } }
+
+    /** Servers of the open server's panel that can run a speed test to it. */
+    val relaySources: List<Server>
+        get() = data[detailPanelId]?.overview?.servers.orEmpty().filter { server ->
+            server.online && server.can(Capability.SPEEDTEST_CLIENT) && (if (detailLocal) !server.local else server.local || server.id != detailId)
+        }
 
     /** Panels in scope that could not be reached, with the reason. */
     val panelErrors: List<Pair<Panel, String>>
@@ -142,6 +226,8 @@ class MonitorController(
     private val scope: CoroutineScope,
     private val clientFor: (Panel) -> MonitorApi = ::MonitorClient,
     private val onPanelsChanged: () -> Unit = {},
+    appVersion: String = "",
+    private val latestRelease: suspend () -> ReleaseInfo = { ReleaseChecker().latest() },
 ) {
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
@@ -163,12 +249,18 @@ class MonitorController(
             panelId = selected,
             settings = store.settings(),
             screen = if (panels.isEmpty()) Screen.BIND else Screen.SERVERS,
+            update = UpdateState(appVersion = appVersion),
         )
     }
 
     fun setForeground(value: Boolean) {
         foreground = value
-        if (value) restartPolling() else poller?.cancel()
+        if (value) {
+            restartPolling()
+            maybeCheckUpdates()
+        } else {
+            poller?.cancel()
+        }
     }
 
     fun refresh() = restartPolling()
@@ -181,6 +273,7 @@ class MonitorController(
                 poll()
                 val seconds = when (_state.value.screen) {
                     Screen.PROXIES, Screen.PROXY_DETAIL -> maxOf(_state.value.settings.refreshSeconds, 10)
+                    Screen.CLIENTS, Screen.CLIENT -> maxOf(_state.value.settings.refreshSeconds, 10)
                     Screen.PROXY_EDIT -> 60
                     else -> _state.value.settings.refreshSeconds.coerceAtLeast(1)
                 }
@@ -200,6 +293,17 @@ class MonitorController(
                     pollOverviews(current.scopedPanels.filter { current.data[it.id]?.overview == null })
                     pollProxies(current.scopedPanels)
                 }
+                Screen.CLIENTS -> {
+                    pollOverviews(current.scopedPanels)
+                    // A client's state carries all its nodes: read each device twice a minute at most.
+                    val now = System.currentTimeMillis()
+                    pollClients(_state.value.clientDevices.filter { it.server.online && now - (_state.value.clientStates[it.key]?.loadedAt ?: 0) >= 30_000 })
+                }
+                Screen.CLIENT -> {
+                    val device = current.openClient
+                    if (device == null) pollOverviews(current.panels.filter { current.data[it.id]?.overview == null })
+                    pollClients(listOfNotNull(device ?: _state.value.openClient))
+                }
                 else -> pollOverviews(current.scopedPanels)
             }
         } finally {
@@ -218,6 +322,22 @@ class MonitorController(
                         { before.copy(error = message(it)) },
                     )
                     state.copy(data = state.data + (panel.id to after))
+                }
+            }
+        }.awaitAll()
+    }
+
+    private suspend fun pollClients(devices: List<ClientDevice>) = coroutineScope {
+        devices.map { device ->
+            async {
+                val result = runCatching { clientFor(device.panel).clientState(device.serverId) }
+                _state.update { state ->
+                    val before = state.clientStates[device.key] ?: ClientView()
+                    val after = result.fold(
+                        { ClientView(it, null, System.currentTimeMillis()) },
+                        { before.copy(error = message(it), loadedAt = System.currentTimeMillis()) },
+                    )
+                    state.copy(clientStates = state.clientStates + (device.key to after))
                 }
             }
         }.awaitAll()
@@ -274,6 +394,7 @@ class MonitorController(
     fun showHome(screen: Screen) {
         _state.update { it.copy(screen = screen, home = screen) }
         restartPolling()
+        maybeCheckUpdates()
     }
 
     fun openServer(item: PanelServer) {
@@ -310,13 +431,21 @@ class MonitorController(
     fun back(): Boolean {
         val current = _state.value
         val target = when (current.screen) {
-            Screen.SERVERS, Screen.PROXIES -> return false
+            in HOME_SCREENS -> return false
             Screen.BIND -> if (current.panels.isEmpty()) return false else current.home
             Screen.PROXY_EDIT -> current.editing?.returnTo ?: Screen.PROXIES
             Screen.PROXY_DETAIL -> Screen.PROXIES
+            Screen.CLIENT -> current.clientReturnTo
             else -> current.home
         }
-        _state.update { it.copy(screen = target, editing = if (target == Screen.PROXY_EDIT) it.editing else null) }
+        _state.update {
+            it.copy(
+                screen = target,
+                editing = if (target == Screen.PROXY_EDIT) it.editing else null,
+                clientAction = if (current.screen == Screen.CLIENT) null else it.clientAction,
+                clientExit = if (current.screen == Screen.CLIENT) null else it.clientExit,
+            )
+        }
         restartPolling()
         return true
     }
@@ -423,12 +552,24 @@ class MonitorController(
 
     // Speed tests
 
+    /** Tests from the phone ([relay] null) or from another server of the same panel. */
+    fun setSpeedSource(relay: Server?) {
+        if (_state.value.speed.running) return
+        _state.update { state ->
+            state.copy(speed = SpeedState(serverKey = state.detailKey, relayId = relay?.let { if (it.local) 0L else it.id }, relayName = relay?.name.orEmpty()))
+        }
+    }
+
     fun startSpeedTest(suite: SpeedSuite) {
         val current = _state.value
         val panel = current.detailPanel ?: return
         val serverId = if (current.detailLocal) 0L else current.detailId ?: return
         val key = current.detailKey
         val settings = current.settings
+        current.speed.relayId?.let { relayId ->
+            startRelaySpeedTest(panel, serverId, relayId, suite)
+            return
+        }
         speedJob?.cancel()
         _state.update { state ->
             val cleared = suite.phases.fold(state.speed) { speed, phase -> clearPhase(speed, phase) }
@@ -473,6 +614,66 @@ class MonitorController(
         }
     }
 
+    /**
+     * Asks the panel to run the tests from [relayId] to [serverId] and polls
+     * the job, filling the same results as a test from the phone.
+     */
+    private fun startRelaySpeedTest(panel: Panel, serverId: Long, relayId: Long, suite: SpeedSuite) {
+        val key = _state.value.detailKey
+        val settings = _state.value.settings
+        val port = _state.value.features(panel.id).speedtestPort
+        speedJob?.cancel()
+        _state.update { state ->
+            val cleared = suite.phases.fold(state.speed) { speed, phase -> clearPhase(speed, phase) }
+            state.copy(speed = cleared.copy(serverKey = key, running = true, progress = null, error = null, host = "", port = port))
+        }
+        speedJob = scope.launch {
+            try {
+                val client = clientFor(panel)
+                val options = RelayOptions(relayId, suite.phases.map { it.test }, settings.speedSeconds, settings.speedStreams, settings.udpMbps)
+                var job = client.startRelaySpeedtest(serverId, options)
+                while (true) {
+                    applyRelayJob(key, job)
+                    if (!job.running) break
+                    delay(RELAY_POLL_MS)
+                    job = client.relaySpeedtest(job.id)
+                }
+                if (job.error.isNotBlank()) updateSpeed(key) { it.copy(error = Messages.panel(job.error)) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                updateSpeed(key) { it.copy(error = message(e)) }
+            } finally {
+                updateSpeed(key) { it.copy(running = false, progress = null, relayCurrent = null) }
+            }
+        }
+    }
+
+    private fun applyRelayJob(key: String, job: RelayJob) = updateSpeed(key) { speed ->
+        var next = speed.copy(
+            relayCurrent = if (job.running) SpeedPhase.entries.firstOrNull { it.test == job.current } else null,
+            relayName = job.relayName.ifBlank { speed.relayName },
+            host = job.host.ifBlank { speed.host },
+        )
+        for (result in job.results) {
+            val phase = SpeedPhase.entries.firstOrNull { it.test == result.test } ?: continue
+            if (result.error.isNotBlank()) {
+                next = next.copy(errors = next.errors + (phase to Messages.panel(result.error)))
+                continue
+            }
+            next = when (phase) {
+                SpeedPhase.TCP_PING -> next.copy(tcpPing = result.ping)
+                SpeedPhase.UDP_PING -> next.copy(udpPing = result.ping)
+                SpeedPhase.TCP_DOWNLOAD -> next.copy(tcpDown = result.throughput)
+                SpeedPhase.TCP_UPLOAD -> next.copy(tcpUp = result.throughput)
+                SpeedPhase.UDP_DOWNLOAD -> next.copy(udpDown = result.udp)
+                SpeedPhase.UDP_UPLOAD -> next.copy(udpUp = result.udp)
+            }
+            if (result.host.isNotBlank()) next = next.copy(host = result.host)
+        }
+        next
+    }
+
     fun stopSpeedTest() {
         speedJob?.cancel()
     }
@@ -513,24 +714,64 @@ class MonitorController(
 
     /** Opens the editor for a new monitor on [panelId], or for [monitor]. */
     fun editProxy(panelId: String, monitor: ProxyMonitor? = null) {
-        val input = monitor?.let {
-            ProxyInput(
-                id = it.id, name = it.name, type = it.type, host = it.host, port = it.port, username = it.username,
-                password = null, target = it.target, serverId = it.serverId, interval = it.interval, enabled = it.enabled,
-            )
-        } ?: ProxyInput()
+        val input = monitor?.let(::inputOf) ?: ProxyInput()
+        val kind = when {
+            monitor?.isNode != true -> MonitorKind.PROXY
+            monitor.nodeInboundId != 0L -> MonitorKind.INBOUND
+            else -> MonitorKind.LINK
+        }
         _state.update {
             it.copy(
                 screen = Screen.PROXY_EDIT,
-                editing = ProxyEditState(panelId, input, hadPassword = monitor?.hasPassword == true, returnTo = it.screen),
+                editing = ProxyEditState(panelId, input, hadPassword = monitor?.hasPassword == true, returnTo = it.screen, kind = kind),
             )
         }
         val panel = _state.value.panels.firstOrNull { it.id == panelId } ?: return
         if (_state.value.data[panelId]?.overview == null) scope.launch { pollOverviews(listOf(panel)) }
+        if (kind == MonitorKind.INBOUND) loadInbounds(input.nodeServerId)
     }
+
+    /** A monitor as the editor sends it back: the stored password and link are kept. */
+    private fun inputOf(monitor: ProxyMonitor) = ProxyInput(
+        id = monitor.id, name = monitor.name, type = monitor.type, host = monitor.host, port = monitor.port,
+        username = monitor.username, password = null, target = monitor.target, serverId = monitor.serverId,
+        interval = monitor.interval, enabled = monitor.enabled, nodeServerId = monitor.nodeServerId, nodeInboundId = monitor.nodeInboundId,
+    )
 
     fun updateEditing(transform: (ProxyInput) -> ProxyInput) {
         _state.update { state -> state.copy(editing = state.editing?.let { it.copy(input = transform(it.input), error = null) }) }
+    }
+
+    fun setEditKind(kind: MonitorKind) {
+        val editing = _state.value.editing ?: return
+        if (editing.kind == kind) return
+        _state.update { state -> state.copy(editing = state.editing?.copy(kind = kind, error = null, testResult = null)) }
+        if (kind == MonitorKind.INBOUND && editing.inbounds == null) loadInbounds(editing.input.nodeServerId)
+    }
+
+    /** Picks the server whose inbounds the node comes from (0 is the panel host). */
+    fun setNodeServer(serverId: Long) {
+        updateEditing { it.copy(nodeServerId = serverId, nodeInboundId = 0) }
+        loadInbounds(serverId)
+    }
+
+    private fun loadInbounds(serverId: Long) {
+        val editing = _state.value.editing ?: return
+        val panel = _state.value.panels.firstOrNull { it.id == editing.panelId } ?: return
+        _state.update { state -> state.copy(editing = state.editing?.copy(inbounds = null, inboundsError = null)) }
+        scope.launch {
+            val result = runCatching { clientFor(panel).nodes(serverId).filter { it.id > 0 && it.port > 0 } }
+            _state.update { state ->
+                val current = state.editing
+                if (current == null || current.input.nodeServerId != serverId) return@update state
+                state.copy(
+                    editing = result.fold(
+                        { current.copy(inbounds = it, inboundsError = if (it.isEmpty()) "这台服务器还没有节点" else null) },
+                        { current.copy(inbounds = emptyList(), inboundsError = message(it)) },
+                    )
+                )
+            }
+        }
     }
 
     fun testEditing() = editingCall { client, input ->
@@ -557,10 +798,19 @@ class MonitorController(
     private fun editingCall(block: suspend (MonitorApi, ProxyInput) -> Unit) {
         val editing = _state.value.editing ?: return
         val panel = _state.value.panels.firstOrNull { it.id == editing.panelId } ?: return
+        val missing = when {
+            editing.kind == MonitorKind.INBOUND && editing.input.nodeInboundId <= 0 -> "请选择要监测的节点"
+            editing.kind == MonitorKind.LINK && editing.input.id == 0L && editing.input.link.isBlank() -> "请粘贴节点的分享链接"
+            else -> null
+        }
+        if (missing != null) {
+            _state.update { it.copy(editing = editing.copy(error = missing)) }
+            return
+        }
         _state.update { it.copy(editing = editing.copy(busy = true, error = null, testResult = null)) }
         scope.launch {
             try {
-                block(clientFor(panel), editing.input)
+                block(clientFor(panel), editing.prepared)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -571,19 +821,14 @@ class MonitorController(
 
     fun checkProxyNow() = proxyCall("检测完成") { client, id ->
         val result = client.checkProxy(id)
-        if (!result.ok) Messages.probe(result) else "可用 · ${result.latencyMs} ms"
+        val node = _state.value.proxyDetail?.monitor?.isNode == true
+        if (!result.ok) Messages.probe(result, node) else "可用 · ${result.latencyMs} ms"
     }
 
     fun setProxyEnabled(enabled: Boolean) {
         val detail = _state.value.proxyDetail?.monitor ?: return
         proxyCall(if (enabled) "已恢复检测" else "已暂停检测") { client, _ ->
-            client.saveProxy(
-                ProxyInput(
-                    id = detail.id, name = detail.name, type = detail.type, host = detail.host, port = detail.port,
-                    username = detail.username, password = null, target = detail.target, serverId = detail.serverId,
-                    interval = detail.interval, enabled = enabled,
-                )
-            )
+            client.saveProxy(inputOf(detail).copy(enabled = enabled))
             null
         }
     }
@@ -631,7 +876,132 @@ class MonitorController(
 
     fun clearProxyAction() = _state.update { it.copy(proxyAction = null) }
 
+    // Proxy client of a device
+
+    fun openClient(device: ClientDevice) {
+        _state.update {
+            it.copy(
+                screen = Screen.CLIENT,
+                clientKey = device.key,
+                clientReturnTo = if (it.screen == Screen.DETAIL) Screen.DETAIL else Screen.CLIENTS,
+                clientAction = null,
+                clientExit = null,
+            )
+        }
+        restartPolling()
+    }
+
+    fun clientSetEnabled(enabled: Boolean) =
+        clientCall(if (enabled) "正在开启代理…" else "正在关闭代理…", "mode", JSONObject().put("enabled", enabled)) {
+            if (enabled) "代理已开启" else "代理已关闭"
+        }
+
+    fun clientSetMode(mode: String) =
+        clientCall("正在切换模式…", "mode", JSONObject().put("mode", mode)) { "已切换为${ClientModes.label(mode)}" }
+
+    /** Uses node [nodeId], or with 0 the fastest of the automatic selection. */
+    fun clientSelect(nodeId: Long) = clientCall("正在切换节点…", "select", JSONObject().put("node_id", nodeId)) { state ->
+        if (nodeId == 0L) "已改为自动选择最快节点" else "已切换到 ${state.current?.name ?: "所选节点"}"
+    }
+
+    /** Tests [ids], or every node; the device measures them through its own line. */
+    fun clientTest(ids: List<Long> = emptyList()) =
+        clientCall("正在测延迟，节点多时需要几分钟…", "test", JSONObject().put("ids", JSONArray(ids))) { state ->
+            val tested = state.nodes.filter { ids.isEmpty() || it.id in ids }
+            "延迟测试完成：${tested.count { it.delayMs > 0 }} / ${tested.size} 个可用"
+        }
+
+    /** Updates subscription [id], or every enabled one with 0. */
+    fun clientUpdateSubscription(id: Long = 0) =
+        clientCall("正在更新订阅…", "subscription.update", JSONObject().put("id", id)) { "订阅已更新" }
+
+    /** Checks where traffic through the client leaves the internet. */
+    fun clientCheckExit() {
+        val device = _state.value.openClient ?: return
+        if (_state.value.clientBusy) return
+        _state.update { it.copy(clientBusy = true, clientAction = "正在检测出口…", clientExit = null) }
+        scope.launch {
+            try {
+                val exit = clientFor(device.panel).clientExit(device.serverId)
+                _state.update {
+                    if (it.clientKey != device.key) it else it.copy(
+                        clientExit = exit,
+                        clientAction = if (exit.ok) null else "出口检测失败：" + Messages.panel(exit.error.ifBlank { "没有回应" }),
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { if (it.clientKey != device.key) it else it.copy(clientAction = message(e)) }
+            } finally {
+                _state.update { it.copy(clientBusy = false) }
+            }
+        }
+    }
+
+    fun clearClientAction() = _state.update { it.copy(clientAction = null) }
+
+    private fun clientCall(running: String, action: String, data: JSONObject, done: (ClientState) -> String) {
+        val device = _state.value.openClient ?: return
+        if (_state.value.clientBusy) return
+        _state.update { it.copy(clientBusy = true, clientAction = running) }
+        scope.launch {
+            try {
+                val next = clientFor(device.panel).clientCall(device.serverId, action, data)
+                _state.update {
+                    it.copy(
+                        clientStates = it.clientStates + (device.key to ClientView(next, null, System.currentTimeMillis())),
+                        clientAction = if (it.clientKey == device.key) done(next) else it.clientAction,
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _state.update { if (it.clientKey != device.key) it else it.copy(clientAction = message(e)) }
+            } finally {
+                _state.update { it.copy(clientBusy = false) }
+            }
+        }
+    }
+
+    // Updates
+
+    /** Checks for a new release at most every six hours, when the app comes to the front. */
+    private fun maybeCheckUpdates() {
+        val update = _state.value.update
+        if (update.checking || System.currentTimeMillis() - update.checkedAt < UPDATE_INTERVAL_MS) return
+        checkUpdates()
+    }
+
+    fun checkUpdates() {
+        if (_state.value.update.checking) return
+        _state.update { it.copy(update = it.update.copy(checking = true, error = null)) }
+        scope.launch {
+            val result = try {
+                Result.success(latestRelease())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+            _state.update { state ->
+                val before = state.update
+                state.copy(
+                    update = result.fold(
+                        { latest -> before.copy(checking = false, latest = latest, error = null, checkedAt = System.currentTimeMillis(), dismissed = before.dismissed && before.latest?.tag == latest.tag) },
+                        { e -> before.copy(checking = false, error = message(e), checkedAt = System.currentTimeMillis()) },
+                    )
+                )
+            }
+        }
+    }
+
+    fun dismissUpdate() = _state.update { it.copy(update = it.update.copy(dismissed = true)) }
+
     companion object {
+        private const val RELAY_POLL_MS = 1_000L
+        private const val UPDATE_INTERVAL_MS = 6 * 3_600_000L
+
         fun message(e: Throwable): String = when (e) {
             is MonitorError -> e.message.orEmpty()
             is SpeedTestError -> e.message.orEmpty()

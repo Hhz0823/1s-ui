@@ -48,10 +48,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.onesui.monitor.data.Capability
 import com.onesui.monitor.data.Format
 import com.onesui.monitor.data.Messages
 import com.onesui.monitor.data.MonitorController
+import com.onesui.monitor.data.MonitorKind
+import com.onesui.monitor.data.NodeItem
 import com.onesui.monitor.data.ProbeResult
+import com.onesui.monitor.data.ProxyMonitor
 import com.onesui.monitor.data.UiState
 
 private val ranges = listOf(3_600L to "1 小时", 21_600L to "6 小时", 86_400L to "24 小时", 259_200L to "3 天")
@@ -111,7 +115,7 @@ fun ProxyDetailScreen(state: UiState, vm: MonitorController) {
                         color = proxyStatusColor(monitor.status),
                     )
                     Spacer(Modifier.weight(1f))
-                    Tag(Format.protocol(monitor.type))
+                    Tag(monitorTag(monitor))
                 }
                 SelectionContainer {
                     Text(
@@ -119,6 +123,7 @@ fun ProxyDetailScreen(state: UiState, vm: MonitorController) {
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
+                nodeSource(monitor)?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                 Text(
                     "${checkedBy(monitor)} · 每 ${Format.interval(monitor.interval)}" + if (monitor.target.isNotBlank()) " · ${monitor.target}" else "",
                     style = MaterialTheme.typography.labelSmall,
@@ -126,7 +131,7 @@ fun ProxyDetailScreen(state: UiState, vm: MonitorController) {
                 )
                 monitor.last?.let { last ->
                     Spacer(Modifier.height(8.dp))
-                    ProbeSummary(last)
+                    ProbeSummary(last, monitor.isNode)
                 }
             }
             state.proxyAction?.let { action ->
@@ -190,7 +195,7 @@ fun ProxyDetailScreen(state: UiState, vm: MonitorController) {
                         detail.failures.forEach { failure ->
                             Column(Modifier.padding(vertical = 3.dp)) {
                                 Text(Format.dateTime(failure.time), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(Messages.probe(failure), style = MaterialTheme.typography.bodySmall)
+                                Text(Messages.probe(failure, monitor.isNode), style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
@@ -213,9 +218,9 @@ fun ProxyDetailScreen(state: UiState, vm: MonitorController) {
 
 /** One check: latency broken into steps, exit IP, or why it failed. */
 @Composable
-fun ProbeSummary(result: ProbeResult) {
+fun ProbeSummary(result: ProbeResult, node: Boolean = false) {
     if (!result.ok) {
-        Text(Messages.probe(result), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+        Text(Messages.probe(result, node), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
         if (result.time > 0) {
             Text(Format.dateTime(result.time), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -223,8 +228,8 @@ fun ProbeSummary(result: ProbeResult) {
     }
     Row {
         LabelValue("总延迟", "${result.latencyMs} ms", Modifier.weight(1f))
-        LabelValue("连接代理", "${result.connectMs} ms", Modifier.weight(1f))
-        LabelValue("代理握手", if (result.handshakeMs > 0) "${result.handshakeMs} ms" else "-", Modifier.weight(1f))
+        LabelValue(if (node) "连接节点" else "连接代理", "${result.connectMs} ms", Modifier.weight(1f))
+        LabelValue(if (node) "节点握手" else "代理握手", if (result.handshakeMs > 0) "${result.handshakeMs} ms" else "-", Modifier.weight(1f))
     }
     Row {
         LabelValue("TLS", if (result.tlsMs > 0) "${result.tlsMs} ms" else "-", Modifier.weight(1f))
@@ -243,13 +248,18 @@ private val intervals = listOf(30, 60, 300, 600, 1800)
 fun ProxyEditScreen(state: UiState, vm: MonitorController) {
     val editing = state.editing ?: return
     val input = editing.input
+    val kind = editing.kind
+    val features = state.features(editing.panelId)
     val servers = state.data[editing.panelId]?.overview?.servers.orEmpty()
     var portText by remember(editing.panelId, input.id) { mutableStateOf(if (input.port > 0) input.port.toString() else "") }
     var serverMenu by remember { mutableStateOf(false) }
+    var sourceMenu by remember { mutableStateOf(false) }
+    var inboundMenu by remember { mutableStateOf(false) }
+    val node = kind != MonitorKind.PROXY
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (input.id == 0L) "添加代理监测" else "编辑代理监测") },
+                title = { Text(if (input.id == 0L) "添加监测" else "编辑监测") },
                 navigationIcon = {
                     IconButton(onClick = { vm.back() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") }
                 },
@@ -267,15 +277,95 @@ fun ProxyEditScreen(state: UiState, vm: MonitorController) {
             if (state.panels.size > 1) {
                 Text("面板：${state.panels.firstOrNull { it.id == editing.panelId }?.name.orEmpty()}", style = MaterialTheme.typography.labelLarge)
             }
-            OutlinedTextField(
-                value = input.link,
-                onValueChange = { value -> vm.updateEditing { it.copy(link = value) } },
-                label = { Text("粘贴代理链接（可选）") },
-                placeholder = { Text("socks5://用户:密码@IP:端口") },
-                supportingText = { Text("支持 socks5://、http://、v2rayN 的 socks:// 链接和 IP:端口:用户名:密码；填了链接会代替下面的地址和账号") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            if (features.nodeMonitors || node) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        MonitorKind.PROXY to "SOCKS5 / HTTP 代理",
+                        MonitorKind.LINK to "节点链接",
+                        MonitorKind.INBOUND to "服务器上的节点",
+                    ).forEach { (value, label) ->
+                        FilterChip(selected = kind == value, onClick = { vm.setEditKind(value) }, label = { Text(label) })
+                    }
+                }
+            }
+
+            when (kind) {
+                MonitorKind.PROXY -> {
+                    OutlinedTextField(
+                        value = input.link,
+                        onValueChange = { value -> vm.updateEditing { it.copy(link = value) } },
+                        label = { Text("粘贴代理链接（可选）") },
+                        placeholder = { Text("socks5://用户:密码@IP:端口") },
+                        supportingText = { Text("支持 socks5://、http://、v2rayN 的 socks:// 链接和 IP:端口:用户名:密码；填了链接会代替下面的地址和账号") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                MonitorKind.LINK -> {
+                    OutlinedTextField(
+                        value = input.link,
+                        onValueChange = { value -> vm.updateEditing { it.copy(link = value.trim()) } },
+                        label = { Text("节点分享链接") },
+                        placeholder = { Text(if (input.id != 0L) "留空表示不修改" else "vless://… vmess://… hy2://…") },
+                        supportingText = { Text("vless://、vmess://、trojan://、ss://、hy2://、tuic://、anytls:// 和 naive 链接；链接只保存在面板，App 之后不会再显示它") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                MonitorKind.INBOUND -> {
+                    Text("节点所在服务器", style = MaterialTheme.typography.labelLarge)
+                    Box {
+                        val source = servers.firstOrNull { !it.local && it.id == input.nodeServerId }
+                        OutlinedButton(onClick = { sourceMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(if (input.nodeServerId == 0L) "主控本机" else source?.name ?: "服务器 #${input.nodeServerId}", modifier = Modifier.weight(1f))
+                            Text("更换", color = MaterialTheme.colorScheme.primary)
+                        }
+                        DropdownMenu(expanded = sourceMenu, onDismissRequest = { sourceMenu = false }) {
+                            DropdownMenuItem(text = { Text("主控本机") }, onClick = { sourceMenu = false; vm.setNodeServer(0) })
+                            servers.filter { !it.local }.forEach { server ->
+                                val ready = server.can(Capability.NODE_LINK)
+                                DropdownMenuItem(
+                                    text = { Text(server.name + when { !ready -> "（需更新面板）"; !server.online -> "（离线）"; else -> "" }) },
+                                    enabled = ready,
+                                    onClick = { sourceMenu = false; vm.setNodeServer(server.id) },
+                                )
+                            }
+                        }
+                    }
+                    Text("节点", style = MaterialTheme.typography.labelLarge)
+                    Box {
+                        val inbounds = editing.inbounds
+                        val chosen = inbounds?.firstOrNull { it.id == input.nodeInboundId }
+                        OutlinedButton(onClick = { inboundMenu = true }, enabled = !inbounds.isNullOrEmpty(), modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                when {
+                                    inbounds == null -> "正在读取节点…"
+                                    chosen != null -> inboundLabel(chosen)
+                                    input.nodeInboundId != 0L -> "入站 #${input.nodeInboundId}"
+                                    else -> "选择节点"
+                                },
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        DropdownMenu(expanded = inboundMenu, onDismissRequest = { inboundMenu = false }) {
+                            inbounds.orEmpty().forEach { inbound ->
+                                DropdownMenuItem(
+                                    text = { Text(inboundLabel(inbound)) },
+                                    onClick = { inboundMenu = false; vm.updateEditing { it.copy(nodeInboundId = inbound.id) } },
+                                )
+                            }
+                        }
+                    }
+                    editing.inboundsError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                    Text(
+                        "面板用这个节点第一个启用用户的链接来检测，并且跟随服务器上的改动；链接不会发到手机。",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             OutlinedTextField(
                 value = input.name,
                 onValueChange = { value -> vm.updateEditing { it.copy(name = value) } },
@@ -283,9 +373,9 @@ fun ProxyEditScreen(state: UiState, vm: MonitorController) {
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
-            if (input.link.isBlank()) {
+            if (kind == MonitorKind.PROXY && input.link.isBlank()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = input.type == "socks5", onClick = { vm.updateEditing { it.copy(type = "socks5") } }, label = { Text("SOCKS5") })
+                    FilterChip(selected = input.type != "http", onClick = { vm.updateEditing { it.copy(type = "socks5") } }, label = { Text("SOCKS5") })
                     FilterChip(selected = input.type == "http", onClick = { vm.updateEditing { it.copy(type = "http") } }, label = { Text("HTTP") })
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -339,15 +429,22 @@ fun ProxyEditScreen(state: UiState, vm: MonitorController) {
                 DropdownMenu(expanded = serverMenu, onDismissRequest = { serverMenu = false }) {
                     DropdownMenuItem(text = { Text("主控本机") }, onClick = { serverMenu = false; vm.updateEditing { it.copy(serverId = 0) } })
                     servers.filter { !it.local }.forEach { server ->
+                        // Old panels check SOCKS5 / HTTP only; their capability list has no node checks.
+                        val ready = !node || server.capabilities.isEmpty() || server.can(Capability.NODE_CHECKS)
                         DropdownMenuItem(
-                            text = { Text(server.name + if (server.online) "" else "（离线）") },
+                            text = { Text(server.name + when { !ready -> "（需更新面板）"; !server.online -> "（离线）"; else -> "" }) },
+                            enabled = ready,
                             onClick = { serverMenu = false; vm.updateEditing { it.copy(serverId = server.id) } },
                         )
                     }
                 }
             }
             Text(
-                "检测从这台服务器发起。代理只允许中转服务器 IP 连接时，选那台中转服务器；子服务器需要已更新到支持代理检测的版本。",
+                if (node) {
+                    "检测从这台服务器发起，经节点访问测试网址。选家里的飞牛 NAS 或 OpenWrt，就能看到节点在家里网络下能不能用。"
+                } else {
+                    "检测从这台服务器发起。代理只允许中转服务器 IP 连接时，选那台中转服务器；子服务器需要已更新到支持代理检测的版本。"
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -367,7 +464,7 @@ fun ProxyEditScreen(state: UiState, vm: MonitorController) {
 
             editing.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             editing.testResult?.let { result ->
-                Section(if (result.ok) "测试通过" else "测试失败") { ProbeSummary(result) }
+                Section(if (result.ok) "测试通过" else "测试失败") { ProbeSummary(result, node) }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = vm::testEditing, enabled = !editing.busy, modifier = Modifier.weight(1f)) { Text("测试") }
@@ -378,4 +475,18 @@ fun ProxyEditScreen(state: UiState, vm: MonitorController) {
             Spacer(Modifier.height(24.dp))
         }
     }
+}
+
+private fun inboundLabel(inbound: NodeItem): String =
+    "${inbound.tag} · ${Format.protocol(inbound.type)} · ${inbound.port}"
+
+/** The protocol a monitor checks: SOCKS5, HTTP, or a node's (VLESS, HY2…). */
+fun monitorTag(monitor: ProxyMonitor): String =
+    if (monitor.isNode) Format.protocol(monitor.protocol.ifBlank { "节点" }) else Format.protocol(monitor.type)
+
+/** Where a node picked from a server's inbounds comes from. */
+fun nodeSource(monitor: ProxyMonitor): String? = when {
+    !monitor.isNode || monitor.nodeInboundId == 0L -> null
+    monitor.nodeServerId == 0L -> "节点来自主控本机"
+    else -> "节点来自 ${monitor.nodeServerName.ifBlank { "服务器 #${monitor.nodeServerId}" }}"
 }

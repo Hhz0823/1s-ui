@@ -81,7 +81,7 @@ fun ProxiesScreen(state: UiState, vm: MonitorController) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { PanelSwitcher(state, vm, "代理监测") },
+                title = { PanelSwitcher(state, vm, "代理与节点监测") },
                 actions = {
                     IconButton(onClick = vm::refresh) { Icon(Icons.Default.Refresh, contentDescription = "刷新") }
                     IconButton(onClick = { vm.navigate(Screen.SETTINGS) }) { Icon(Icons.Default.Settings, contentDescription = "设置") }
@@ -93,7 +93,7 @@ fun ProxiesScreen(state: UiState, vm: MonitorController) {
             if (manageable.isNotEmpty()) {
                 FloatingActionButton(onClick = {
                     if (manageable.size > 1) choosing = true else vm.editProxy(manageable.first().id)
-                }) { Icon(Icons.Default.Add, contentDescription = "添加代理监测") }
+                }) { Icon(Icons.Default.Add, contentDescription = "添加监测") }
             }
         },
     ) { padding ->
@@ -125,9 +125,13 @@ fun ProxiesScreen(state: UiState, vm: MonitorController) {
                 }
             } else if (proxies.isEmpty()) {
                 item {
+                    val nodes = state.scopedPanels.any { state.features(it.id).nodeMonitors }
                     Text(
-                        "还没有代理监测。点右下角 + 添加 SOCKS5 或 HTTP 代理，面板会定时检测它是否可用、延迟多少、出口 IP 是什么。\n\n" +
-                            "可以指定由哪台服务器检测：只允许中转服务器 IP 连接的落地代理，就选那台中转服务器。",
+                        (if (nodes) {
+                            "还没有监测。点右下角 + 添加 SOCKS5 / HTTP 代理，粘贴节点分享链接（VLESS、VMess、Trojan、SS、HY2、TUIC 等），或直接选某台服务器上的节点，面板会定时检测它是否可用、延迟多少、出口 IP 是什么。\n\n"
+                        } else {
+                            "还没有代理监测。点右下角 + 添加 SOCKS5 或 HTTP 代理，面板会定时检测它是否可用、延迟多少、出口 IP 是什么。\n\n"
+                        }) + "可以指定由哪台服务器检测：只允许中转服务器 IP 连接的落地代理就选那台中转服务器；想知道节点在家里能不能用，就选家里的飞牛 NAS 或 OpenWrt。",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(8.dp),
@@ -200,7 +204,7 @@ private fun ProxyCard(item: PanelProxy, showPanel: Boolean, onClick: () -> Unit)
                     modifier = Modifier.weight(1f),
                 )
                 if (showPanel) Tag(item.panel.name)
-                Tag(Format.protocol(monitor.type))
+                Tag(monitorTag(monitor))
                 Text(
                     monitor.last?.takeIf { it.ok }?.let { "${it.latencyMs} ms" } ?: proxyStatusText(monitor.status),
                     style = MaterialTheme.typography.labelLarge,
@@ -233,7 +237,7 @@ private fun ProxyCard(item: PanelProxy, showPanel: Boolean, onClick: () -> Unit)
             val last = monitor.last
             if (last != null && !last.ok && monitor.status != "paused") {
                 Text(
-                    Messages.probe(last),
+                    Messages.probe(last, monitor.isNode),
                     style = MaterialTheme.typography.labelSmall,
                     color = proxyStatusColor(monitor.status),
                     maxLines = 2,

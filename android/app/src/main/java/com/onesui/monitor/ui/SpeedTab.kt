@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -36,7 +37,10 @@ import com.onesui.monitor.data.UiState
 fun SpeedTab(state: UiState, vm: MonitorController) {
     val speed = state.speed
     val settings = state.settings
-    val port = state.features(state.detailPanelId).speedtestPort
+    val features = state.features(state.detailPanelId)
+    val port = features.speedtestPort
+    val relays = if (features.relaySpeedtest) state.relaySources else emptyList()
+    val relayed = speed.relayId != null
     Column(
         Modifier
             .fillMaxSize()
@@ -45,8 +49,28 @@ fun SpeedTab(state: UiState, vm: MonitorController) {
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Section("测速") {
+            if (relays.isNotEmpty() || relayed) {
+                Text("从哪里测", style = MaterialTheme.typography.labelLarge)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = !relayed, onClick = { vm.setSpeedSource(null) }, enabled = !speed.running, label = { Text("手机") })
+                    relays.forEach { server ->
+                        val id = if (server.local) 0L else server.id
+                        FilterChip(
+                            selected = speed.relayId == id,
+                            onClick = { vm.setSpeedSource(server) },
+                            enabled = !speed.running,
+                            label = { Text(server.name.ifBlank { server.hostname } + if (server.local) "（主控）" else "") },
+                        )
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+            }
             Text(
-                "测手机到这台服务器的延迟和 TCP、UDP 速度。服务器只在测速时临时打开端口 $port（TCP 和 UDP），测完自动关闭；连不上时请在防火墙和安全组放行这个端口。",
+                if (relayed) {
+                    "从 ${speed.relayName.ifBlank { "所选服务器" }} 测到这台服务器的延迟和 TCP、UDP 速度，看家宽、软路由或中转机到这台服务器的线路质量。这台服务器测速时临时打开端口 $port（TCP 和 UDP），测完自动关闭。"
+                } else {
+                    "测手机到这台服务器的延迟和 TCP、UDP 速度。服务器只在测速时临时打开端口 $port（TCP 和 UDP），测完自动关闭；连不上时请在防火墙和安全组放行这个端口。"
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -73,6 +97,11 @@ fun SpeedTab(state: UiState, vm: MonitorController) {
             }
         }
 
+        if (relayed && speed.running) {
+            Section(speed.relayCurrent?.let { "正在从 ${speed.relayName} 测试：${it.label}" } ?: "正在准备测速…") {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+        }
         speed.progress?.let { progress ->
             Section("正在测试：${progress.phase.label}") {
                 LinearProgressIndicator(progress = { progress.fraction.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
@@ -87,7 +116,7 @@ fun SpeedTab(state: UiState, vm: MonitorController) {
         speed.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
         if (speed.host.isNotBlank()) {
             Text(
-                "测速地址 ${speed.host}:${speed.port}",
+                (if (relayed) "${speed.relayName} → " else "测速地址 ") + "${speed.host}:${speed.port}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

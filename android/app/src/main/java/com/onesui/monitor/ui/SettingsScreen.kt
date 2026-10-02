@@ -83,6 +83,14 @@ fun SettingsScreen(state: UiState, vm: MonitorController) {
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            val version = state.data[panel.id]?.overview?.panelVersion.orEmpty()
+                            if (version.isNotBlank()) {
+                                Text(
+                                    "面板版本 " + versionText(version, state.update),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (state.update.outdated(version)) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                         IconButton(onClick = { deleting = panel }) { Icon(Icons.Default.Delete, contentDescription = "解绑") }
                     }
@@ -139,6 +147,8 @@ fun SettingsScreen(state: UiState, vm: MonitorController) {
                 ThresholdRow("内存过高", settings.memThreshold) { value -> vm.updateSettings { it.copy(memThreshold = value) } }
                 ThresholdRow("磁盘快满", settings.diskThreshold) { value -> vm.updateSettings { it.copy(diskThreshold = value) } }
             }
+
+            UpdateSection(state, vm)
             Spacer(Modifier.height(16.dp))
         }
     }

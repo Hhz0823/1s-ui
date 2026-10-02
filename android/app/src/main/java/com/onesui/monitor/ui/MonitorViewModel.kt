@@ -13,5 +13,6 @@ class MonitorViewModel(app: Application) : AndroidViewModel(app) {
         store = (app as MonitorApp).store,
         scope = viewModelScope,
         onPanelsChanged = { AlertService.sync(app) },
+        appVersion = runCatching { app.packageManager.getPackageInfo(app.packageName, 0).versionName }.getOrNull().orEmpty(),
     )
 }

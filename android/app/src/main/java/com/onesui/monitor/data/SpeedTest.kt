@@ -26,13 +26,13 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
-enum class SpeedPhase(val label: String) {
-    TCP_PING("TCP 延迟"),
-    UDP_PING("UDP 延迟"),
-    TCP_DOWNLOAD("TCP 下载"),
-    TCP_UPLOAD("TCP 上传"),
-    UDP_DOWNLOAD("UDP 下载"),
-    UDP_UPLOAD("UDP 上传"),
+enum class SpeedPhase(val label: String, val test: String) {
+    TCP_PING("TCP 延迟", "tcp_ping"),
+    UDP_PING("UDP 延迟", "udp_ping"),
+    TCP_DOWNLOAD("TCP 下载", "tcp_download"),
+    TCP_UPLOAD("TCP 上传", "tcp_upload"),
+    UDP_DOWNLOAD("UDP 下载", "udp_download"),
+    UDP_UPLOAD("UDP 上传", "udp_upload"),
 }
 
 /** Live state of the running phase: [fraction] of its time, current rate or round trip. */

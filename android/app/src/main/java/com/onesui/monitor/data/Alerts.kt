@@ -84,12 +84,13 @@ object ProxyAlertEvaluator {
             }
             next[key] = down
             if (before == null || before == down) continue
+            val what = if (monitor.isNode) "节点" else "代理"
             alerts += if (down) {
-                val reason = monitor.last?.let(Messages::probe).orEmpty()
-                Alert("$key:down", "代理 ${monitor.name} 不可用", reason.ifBlank { "面板：${panel.name}" }, recovered = false)
+                val reason = monitor.last?.let { Messages.probe(it, monitor.isNode) }.orEmpty()
+                Alert("$key:down", "$what ${monitor.name} 不可用", reason.ifBlank { "面板：${panel.name}" }, recovered = false)
             } else {
                 val latency = monitor.last?.latencyMs?.let { " · ${it} ms" }.orEmpty()
-                Alert("$key:down", "代理 ${monitor.name} 已恢复", "面板：${panel.name}$latency", recovered = true)
+                Alert("$key:down", "$what ${monitor.name} 已恢复", "面板：${panel.name}$latency", recovered = true)
             }
         }
         return alerts to next
