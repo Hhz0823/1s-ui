@@ -804,6 +804,12 @@
     autoReset: "Auto Reset",
     resetDays: "Reset Days",
     nextReset: "Next Reset",
+    subForLinks: "v2rayN, v2rayNG, Shadowrocket, PassWall. The sing-box apps get a sing-box config from this link too.",
+    subForJson: "sing-box config (JSON)",
+    subForClash: "Clash Verge, mihomo",
+    singboxImport: "Import into sing-box",
+    singboxImportHint: "Scan with the sing-box app, or open it on this computer.",
+    openInSingbox: "Open in sing-box",
   },
   bulk: {
     order: "Order",

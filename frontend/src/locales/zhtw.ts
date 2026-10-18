@@ -757,6 +757,12 @@
     autoReset: "自動重置",
     resetDays: "重置天數",
     nextReset: "下次重置",
+    subForLinks: "v2rayN、v2rayNG、小火箭、PassWall；sing-box 用這個連結也會自動取得 sing-box 設定",
+    subForJson: "sing-box 設定（JSON）",
+    subForClash: "Clash Verge、mihomo",
+    singboxImport: "匯入 sing-box",
+    singboxImportHint: "用 sing-box App 掃碼，或在這台電腦上直接開啟 sing-box 匯入",
+    openInSingbox: "在 sing-box 中開啟",
   },
   bulk: {
     order: "排序",

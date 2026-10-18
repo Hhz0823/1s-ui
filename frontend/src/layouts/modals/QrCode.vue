@@ -27,28 +27,19 @@
         </v-tabs>
         <v-window v-model="tab" style="margin-top: 10px;">
           <v-window-item value="sub">
-            <v-row>
+            <v-row v-for="item in subscriptions" :key="item.label">
               <v-col style="text-align: center;">
-                <v-chip>{{ $t('setting.sub') }}</v-chip><br />
-                <QrcodeVue :value="clientSub" :size="size" @click="copyToClipboard(clientSub)" :margin="1" style="border-radius: 1rem; cursor: copy;" />
+                <v-chip>{{ item.label }}</v-chip>
+                <div class="qr-hint">{{ item.hint }}</div>
+                <QrcodeVue :value="item.value" :size="size" @click="copyToClipboard(item.value)" :margin="1" style="border-radius: 1rem; cursor: copy;" />
               </v-col>
             </v-row>
             <v-row>
               <v-col style="text-align: center;">
-                <v-chip>{{ $t('setting.jsonSub') }}</v-chip><br />
-                <QrcodeVue :value="clientSub + '?format=json'" :size="size" @click="copyToClipboard(clientSub + '?format=json')" :margin="1" style="border-radius: 1rem; cursor: copy;" />
-              </v-col>
-            </v-row>
-            <v-row>
-              <v-col style="text-align: center;">
-                <v-chip>{{ $t('setting.clashSub') }}</v-chip><br />
-                <QrcodeVue :value="clientSub + '?format=clash'" :size="size" @click="copyToClipboard(clientSub + '?format=clash')" :margin="1" style="border-radius: 1rem; cursor: copy;" />
-              </v-col>
-            </v-row>
-            <v-row>
-              <v-col style="text-align: center;">
-                <v-chip>SING-BOX (scan only)</v-chip><br />
-                <QrcodeVue :value="singbox" :size="size" :margin="1" style="border-radius: .8rem; cursor: not-allowed;" />
+                <v-chip>{{ $t('client.singboxImport') }}</v-chip>
+                <div class="qr-hint">{{ $t('client.singboxImportHint') }}</div>
+                <QrcodeVue :value="singbox" :size="size" @click="copyToClipboard(singbox)" :margin="1" style="border-radius: .8rem; cursor: copy;" />
+                <div><v-btn :href="singbox" variant="tonal" size="small" prepend-icon="mdi-open-in-app" class="mt-2">{{ $t('client.openInSingbox') }}</v-btn></div>
               </v-col>
             </v-row>
           </v-window-item>
@@ -128,11 +119,20 @@ export default {
   },
   computed: {
     clientSub() {
-      return Data().subURI + this.client.name
+      return Data().subURI + encodeURIComponent(this.client.name ?? '')
     },
+    subscriptions() {
+      return [
+        { label: i18n.global.t('setting.sub'), hint: i18n.global.t('client.subForLinks'), value: this.clientSub },
+        { label: i18n.global.t('setting.jsonSub'), hint: i18n.global.t('client.subForJson'), value: this.clientSub + '?format=json' },
+        { label: i18n.global.t('setting.clashSub'), hint: i18n.global.t('client.subForClash'), value: this.clientSub + '?format=clash' },
+      ]
+    },
+    // sing-box apps open this link (the desktop app registers sing-box://)
+    // and add the JSON subscription as a remote profile.
     singbox() {
-      const url = Data().subURI + this.client.name + "?format=json"
-      return "sing-box://import-remote-profile?url=" +  encodeURIComponent(url) + "#" + this.client.name
+      const url = this.clientSub + "?format=json"
+      return "sing-box://import-remote-profile?url=" + encodeURIComponent(url) + "#" + encodeURIComponent(this.client.name ?? '')
     },
     clientLinks() {
       return this.client.links?? []
@@ -154,3 +154,13 @@ export default {
   components: { QrcodeVue }
 }
 </script>
+
+<style scoped>
+.qr-hint {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  margin: 4px auto 6px;
+  max-width: 300px;
+  line-height: 1.35;
+}
+</style>

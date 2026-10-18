@@ -2,6 +2,13 @@
 
 每个版本的完整说明和下载文件见 [GitHub Releases](https://github.com/Hhz0823/1s-ui/releases)。这里汇总 v1.6.0 以来各版本的更新重点。
 
+## v1.7.2
+
+- **sing-box App 可以导入用户订阅链接**：把「用户管理 → 二维码」里的订阅链接粘贴到 sing-box 时，会报 `decode config: invalid character 'd' looking for beginning of value`，因为普通链接返回的是给 v2rayN 等客户端的 base64 节点列表。现在 sing-box 官方 App（安卓、苹果、Windows、Linux）请求普通订阅链接时，面板自动返回 sing-box 配置；v2rayN、Hiddify、NekoBox 等仍拿到节点列表，链接里写了 `?format=` 时以它为准。
+- sing-box 配置不再设置 sing-box 1.15 起弃用的 TUN `stack` 选项。
+- 用户二维码弹窗标明每个链接适合的客户端；sing-box 导入码可以复制，电脑上点「在 sing-box 中打开」可直接导入。
+- 安全：Go 升级到 1.26.9（12 个标准库漏洞），`golang.org/x/net` 升级到 v0.60.0（5 个 HTTP/2 漏洞），网页界面依赖 vue 升级到 3.5.44、source-map-js 升级到 1.2.2。
+
 ## v1.7.1
 
 - **客户端代理（类似 PassWall / v2rayN）**：面板可当代理客户端，支持订阅、测速、自动选择、绕过大陆 / 仅 GFW 列表 / 全局、TUN 透明代理局域网和分流 DNS；主控和安卓 App 可远程切换节点与模式，详见 [README · 代理客户端](README.md#代理客户端)。

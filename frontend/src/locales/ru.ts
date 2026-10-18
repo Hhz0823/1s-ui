@@ -626,6 +626,12 @@
     autoReset: "Авто сброс",
     resetDays: "Дней до сброса",
     nextReset: "Следующий сброс",
+    subForLinks: "v2rayN, v2rayNG, Shadowrocket, PassWall. Приложения sing-box по этой ссылке тоже получают конфигурацию sing-box.",
+    subForJson: "Конфигурация sing-box (JSON)",
+    subForClash: "Clash Verge, mihomo",
+    singboxImport: "Импорт в sing-box",
+    singboxImportHint: "Отсканируйте в приложении sing-box или откройте sing-box на этом компьютере.",
+    openInSingbox: "Открыть в sing-box",
   },
   bulk: {
     order: "Порядок",
