@@ -625,6 +625,12 @@
     autoReset: "Tự động đặt lại",
     resetDays: "Số ngày đặt lại",
     nextReset: "Đặt lại lần sau",
+    subForLinks: "v2rayN, v2rayNG, Shadowrocket, PassWall. Ứng dụng sing-box dùng liên kết này cũng nhận được cấu hình sing-box.",
+    subForJson: "Cấu hình sing-box (JSON)",
+    subForClash: "Clash Verge, mihomo",
+    singboxImport: "Nhập vào sing-box",
+    singboxImportHint: "Quét bằng ứng dụng sing-box, hoặc mở sing-box trên máy tính này.",
+    openInSingbox: "Mở trong sing-box",
   },
   bulk: {
     order: "Sắp xếp",

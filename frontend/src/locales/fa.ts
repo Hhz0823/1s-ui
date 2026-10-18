@@ -625,6 +625,12 @@
     autoReset: "بازنشانی خودکار",
     resetDays: "روزهای بازنشانی",
     nextReset: "بازنشانی بعدی",
+    subForLinks: "v2rayN، v2rayNG، Shadowrocket و PassWall. برنامه‌های sing-box هم با این پیوند پیکربندی sing-box دریافت می‌کنند.",
+    subForJson: "پیکربندی sing-box (JSON)",
+    subForClash: "Clash Verge و mihomo",
+    singboxImport: "وارد کردن در sing-box",
+    singboxImportHint: "با برنامه sing-box اسکن کنید، یا sing-box را روی همین رایانه باز کنید.",
+    openInSingbox: "باز کردن در sing-box",
   },
   bulk: {
     order: "ترتیب",

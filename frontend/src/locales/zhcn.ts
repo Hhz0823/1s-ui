@@ -804,6 +804,12 @@
     autoReset: "自动重置",
     resetDays: "重置天数",
     nextReset: "下次重置",
+    subForLinks: "v2rayN、v2rayNG、小火箭、PassWall；sing-box 用这个链接也会自动拿到 sing-box 配置",
+    subForJson: "sing-box 配置（JSON）",
+    subForClash: "Clash Verge、mihomo",
+    singboxImport: "导入 sing-box",
+    singboxImportHint: "用 sing-box App 扫码，或在这台电脑上直接打开 sing-box 导入",
+    openInSingbox: "在 sing-box 中打开",
   },
   bulk: {
     order: "排序",

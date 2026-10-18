@@ -2,6 +2,7 @@ package sub
 
 import (
 	"encoding/base64"
+	"regexp"
 
 	"github.com/Hhz0823/1s-ui/logger"
 	"github.com/Hhz0823/1s-ui/service"
@@ -32,6 +33,11 @@ func (s *SubHandler) subs(c *gin.Context) {
 	var err error
 	subId := c.Param("subid")
 	format, isFormat := c.GetQuery("format")
+	// The sing-box apps only import sing-box configs, so the plain link
+	// serves them JSON instead of the base64 link list.
+	if !isFormat && isSingBoxApp(c.GetHeader("User-Agent")) {
+		format, isFormat = "json", true
+	}
 	if isFormat {
 		switch format {
 		case "json":
@@ -55,7 +61,22 @@ func (s *SubHandler) subs(c *gin.Context) {
 
 	s.addHeaders(c, headers)
 
+	if format == "json" {
+		c.Data(200, "application/json; charset=utf-8", []byte(*result))
+		return
+	}
 	c.String(200, *result)
+}
+
+// singBoxAppAgent matches the official sing-box apps: SFA (Android), SFI,
+// SFM and SFT (Apple), SFW and SFL (Windows and Linux), as in
+// "SFA/1.12.0 (590; sing-box 1.12.0)" or "SFW (sing-box 1.15.0; language zh_CN)".
+// Other clients built on sing-box (Hiddify, NekoBox) import link lists and
+// keep getting them.
+var singBoxAppAgent = regexp.MustCompile(`^SF[A-Z][/ (].*\bsing-box\b`)
+
+func isSingBoxApp(userAgent string) bool {
+	return singBoxAppAgent.MatchString(userAgent)
 }
 
 func (s *SubHandler) subHeaders(c *gin.Context) {

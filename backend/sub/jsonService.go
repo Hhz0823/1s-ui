@@ -24,7 +24,6 @@ const defaultJson = `
       "auto_route": true,
       "strict_route": false,
       "endpoint_independent_nat": false,
-      "stack": "system",
       "platform": {
         "http_proxy": {
           "enabled": true,
