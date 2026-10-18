@@ -50,7 +50,7 @@ REALITY + XHTTP、REALITY + XHTTP + Vision 与 VLESS Encryption + XHTTP 可以�
 - 使用自动生成的自签证书时，链接同时携带证书指纹（`pcs` / `pinSHA256`）和 `allowInsecure=1` / `insecure=1` 兼容标记：支持指纹的客户端仍会校验证书，不支持指纹的客户端（小火箭、v2rayN 内置 sing-box）也能正常连接。使用受信任的 CA 证书时不会添加该标记。
 - VLESS 仅在 TLS / REALITY + TCP 传输时下发 `xtls-rprx-vision`，WebSocket / gRPC 节点不会出现 flow 不匹配。
 - 订阅附加的流量 / 到期信息写入节点备注，不会拼接在链接末尾导致无法导入。
-- 订阅支持 Clash、JSON 和标准 URI 三种格式。
+- 订阅支持 Clash、JSON 和标准 URI 三种格式。sing-box 官方 App（安卓、苹果、Windows、Linux）请求普通订阅链接时，面板按它的 User-Agent 自动返回 sing-box 配置（JSON）；链接里写了 `?format=` 时以它为准。
 
 ## 出站导入
 
