@@ -127,3 +127,80 @@ func jsonNumber(id uint) string {
 	data, _ := json.Marshal(id)
 	return string(data)
 }
+
+func TestSingBoxConfigUsesXrayNodeLinks(t *testing.T) {
+	logger.InitLogger(logging.CRITICAL)
+	if err := database.InitDB(filepath.Join(t.TempDir(), "sub.db")); err != nil {
+		t.Fatal(err)
+	}
+	gin.SetMode(gin.TestMode)
+	db := database.GetDB()
+	const uuid = "00000000-0000-4000-8000-000000000000"
+	addInbound := func(tag string) uint {
+		inbound := model.Inbound{
+			Type: "vless", Tag: tag, CoreType: model.CoreTypeXray,
+			Options: json.RawMessage(`{}`), OutJson: json.RawMessage(`{}`), Addrs: json.RawMessage(`[]`),
+		}
+		if err := db.Create(&inbound).Error; err != nil {
+			t.Fatal(err)
+		}
+		return inbound.Id
+	}
+	vision := addInbound("jp-vision")
+	xhttp := addInbound("jp-xhttp")
+	addClient := func(name string, ids []uint, links string) {
+		inbounds, _ := json.Marshal(ids)
+		client := model.Client{Enable: true, Name: name, Config: json.RawMessage(`{"vless":{"name":"` + name + `","uuid":"` + uuid + `"}}`),
+			Inbounds: inbounds, Links: json.RawMessage(links)}
+		if err := db.Create(&client).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	visionLink := `{"type":"local","remark":"jp-vision","uri":"vless://` + uuid + `@198.51.100.20:443?security=reality&sni=www.example.com&pbk=ivyLFyr516LXqXk_VHJA7EXcogMbM-9Rg5PKmnkxZCM&sid=78063516&fp=chrome&flow=xtls-rprx-vision&type=tcp#jp-vision"}`
+	xhttpLink := `{"type":"local","remark":"jp-xhttp","uri":"vless://` + uuid + `@198.51.100.20:8443?security=reality&sni=www.example.com&pbk=ivyLFyr516LXqXk_VHJA7EXcogMbM-9Rg5PKmnkxZCM&sid=78063516&fp=chrome&type=xhttp&path=%2Fx&mode=auto#jp-xhttp"}`
+	addClient("mixed", []uint{vision, xhttp}, `[`+visionLink+`,`+xhttpLink+`]`)
+	addClient("xhttp-only", []uint{xhttp}, `[`+xhttpLink+`]`)
+
+	engine := gin.New()
+	NewSubHandler(engine.Group("/sub"))
+	get := func(name string) *httptest.ResponseRecorder {
+		request := httptest.NewRequest(http.MethodGet, "/sub/"+name, nil)
+		request.Header.Set("User-Agent", "SFW (sing-box 1.15.0-alpha.12; language zh_CN)")
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, request)
+		return recorder
+	}
+
+	// The REALITY + Vision node runs on Xray-core but sing-box can dial it;
+	// the XHTTP node is left out.
+	recorder := get("mixed")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("mixed: %d %q", recorder.Code, recorder.Body.String())
+	}
+	var config struct {
+		Outbounds []map[string]interface{} `json:"outbounds"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &config); err != nil {
+		t.Fatal(err)
+	}
+	var tags []string
+	for _, outbound := range config.Outbounds {
+		tags = append(tags, outbound["tag"].(string))
+		if outbound["tag"] == "auto" {
+			members, _ := outbound["outbounds"].([]interface{})
+			if len(members) != 1 || members[0] != "jp-vision" {
+				t.Fatalf("auto group = %v, want [jp-vision]", members)
+			}
+		}
+	}
+	if strings.Join(tags, ",") != "proxy,auto,direct,jp-vision" {
+		t.Fatalf("outbounds = %v", tags)
+	}
+
+	// No usable node: a readable message instead of a config sing-box
+	// rejects with "initialize outbound[1]: missing tags".
+	recorder = get("xhttp-only")
+	if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), "sing-box") || !strings.Contains(recorder.Body.String(), "XHTTP") {
+		t.Fatalf("xhttp-only: %d %q", recorder.Code, recorder.Body.String())
+	}
+}

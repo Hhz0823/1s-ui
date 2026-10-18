@@ -201,6 +201,13 @@ func TestImportRejectsXrayOnlyTransports(t *testing.T) {
 	if _, _, err := GetOutbound("vless://00000000-0000-4000-8000-000000000000@198.51.100.13:443?security=tls&type=xhttp#x", 0); err == nil {
 		t.Fatal("xhttp must be reported as unsupported instead of silently becoming TCP")
 	}
+	encryption := "vless://00000000-0000-4000-8000-000000000000@198.51.100.13:443?encryption=mlkem768x25519plus.native.0rtt.AAAA&security=none&flow=xtls-rprx-vision&type=tcp#e"
+	if _, _, err := GetOutbound(encryption, 0); err == nil {
+		t.Fatal("VLESS Encryption must be reported as unsupported instead of dialing without it")
+	}
+	if _, _, err := GetOutbound("vless://00000000-0000-4000-8000-000000000000@198.51.100.13:443?encryption=none&security=tls&type=tcp#n", 0); err != nil {
+		t.Fatalf("encryption=none is plain VLESS: %v", err)
+	}
 }
 
 func TestVLESSFlowOnlyOnRawTCP(t *testing.T) {

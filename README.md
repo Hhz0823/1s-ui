@@ -10,7 +10,7 @@
   [![Go](https://img.shields.io/badge/Go-1.26+-00ADD8)](backend/go.mod)
   [![Vue](https://img.shields.io/badge/Vue-3-42b883)](frontend/package.json)
 
-  **[下载 v1.7.2](https://github.com/Hhz0823/1s-ui/releases/tag/v1.7.2)** · **[安装](#安装)** · **[更新日志](CHANGELOG.md)** · **[安卓 App](#安卓-app)** · **[OpenWrt](docs/openwrt-lite.md)** · **[English](#english)**
+  **[下载 v1.7.3](https://github.com/Hhz0823/1s-ui/releases/tag/v1.7.3)** · **[安装](#安装)** · **[更新日志](CHANGELOG.md)** · **[安卓 App](#安卓-app)** · **[OpenWrt](docs/openwrt-lite.md)** · **[English](#english)**
 </div>
 
 > 1S-UI 基于 [alireza0/s-ui](https://github.com/alireza0/s-ui) 二次开发，仅用于学习、研究与技术交流。请遵守当地法律法规。
@@ -91,7 +91,7 @@ bash <(curl -Ls https://ghfast.top/https://raw.githubusercontent.com/Hhz0823/1s-
 
 - 主控和子服务器用同一条命令。飞牛 NAS 和 OpenWrt 用主控生成的带密钥命令，见[飞牛 NAS 和 OpenWrt](#飞牛-nas-和-openwrt)。
 - 默认 `--mirror auto`：GitHub 连不上或太慢时自动换加速线路；`--mirror github` 只用 GitHub，`--mirror https://你的加速地址/` 用自建镜像。安装包按 Release 附带的 SHA256SUMS 校验。
-- 在命令末尾加上版本号（例如 `v1.7.2`）可以安装指定版本。
+- 在命令末尾加上版本号（例如 `v1.7.3`）可以安装指定版本。
 - 安装内容：网页界面（由 nginx 提供）、Go 后端、sing-box 和 Agent。Agent 在绑定主控之前不运行；Xray-core 可以之后在面板里安装。
 
 ### 首次设置
@@ -160,14 +160,14 @@ s-ui uninstall  # 卸载
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh -o /tmp/1s-ui.sh \
-  && sudo bash /tmp/1s-ui.sh --panel 'https://主控面板地址/app/' --key '接入密钥' '1.7.2'
+  && sudo bash /tmp/1s-ui.sh --panel 'https://主控面板地址/app/' --key '接入密钥' '1.7.3'
 ```
 
 OpenWrt 用 root 登录 SSH 后粘贴：
 
 ```sh
 wget -O /tmp/1s-ui-openwrt.sh https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-openwrt.sh \
-  && sh /tmp/1s-ui-openwrt.sh --panel 'https://主控面板地址/app/' --key '接入密钥' --version '1.7.2'
+  && sh /tmp/1s-ui-openwrt.sh --panel 'https://主控面板地址/app/' --key '接入密钥' --version '1.7.3'
 ```
 
 - 面板给出的命令带上了主控的版本号，装好的设备和主控版本一致。中国大陆的设备使用 **中国大陆** 版命令，经加速镜像下载并按 SHA256SUMS 校验。
@@ -381,7 +381,7 @@ install-openwrt.sh  OpenWrt 安装
 
 ## 更新日志
 
-当前版本 **v1.7.2** 修复了 sing-box App 无法导入用户订阅链接的问题。v1.7.1 新增了代理客户端、飞牛 NAS / OpenWrt 用密钥接入、各协议的节点监测、中转测速，以及安卓 App 的客户端页和检查更新。历次更新见 [CHANGELOG.md](CHANGELOG.md) 和 [GitHub Releases](https://github.com/Hhz0823/1s-ui/releases)。
+当前版本 **v1.7.3** 让 sing-box 订阅包含 Xray-core 上 sing-box 能用的节点，没有可用节点时给出说明；v1.7.2 让 sing-box App 可以直接导入用户订阅链接。v1.7.1 新增了代理客户端、飞牛 NAS / OpenWrt 用密钥接入、各协议的节点监测、中转测速，以及安卓 App 的客户端页和检查更新。历次更新见 [CHANGELOG.md](CHANGELOG.md) 和 [GitHub Releases](https://github.com/Hhz0823/1s-ui/releases)。
 
 ---
 
@@ -403,7 +403,7 @@ On Ubuntu / Debian or another systemd Linux (amd64, arm64, armv7, armv6, armv5, 
 bash <(curl -Ls https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install.sh)
 ```
 
-Add `--mirror cn` (and fetch the script through `https://ghfast.top/`) on servers in mainland China; append a version such as `v1.7.2` to install that release. Open `http://server-ip:2095/app/`: a setup wizard creates the administrator (there is no default password) and picks the role: client (default), full controller or monitoring-only controller. A controller needs 2 vCPU / 2 GiB; below that it runs in lite mode (from 1 vCPU / 512 MB) with every fleet feature and sing-box as the only core.
+Add `--mirror cn` (and fetch the script through `https://ghfast.top/`) on servers in mainland China; append a version such as `v1.7.3` to install that release. Open `http://server-ip:2095/app/`: a setup wizard creates the administrator (there is no default password) and picks the role: client (default), full controller or monitoring-only controller. A controller needs 2 vCPU / 2 GiB; below that it runs in lite mode (from 1 vCPU / 512 MB) with every fleet feature and sing-box as the only core.
 
 To add a VPS, click **Server Monitor → Add child server** on the controller, which opens a five-minute single-use window, and enter the controller's panel address in the child's setup wizard (or under **Server Monitor → Connect to controller**). A fnOS NAS or an OpenWrt router installs with the command the controller shows under **Add child server → fnOS NAS / OpenWrt / panel address + key**. The controller can open a child's own panel with a 60-second single-use login grant.
 
