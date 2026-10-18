@@ -1,6 +1,6 @@
 module github.com/Hhz0823/1s-ui
 
-go 1.26.6
+go 1.26.9
 
 require (
 	github.com/coder/websocket v1.8.14
