@@ -319,6 +319,10 @@ func vless(u *url.URL, i int) (*map[string]interface{}, string, error) {
 	if u.User == nil || u.User.Username() == "" {
 		return nil, "", common.NewError("vless link has no UUID")
 	}
+	// Dropping the parameter would leave an outbound the server rejects.
+	if encryption := strings.ToLower(query.Get("encryption")); encryption != "" && encryption != "none" {
+		return nil, "", common.NewError("VLESS Encryption is not supported by sing-box outbounds")
+	}
 	tag := linkTag(u.Fragment, query, "vless", host, port, i)
 	vless := map[string]interface{}{
 		"type":        "vless",

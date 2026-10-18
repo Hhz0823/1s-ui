@@ -2,6 +2,7 @@ package sub
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -55,7 +56,7 @@ func (j *JsonService) GetJson(subId string, format string) (*string, []string, e
 		return nil, nil, err
 	}
 
-	outbounds, outTags, err := j.getOutbounds(client.Config, inDatas)
+	outbounds, outTags, err := j.getOutbounds(client.Config, inDatas, localLinks(client.Links))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -71,6 +72,12 @@ func (j *JsonService) GetJson(subId string, format string) (*string, []string, e
 			*outbounds = append(*outbounds, *json)
 			*outTags = append(*outTags, tag)
 		}
+	}
+
+	// sing-box rejects a config whose urltest group is empty ("missing
+	// tags"), so a client with no usable node gets a message instead.
+	if len(*outTags) == 0 {
+		return nil, nil, ErrNoSingBoxNodes
 	}
 
 	j.addDefaultOutbounds(outbounds, outTags)
@@ -114,7 +121,26 @@ func (j *JsonService) getData(subId string) (*model.Client, []*model.Inbound, er
 	return client, inbounds, nil
 }
 
-func (j *JsonService) getOutbounds(clientConfig json.RawMessage, inbounds []*model.Inbound) (*[]map[string]interface{}, *[]string, error) {
+// ErrNoSingBoxNodes means none of a client's nodes can run in sing-box.
+var ErrNoSingBoxNodes = errors.New("这个用户没有 sing-box 能用的节点：XHTTP 和 VLESS Encryption 节点只有 Xray-core 客户端（v2rayN、v2rayNG 等）支持，请改用这些客户端导入订阅链接。\n" +
+	"None of this client's nodes work in sing-box: XHTTP and VLESS Encryption nodes need an Xray-core client such as v2rayN or v2rayNG.")
+
+// localLinks maps an inbound tag to the client's share links for it.
+func localLinks(raw json.RawMessage) map[string][]string {
+	var links []Link
+	if json.Unmarshal(raw, &links) != nil {
+		return nil
+	}
+	result := map[string][]string{}
+	for _, link := range links {
+		if link.Type == "local" && link.Uri != "" {
+			result[link.Remark] = append(result[link.Remark], link.Uri)
+		}
+	}
+	return result
+}
+
+func (j *JsonService) getOutbounds(clientConfig json.RawMessage, inbounds []*model.Inbound, links map[string][]string) (*[]map[string]interface{}, *[]string, error) {
 	var outbounds []map[string]interface{}
 	var configs map[string]interface{}
 	var outTags []string
@@ -123,8 +149,12 @@ func (j *JsonService) getOutbounds(clientConfig json.RawMessage, inbounds []*mod
 	if err != nil {
 		return nil, nil, err
 	}
+	var xrayLinks []string
 	for _, inData := range inbounds {
 		if inData.RuntimeCore() == model.CoreTypeXray {
+			// An Xray inbound has no sing-box outbound of its own, but its
+			// share links often do; they are converted below.
+			xrayLinks = append(xrayLinks, links[inData.Tag]...)
 			continue
 		}
 		if len(inData.OutJson) < 5 {
@@ -225,7 +255,32 @@ func (j *JsonService) getOutbounds(clientConfig json.RawMessage, inbounds []*mod
 			}
 		}
 	}
+	// Xray nodes sing-box can dial (REALITY or TLS over TCP, WebSocket or
+	// gRPC); XHTTP and VLESS Encryption links fail to convert and are left out.
+	used := map[string]bool{}
+	for _, tag := range outTags {
+		used[tag] = true
+	}
+	for _, uri := range xrayLinks {
+		outbound, tag, err := util.GetOutbound(uri, 0)
+		if err != nil || tag == "" {
+			continue
+		}
+		tag = uniqueTag(tag, used)
+		(*outbound)["tag"] = tag
+		outTags = append(outTags, tag)
+		outbounds = append(outbounds, *outbound)
+	}
 	return &outbounds, &outTags, nil
+}
+
+func uniqueTag(tag string, used map[string]bool) string {
+	result := tag
+	for n := 2; used[result]; n++ {
+		result = fmt.Sprintf("%s-%d", tag, n)
+	}
+	used[result] = true
+	return result
 }
 
 func (j *JsonService) addDefaultOutbounds(outbounds *[]map[string]interface{}, outTags *[]string) {

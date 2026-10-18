@@ -38,7 +38,7 @@ shows. It looks like this:
 
 ```sh
 wget -O /tmp/1s-ui-openwrt.sh https://raw.githubusercontent.com/Hhz0823/1s-ui/main/install-openwrt.sh \
-  && sh /tmp/1s-ui-openwrt.sh --panel 'https://controller.example.com/app/' --key 'KEY' --version '1.7.2'
+  && sh /tmp/1s-ui-openwrt.sh --panel 'https://controller.example.com/app/' --key 'KEY' --version '1.7.3'
 ```
 
 In mainland China, use the controller's mainland China command, which

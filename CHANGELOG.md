@@ -2,6 +2,12 @@
 
 每个版本的完整说明和下载文件见 [GitHub Releases](https://github.com/Hhz0823/1s-ui/releases)。这里汇总 v1.6.0 以来各版本的更新重点。
 
+## v1.7.3
+
+- **sing-box 导入报 `initialize outbound[1]: missing tags`**：用户的节点都跑在 Xray-core 上时，sing-box 配置里一个节点都没有，只剩空的自动选择组。现在 Xray-core 上 sing-box 也能连接的节点（REALITY / TLS 走 TCP、WebSocket、gRPC，VMess、Trojan 等）会按用户的分享链接转换后加入；sing-box 不支持的 XHTTP 和 VLESS Encryption 节点不加入。一个可用节点都没有时，订阅返回一段说明，sing-box 会显示它，而不是给出无效配置。
+- VLESS Encryption 链接转换成 sing-box 出站时明确报不支持，不再被静默转成连不上的节点（影响出站导入、代理客户端订阅和节点监测）。
+- Clash 订阅同样包含 Xray-core 上能转换的节点。
+
 ## v1.7.2
 
 - **sing-box App 可以导入用户订阅链接**：把「用户管理 → 二维码」里的订阅链接粘贴到 sing-box 时，会报 `decode config: invalid character 'd' looking for beginning of value`，因为普通链接返回的是给 v2rayN 等客户端的 base64 节点列表。现在 sing-box 官方 App（安卓、苹果、Windows、Linux）请求普通订阅链接时，面板自动返回 sing-box 配置；v2rayN、Hiddify、NekoBox 等仍拿到节点列表，链接里写了 `?format=` 时以它为准。

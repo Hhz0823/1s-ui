@@ -2,6 +2,7 @@ package sub
 
 import (
 	"encoding/base64"
+	"errors"
 	"regexp"
 
 	"github.com/Hhz0823/1s-ui/logger"
@@ -44,6 +45,11 @@ func (s *SubHandler) subs(c *gin.Context) {
 			result, headers, err = s.JsonService.GetJson(subId, format)
 		case "clash":
 			result, headers, err = s.ClashService.GetClash(subId)
+		}
+		if errors.Is(err, ErrNoSingBoxNodes) {
+			// The sing-box apps show the response body in their error dialog.
+			c.String(400, err.Error())
+			return
 		}
 		if err != nil || result == nil {
 			logger.Error(err)
